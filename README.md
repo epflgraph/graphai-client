@@ -6,7 +6,7 @@ example usage:
 from graphai.client import process_video
 
 
-url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00gdquzv'
+url= 'http://api.cast.switch.ch/p/113/sp/11300/serveFlavor/entryId/0_00gdquzv/v/2/ev/3/flavorId/0_i0v49s5y/forceproxy/true/name/a.mp4'
 video_info = process_video(url, force=True)
 print(video_info)
 ```
