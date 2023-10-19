@@ -6,14 +6,14 @@ from graphai.utils import StatusMSG
 
 def get_video_token(
         url_video, playlist=False, graph_ai_server='http://127.0.0.1:28800', sections=('GRAPHAI', 'DOWNLOAD VIDEO'),
-        debug=False
+        debug=False, force=False
 ):
     # retrieval of the video on graph-ai
     response_retrieve = get_response(
         url=graph_ai_server + '/video/retrieve_url',
         request_func=post,
         headers={'Content-Type': 'application/json'},
-        json={"url": url_video, "playlist": playlist},
+        json={"url": url_video, "playlist": playlist, "force": force},
         sections=sections,
         debug=debug
     )
