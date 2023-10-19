@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "termcolor"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
@@ -15,6 +15,9 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Operating System :: OS Independent",
+]
+dependencies = [
+  'termcolor',
 ]
 
 [project.urls]
