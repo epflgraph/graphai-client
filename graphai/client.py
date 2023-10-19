@@ -1,6 +1,6 @@
 from requests import get, post
-from .utils import StatusMSG
 from time import sleep
+from graphai.utils import StatusMSG
 
 
 graph_ai_server = 'http://127.0.0.1:28800'  # port-forward to graphai-test
@@ -439,7 +439,7 @@ def transcribe_audio(audio_token, force=False, force_lang=None, sections=('GRAPH
                 )
             segments = [
                 {'start': segment['start'], 'end': segment['end'], task_result['language']: segment['text'].strip()}
-                for segment in task_result['subtitle_result']
+                for segment in task_result['subtitle_results']
             ]
             return task_result['language'], segments
         else:
@@ -577,7 +577,7 @@ def process_video(
         slides_language = None
         slides = None
     if analyze_audio:
-        audio_language, segments = analyze_audio(video_token, force=force, audio_language=audio_language)
+        audio_language, segments = process_audio(video_token, force=force, audio_language=audio_language)
     else:
         audio_language = None
         segments = None
@@ -599,24 +599,20 @@ if __name__ == '__main__':
     import json
 
     # --------------------
-    # new kaltura videos
+    # few kaltura videos
     # --------------------
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_003ipc0i/format/download/protocol/https/flavorParamIds/0'
-    url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_003zuhve/format/download/protocol/https/flavorParamIds/0'
+    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_003zuhve/format/download/protocol/https/flavorParamIds/0'
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_005blefe/format/download/protocol/https/flavorParamIds/0'
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_005gbz9k/format/download/protocol/https/flavorParamIds/0'
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_009hu1fy/format/download/protocol/https/flavorParamIds/0'
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_009io2ie/format/download/protocol/https/flavorParamIds/0' # audio_language='fr'
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00bqm9i3/format/download/protocol/https/flavorParamIds/0' # 20min processing / 30min video
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00fajklv/format/download/protocol/https/flavorParamIds/0' # 21min processing (3min slide extr/ 5+4min translate/ 8min transcribe)/41min video
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00gdquzv/format/download/protocol/https/flavorParamIds/0'
+    url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00gdquzv/format/download/protocol/https/flavorParamIds/0'
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00h8gj93/format/download/protocol/https/flavorParamIds/0'
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00ie24lu/format/download/protocol/https/flavorParamIds/0' # (10min slide extr/ 3min OCR/ 27min translate ocr/ 31min transcribe/ 18+min translate audio) 100 min video
 
-    # --------------------
-    # switchtube videos already processed
-    # --------------------
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_vawt8zma/format/download/protocol/https/flavorParamIds/0' # switchId=wSIJK0iYvt
     video_info = process_video(url, force=True)
     print(video_info)
 

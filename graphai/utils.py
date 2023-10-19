@@ -1,3 +1,5 @@
+from os import system
+from datetime import datetime
 from termcolor import cprint
 
 
@@ -45,14 +47,14 @@ def StatusMSG(Message, Color=None, Sections=(), PrintFlag=True, UseTerminal=Fals
 	"""
 	if not PrintFlag:
 		return
-	GlobalString = '[%s] ' % f"{datetime.datetime.now():%Y-%m-%d %H:%M}"
+	GlobalString = '[%s] ' % f"{datetime.now():%Y-%m-%d %H:%M}"
 	for section in Sections:
 		GlobalString += '[%s] ' % section
 	GlobalString += Message
 	if UseTerminal:
 		GlobalString = GlobalString.replace('"', '\\"')
 		ColorCode = '\033[%sm' % TerminalColors[Color]
-		os.system('COLOR=\'%s\'; NC=\'\033[0m\'; printf "${COLOR}%s${NC}\n"' % (ColorCode, GlobalString))
+		system('COLOR=\'%s\'; NC=\'\033[0m\'; printf "${COLOR}%s${NC}\n"' % (ColorCode, GlobalString))
 	else:
 		cprint(GlobalString, Color)
 
