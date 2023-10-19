@@ -65,7 +65,7 @@ def process_slides(video_token, force=False, slides_language=None, destination_l
         f'extracting slides',
         Color='grey', Sections=['GRAPHAI', 'EXTRACT SLIDES', 'PROCESSING']
     )
-    slide_tokens = extract_slides(video_token, force=force)
+    slide_tokens = extract_slides(video_token, force=force, debug=debug)
     if slide_tokens is None:
         slides = None
     else:
@@ -102,7 +102,7 @@ def process_audio(video_token, force=False, audio_language=None, destination_lan
         f'extracting audio',
         Color='grey', Sections=['GRAPHAI', 'EXTRACT AUDIO', 'PROCESSING']
     )
-    audio_token = extract_audio(video_token, force=force)
+    audio_token = extract_audio(video_token, force=force, debug=debug)
     if audio_token is None:
         segments = None
     else:
