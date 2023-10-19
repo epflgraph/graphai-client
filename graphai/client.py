@@ -27,7 +27,7 @@ def process_video(
         f'processing the video {video_url}',
         Color='grey', Sections=['GRAPHAI', 'DOWNLOAD VIDEO', 'PROCESSING']
     )
-    video_token = get_video_token(video_url, debug=debug)
+    video_token = get_video_token(video_url, debug=debug, force=force)
     if video_token is None:
         return None
     if analyze_slides:
