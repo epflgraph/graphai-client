@@ -1,4 +1,4 @@
-from graphai.api.utils import get_response
+from graphai.client_api.utils import get_response
 from time import sleep
 from requests import get, post
 from graphai.utils import StatusMSG

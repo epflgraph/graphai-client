@@ -1,8 +1,8 @@
 from graphai.utils import StatusMSG
-from graphai.api.image import extract_text_from_slide
-from graphai.api.translation import translate_text
-from graphai.api.video import extract_slides, extract_audio, get_video_token
-from graphai.api.voice import transcribe_audio
+from graphai.client_api.image import extract_text_from_slide
+from graphai.client_api.translation import translate_text
+from graphai.client_api.video import extract_slides, extract_audio, get_video_token
+from graphai.client_api.voice import transcribe_audio
 
 
 def process_video(
