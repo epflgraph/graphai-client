@@ -25,6 +25,7 @@ TerminalColors = {
 	'white'			: '1;37'
 }
 
+
 def StatusMSG(Message, Color=None, Sections=(), PrintFlag=True, UseTerminal=False):
 	"""
 	Print a nice status message.
@@ -47,7 +48,7 @@ def StatusMSG(Message, Color=None, Sections=(), PrintFlag=True, UseTerminal=Fals
 	"""
 	if not PrintFlag:
 		return
-	GlobalString = '[%s] ' % f"{datetime.now():%Y-%m-%d %H:%M:%s}"
+	GlobalString = '[%s] ' % f"{datetime.now():%Y-%m-%d %H:%M:%S}"
 	for section in Sections:
 		GlobalString += '[%s] ' % section
 	GlobalString += Message
