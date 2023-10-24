@@ -2,16 +2,15 @@ from graphai.client_api.utils import get_response
 from time import sleep
 from requests import get, post
 from graphai.utils import StatusMSG
+from typing import Union
 
 
 def translate_text(
-        text: str, source_language, target_language, graph_ai_server='http://127.0.0.1:28800',
+        text: Union[str, list], source_language, target_language, graph_ai_server='http://127.0.0.1:28800',
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False
 ):
-    if text is None or text == "" or source_language == target_language:
+    if text is None or len(text) == 0 or source_language == target_language:
         return text
-    # if len(text.strip()) < 3:
-    #     return text
     response_translate = get_response(
         url=graph_ai_server + '/translation/translate',
         request_func=post,

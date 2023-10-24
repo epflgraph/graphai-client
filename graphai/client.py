@@ -7,7 +7,7 @@ from graphai.client_api.voice import transcribe_audio
 
 def process_video(
         video_url, force=False, audio_language=None, slides_language=None, analyze_audio=True, analyze_slides=True,
-        destination_languages=('fr', 'en'), debug=False
+        destination_languages=('fr', 'en'), graph_ai_server='http://127.0.0.1:28800', debug=False
 ):
     """
     Process the video whose URL is given as argument.
@@ -20,6 +20,7 @@ def process_video(
     :param analyze_audio: should the audio be extracted, transcription done and then translation if needed.
     :param analyze_slides: should slides be extracted, then OCR performed and then translation if needed.
     :param destination_languages: tuple of target languages. Perform translations if needed.
+    :param graph_ai_server: address of the graphAI server (including protocol and port, f.e. "http://127.0.0.1:28800").
     :param debug: if True debug output is enabled.
     :return: a dictionary containing the results ot the processing.
     """
@@ -27,13 +28,13 @@ def process_video(
         f'processing the video {video_url}',
         Color='grey', Sections=['GRAPHAI', 'DOWNLOAD VIDEO', 'PROCESSING']
     )
-    video_token = get_video_token(video_url, debug=debug, force=force)
+    video_token = get_video_token(video_url, graph_ai_server=graph_ai_server, debug=debug, force=force)
     if video_token is None:
         return None
     if analyze_slides:
         slides_language, slides = process_slides(
             video_token, force=force, slides_language=slides_language, destination_languages=destination_languages,
-            debug=debug
+            graph_ai_server=graph_ai_server, debug=debug
         )
     else:
         slides_language = None
@@ -41,7 +42,7 @@ def process_video(
     if analyze_audio:
         audio_language, segments = process_audio(
             video_token, force=force, audio_language=audio_language, destination_languages=destination_languages,
-            debug=debug
+            graph_ai_server=graph_ai_server, debug=debug
         )
     else:
         audio_language = None
@@ -60,12 +61,27 @@ def process_video(
     )
 
 
-def process_slides(video_token, force=False, slides_language=None, destination_languages=('fr', 'en'), debug=False):
+def process_slides(
+        video_token, force=False, slides_language=None, destination_languages=('fr', 'en'),
+        graph_ai_server='http://127.0.0.1:28800', debug=False
+):
+    """
+    Extract slides from a video, perform OCR and translate the text.
+    :param video_token: token associated with a video, typically the result of a call to get_video_token()
+    :param force: if True, the cache is ignored and all operations are performed.
+    :param slides_language: if not None, language detection is skipped and the OCR is performed in the specified
+        language.
+    :param destination_languages: tuple of target languages. Perform translations if needed.
+    :param graph_ai_server: address of the graphAI server (including protocol and port, f.e. "http://127.0.0.1:28800").
+    :param debug: if True debug output is enabled.
+    :return: a 2-tuple containing first the language detected by the OCR (or forced by slides_language) and
+        second a dictionary containing the result of the processing.
+    """
     StatusMSG(
         f'extracting slides',
         Color='grey', Sections=['GRAPHAI', 'EXTRACT SLIDES', 'PROCESSING']
     )
-    slide_tokens = extract_slides(video_token, force=force, debug=debug)
+    slide_tokens = extract_slides(video_token, force=force, graph_ai_server=graph_ai_server, debug=debug)
     if slide_tokens is None:
         slides = None
     else:
@@ -73,7 +89,9 @@ def process_slides(video_token, force=False, slides_language=None, destination_l
             f'extracting text from {len(slide_tokens)} slides',
             Color='grey', Sections=['GRAPHAI', 'EXTRACT TEXT FROM SLIDES', 'PROCESSING']
         )
-        slides_text = extract_text(slide_tokens, force=force, slides_language=slides_language, debug=debug)
+        slides_text = extract_text_from_slides(
+            slide_tokens, force=force, slides_language=slides_language, graph_ai_server=graph_ai_server, debug=debug
+        )
         if slides_language is None and len(slides_text) > 0:
             slides_language = [k for k in slides_text[0].keys() if k != 'timestamp'][0]
         StatusMSG(
@@ -82,7 +100,7 @@ def process_slides(video_token, force=False, slides_language=None, destination_l
         )
         slides_text = translate_extracted_text(
             slides_text, force=force, source_language=slides_language, destination_languages=destination_languages,
-            debug=debug
+            graph_ai_server=graph_ai_server, debug=debug
         )
         slides = []
         for slide_idx_str in sorted(slide_tokens.keys(), key=int):
@@ -97,12 +115,27 @@ def process_slides(video_token, force=False, slides_language=None, destination_l
     return slides_language, slides
 
 
-def process_audio(video_token, force=False, audio_language=None, destination_languages=('fr', 'en'), debug=False):
+def process_audio(
+        video_token, force=False, audio_language=None, destination_languages=('fr', 'en'),
+        graph_ai_server='http://127.0.0.1:28800', debug=False
+):
+    """
+    Extract audio from a video, perform transcription and translate the text.
+    :param video_token: token associated with a video, typically the result of a call to get_video_token()
+    :param force: if True, the cache is ignored and all operations are performed.
+    :param audio_language: if not None, language detection is skipped and the transcription is performed in the
+        specified language.
+    :param destination_languages: tuple of target languages. Perform translations if needed.
+    :param graph_ai_server: address of the graphAI server (including protocol and port, f.e. "http://127.0.0.1:28800").
+    :param debug: if True debug output is enabled.
+    :return: a 2-tuple containing first the language detected by the transcription (or forced by audio_language) and
+        second a dictionary containing the result of the processing.
+    """
     StatusMSG(
         f'extracting audio',
         Color='grey', Sections=['GRAPHAI', 'EXTRACT AUDIO', 'PROCESSING']
     )
-    audio_token = extract_audio(video_token, force=force, debug=debug)
+    audio_token = extract_audio(video_token, force=force, graph_ai_server=graph_ai_server, debug=debug)
     if audio_token is None:
         segments = None
     else:
@@ -110,7 +143,9 @@ def process_audio(video_token, force=False, audio_language=None, destination_lan
             f'transcribe audio',
             Color='grey', Sections=['GRAPHAI', 'TRANSCRIBE', 'PROCESSING']
         )
-        audio_language, segments = transcribe_audio(audio_token, force=force, force_lang=audio_language, debug=debug)
+        audio_language, segments = transcribe_audio(
+            audio_token, force=force, force_lang=audio_language, graph_ai_server=graph_ai_server, debug=debug
+        )
         StatusMSG(
             f'translate transcription for {len(segments)} segments',
             Color='grey', Sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
@@ -118,12 +153,12 @@ def process_audio(video_token, force=False, audio_language=None, destination_lan
         if segments is not None:
             segments = translate_subtitles(
                 segments, force=force, source_language=audio_language, destination_languages=destination_languages,
-                debug=debug
+                graph_ai_server=graph_ai_server, debug=debug
             )
     return audio_language, segments
 
 
-def extract_text(
+def extract_text_from_slides(
         slide_tokens, force=False, slides_language=None, graph_ai_server='http://127.0.0.1:28800', debug=False
 ):
     n_slide = len(slide_tokens)
@@ -171,30 +206,44 @@ def translate_extracted_text(
         graph_ai_server='http://127.0.0.1:28800', debug=False
 ):
     n_slide = len(slides_text)
-    for idx, slide_text in enumerate(slides_text):
-        sections = ('GRAPHAI', 'TRANSLATE', f'SLIDE {idx+1}/{n_slide}')
-        if source_language is None:
-            source_language = None
+    sections = ('GRAPHAI', 'TRANSLATE', f'{n_slide} SLIDES')
+    if source_language is None:
+        for idx, slide_text in enumerate(slides_text):
+            language_slides = {}
             for k in slide_text.keys():
                 if k != 'timestamp':
-                    source_language = k
-                    break
-            if source_language is None:
-                raise ValueError(f'could not determine the language of the slide {idx+1}: {slide_text}')
-        for lang in destination_languages:
-            if source_language != lang:
-                translated_text = translate_text(
-                    slide_text[source_language], source_language, lang, graph_ai_server=graph_ai_server,
-                    sections=sections, force=force, debug=debug
+                    language_slides[k] = language_slides.get(k, 0) + 1
+            try:
+                # get the language detected for the most slides
+                source_language = max(language_slides, key=lambda x: language_slides[x])
+            except TypeError:
+                raise ValueError(
+                    f'could not determine the language used in most of the slides. The count is: {language_slides}'
                 )
-                if translated_text is None:
-                    StatusMSG(
-                        f'failed to translate "{slide_text[source_language]}"',
-                        Color='yellow', Sections=list(sections) + ['WARNING']
-                    )
-                    slide_text[lang] = slide_text[source_language]
-                else:
-                    slide_text[lang] = translated_text
+    text_to_translate = [slide_text[source_language] for slide_text in slides_text]
+    for lang in destination_languages:
+        if source_language != lang:
+            translated_text = translate_text(
+                text_to_translate, source_language, lang, graph_ai_server=graph_ai_server,
+                sections=sections, force=force, debug=debug
+            )
+            if translated_text is None:
+                StatusMSG(
+                    f'failed to translate "{text_to_translate}"',
+                    Color='yellow', Sections=list(sections) + ['WARNING']
+                )
+            # take care of a quirk of the API: when translating a list of length 1, the result is a string
+            elif len(text_to_translate) != 1 and len(translated_text) != len(text_to_translate):
+                StatusMSG(
+                    f'Error during the translation of "{text_to_translate}", '
+                    f'the translation has a different length: {translated_text}',
+                    Color='yellow', Sections=list(sections) + ['WARNING']
+                )
+            elif len(text_to_translate) == 1 and isinstance(translated_text, str):
+                slides_text[0][lang] = translated_text
+            else:
+                for idx, slide_translated_text in enumerate(translated_text):
+                    slides_text[idx][lang] = slide_translated_text
     return slides_text
 
 
@@ -202,57 +251,46 @@ def translate_subtitles(
         segments, source_language=None, destination_languages=('fr', 'en'), force=False,
         graph_ai_server='http://127.0.0.1:28800', debug=False
 ):
+    n_segment = len(segments)
+    sections = ('GRAPHAI', 'TRANSLATE', f'{n_segment} SUBTITLES')
     if source_language is None:
-        for k in segments.keys():
-            if k in ['start', 'end']:
-                continue
-            source_language = k
-            break
-        if source_language is None:
-            raise ValueError(f'could not determine the language of the transcription: {segments}')
-    for lang in destination_languages:
-        if source_language != lang:
-            n_segment = len(segments)
-            for idx, segment in enumerate(segments):
-                sections = ('GRAPHAI', 'TRANSLATE', f'SUBTITLE {idx+1}/{n_segment}')
-                translated_text = translate_text(
-                    segment[source_language], source_language, lang, graph_ai_server=graph_ai_server,
-                    sections=sections, force=force, debug=debug
-                )
-                if translated_text is None:
-                    StatusMSG(
-                        f'failed to translate "{segment[source_language]}"',
-                        Color='yellow', Sections=list(sections)
-                    )
-                    segments[idx][lang] = segment[source_language]
-                else:
-                    segments[idx][lang] = translated_text.strip()
-    return segments
-
-
-def translate_transcription(
-        transcription, source_language=None, destination_languages=('fr', 'en'), force=False,
-        sections=('GRAPHAI', 'TRANSLATE', 'TRANSCRIPTION'), debug=False
-):
-    if source_language is None:
-        for k in transcription.keys():
-            source_language = k
-            break
-        if source_language is None:
-            raise ValueError(f'could not determine the language of the transcription: {transcription}')
+        language_segments = {}
+        for segment in segments:
+            for k in segment.keys():
+                if k in ['start', 'end']:
+                    continue
+                language_segments[k] = language_segments.get(k, 0) + 1
+        try:
+            # get the language detected for the most slides
+            source_language = max(language_segments, key=lambda x: language_segments[x])
+        except TypeError:
+            raise ValueError(
+                f'could not determine the language used in most of the segments. The count is: {language_segments}'
+            )
+    text_to_translate = [seg[source_language] for seg in segments]
     for lang in destination_languages:
         if source_language != lang:
             translated_text = translate_text(
-                transcription[source_language], source_language, lang,
+                text_to_translate, source_language, lang, graph_ai_server=graph_ai_server,
                 sections=sections, force=force, debug=debug
             )
             if translated_text is None:
                 StatusMSG(
-                    f'failed to translate "{transcription[source_language]}"',
+                    f'failed to translate "{text_to_translate}"',
                     Color='yellow', Sections=list(sections) + ['WARNING']
                 )
-            transcription[lang] = translated_text
-    return transcription
+            elif len(text_to_translate) != 1 and len(translated_text) != len(text_to_translate):
+                StatusMSG(
+                    f'Error during the translation of "{text_to_translate}", '
+                    f'the translation has a different length: {translated_text}',
+                    Color='yellow', Sections=list(sections) + ['WARNING']
+                )
+            elif len(text_to_translate) == 1 and isinstance(translated_text, str):
+                segments[0][lang] = translated_text
+            else:
+                for idx, translated_segment in enumerate(translated_text):
+                    segments[idx][lang] = translated_segment.strip()
+    return segments
 
 
 if __name__ == '__main__':
