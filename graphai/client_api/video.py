@@ -1,4 +1,4 @@
-from graphai.client_api.utils import get_response
+from graphai.client_api.utils import get_response, task_result_is_ok
 from time import sleep
 from requests import get, post
 from graphai.utils import StatusMSG
@@ -39,21 +39,9 @@ def get_video_token(
             sleep(1)
         elif retrieve_status == 'SUCCESS':
             task_result = response_retrieve_status_json['task_result']
-            if not task_result['fresh']:
-                StatusMSG(
-                    f'{url_video} has already been retrieved in the past',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
-                )
-            if not task_result['successful']:
-                StatusMSG(
-                    f'retrieving of {url_video} failed',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
-                )
-            else:
-                StatusMSG(
-                    f'{url_video} has been retrieved',
-                    Color='green', Sections=list(sections) + ['SUCCESS']
-                )
+            if not task_result_is_ok(task_result, token=url_video, input_type='file', sections=sections):
+                sleep(1)
+                continue
             return task_result['token']
         else:
             raise ValueError(
@@ -95,21 +83,9 @@ def fingerprint_video(
             sleep(1)
         elif fingerprint_status == 'SUCCESS':
             task_result = response_fingerprint_status_json['task_result']
-            if not task_result['fresh']:
-                StatusMSG(
-                    f'{video_token} has already been fingerprinted in the past',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
-                )
-            if not task_result['successful']:
-                StatusMSG(
-                    f'fingerprinting of {video_token} failed',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
-                )
-            else:
-                StatusMSG(
-                    f'{video_token} has been fingerprinted',
-                    Color='green', Sections=list(sections) + ['SUCCESS']
-                )
+            if not task_result_is_ok(task_result, token=video_token, input_type='fingerprint', sections=sections):
+                sleep(1)
+                continue
             return task_result['result']
         else:
             raise ValueError(
@@ -152,21 +128,9 @@ def extract_audio(
             sleep(1)
         elif extraction_status == 'SUCCESS':
             task_result = response_extraction_status_json['task_result']
-            if not task_result['fresh']:
-                StatusMSG(
-                    f'audio from {video_token} has already been extracted in the past',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
-                )
-            if not task_result['successful']:
-                StatusMSG(
-                    f'extraction of the audio from {video_token} failed',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
-                )
-            else:
-                StatusMSG(
-                    f'audio has been extracted from {video_token}',
-                    Color='green', Sections=list(sections) + ['SUCCESS']
-                )
+            if not task_result_is_ok(task_result, token=video_token, input_type='audio', sections=sections):
+                sleep(1)
+                continue
             return task_result['token']
         else:
             raise ValueError(

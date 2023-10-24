@@ -1,4 +1,4 @@
-from graphai.client_api.utils import get_response
+from graphai.client_api.utils import get_response, task_result_is_ok
 from time import sleep
 from requests import get, post
 from graphai.utils import StatusMSG
@@ -38,21 +38,9 @@ def extract_text_from_slide(
             sleep(1)
         elif text_status == 'SUCCESS':
             task_result = response_text_status_json['task_result']
-            if not task_result['fresh']:
-                StatusMSG(
-                    f'text from {slide_token} has already been extracted in the past',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
-                )
-            if not task_result['successful']:
-                StatusMSG(
-                    f'extraction of the text from {slide_token} failed',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
-                )
-            else:
-                StatusMSG(
-                    f'text has been extracted from {slide_token}',
-                    Color='green', Sections=list(sections) + ['SUCCESS']
-                )
+            if not task_result_is_ok(task_result, token=slide_token, input_type='text', sections=sections):
+                sleep(1)
+                continue
             for result in task_result['result']:
                 # we use document text detection which should perform better with coherent documents
                 if result['method'] == 'ocr_google_1_token' or result['method'] == 'ocr_google_1_results':

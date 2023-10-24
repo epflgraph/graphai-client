@@ -1,5 +1,6 @@
 from time import sleep
 from requests import get
+from typing import Union
 from graphai.utils import StatusMSG
 
 
@@ -30,3 +31,28 @@ def get_response(url, request_func=get, headers=None, json=None, n_trials=5, sec
                     StatusMSG(response_json['detail'], Color='yellow', Sections=list(sections) + ['WARNING'])
             sleep(1)
     return None
+
+
+def task_result_is_ok(task_result: Union[dict, None], token: str, input_type='text', sections=('GRAPHAI', 'OCR')):
+    if task_result is None:
+        StatusMSG(
+            f'Bad task result while extracting {input_type} from {token}',
+            Color='yellow', Sections=list(sections) + ['WARNING']
+        )
+        return False
+    if not task_result['fresh']:
+        StatusMSG(
+            f'{input_type} from {token} has already been extracted in the past',
+            Color='yellow', Sections=list(sections) + ['WARNING']
+        )
+    if not task_result['successful']:
+        StatusMSG(
+            f'extraction of the {input_type} from {token} failed',
+            Color='yellow', Sections=list(sections) + ['WARNING']
+        )
+    else:
+        StatusMSG(
+            f'{input_type} has been extracted from {token}',
+            Color='green', Sections=list(sections) + ['SUCCESS']
+        )
+    return True
