@@ -11,11 +11,21 @@ def translate_text(
 ):
     if text is None or len(text) == 0 or source_language == target_language:
         return text
+    if isinstance(text, list):
+        text_to_translate = []
+        translated_line_to_original_mapping = {}
+        for line_idx, line in enumerate(text):
+            if isinstance(line, str):
+                text_to_translate.append(line)
+                translated_line_to_original_mapping[len(text_to_translate)] = line_idx
+    else:
+        text_to_translate = text
+        translated_line_to_original_mapping = None
     response_translate = get_response(
         url=graph_ai_server + '/translation/translate',
         request_func=post,
         headers={'Content-Type': 'application/json'},
-        json={"text": text, "source": source_language, "target": target_language, "force": force},
+        json={"text": text_to_translate, "source": source_language, "target": target_language, "force": force},
         sections=sections,
         debug=debug
     )
@@ -61,7 +71,14 @@ def translate_text(
                     f'text was too large to be translated',
                     Color='yellow', Sections=list(sections) + ['WARNING']
                 )
-            return task_result['result']
+            if isinstance(text, list):
+                translated_text_full = [None] * len(text)
+                for tr_line_idx, translated_line in enumerate(task_result['result']):
+                    original_line_idx = translated_line_to_original_mapping[tr_line_idx]
+                    translated_text_full[original_line_idx] = translated_line
+                return translated_text_full
+            else:
+                return task_result['result']
         elif translate_status == 'FAILURE':
             return None
         else:
