@@ -33,7 +33,7 @@ def process_videos_on_rcp(
     kaltura_to_switch_id = {i[0]: i[1] for i in list(piper_cursor)}
     for kaltura_video_id in kaltura_ids:
         status_msg(
-            f' Processing kaltura video {kaltura_video_id}', color='grey', sections=['KALTURA', 'VIDEO', 'PROCESSING']
+            f'Processing kaltura video {kaltura_video_id}', color='grey', sections=['KALTURA', 'VIDEO', 'PROCESSING']
         )
         piper_cursor.execute(f'''
             SELECT 
@@ -50,7 +50,7 @@ def process_videos_on_rcp(
                 k.entitledUsersEdit AS kalturaEntitledEditors,
                 k.msDuration
             FROM ca_kaltura.Videos AS k
-            WHERE k.kalturaVideoID={kaltura_video_id};
+            WHERE k.kalturaVideoID="{kaltura_video_id}";
         ''')
         (
             kaltura_url_api, thumbnail_url, kaltura_creation_time, kaltura_update_time, title,
@@ -88,6 +88,10 @@ def process_videos_on_rcp(
                     'timestamp': int(timestamp)
                 })
             # translate slide text
+            status_msg(
+                f'translate text from {len(slides_text)} slides in en',
+                color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
+            )
             slides_detected_language = None
             slides_text = translate_extracted_text(
                 slides_text, source_language='en',
