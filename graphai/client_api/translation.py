@@ -1,7 +1,7 @@
 from graphai.client_api.utils import get_response
 from time import sleep
 from requests import get, post
-from graphai.utils import StatusMSG
+from graphai.utils import status_msg
 from typing import Union
 
 
@@ -9,15 +9,15 @@ def translate_text(
         text: Union[str, list], source_language, target_language, graph_ai_server='http://127.0.0.1:28800',
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False
 ):
-    if text is None or len(text) == 0 or source_language == target_language:
+    if text is None or len(text) == 0 or (len(text) == 1 and len(text[0]) == 1) or source_language == target_language:
         return text
     if isinstance(text, list):
         text_to_translate = []
         translated_line_to_original_mapping = {}
         for line_idx, line in enumerate(text):
             if isinstance(line, str):
-                text_to_translate.append(line)
                 translated_line_to_original_mapping[len(text_to_translate)] = line_idx
+                text_to_translate.append(line)
     else:
         text_to_translate = text
         translated_line_to_original_mapping = None
@@ -52,26 +52,26 @@ def translate_text(
         elif translate_status == 'SUCCESS':
             task_result = response_translate_status_json['task_result']
             if not task_result['fresh']:
-                StatusMSG(
+                status_msg(
                     f'text has already been translated in the past',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
+                    color='yellow', sections=list(sections) + ['WARNING']
                 )
             if not task_result['successful']:
-                StatusMSG(
+                status_msg(
                     f'translation of the text failed',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
+                    color='yellow', sections=list(sections) + ['WARNING']
                 )
             else:
-                StatusMSG(
+                status_msg(
                     f'text has been translated',
-                    Color='green', Sections=list(sections) + ['SUCCESS']
+                    color='green', sections=list(sections) + ['SUCCESS']
                 )
             if task_result['text_too_large']:
-                StatusMSG(
+                status_msg(
                     f'text was too large to be translated',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
+                    color='yellow', sections=list(sections) + ['WARNING']
                 )
-            if isinstance(text, list):
+            if isinstance(text, list) and isinstance(task_result['result'], list):
                 translated_text_full = [None] * len(text)
                 for tr_line_idx, translated_line in enumerate(task_result['result']):
                     original_line_idx = translated_line_to_original_mapping[tr_line_idx]

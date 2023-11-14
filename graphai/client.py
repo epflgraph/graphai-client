@@ -1,4 +1,4 @@
-from graphai.utils import StatusMSG
+from graphai.utils import status_msg
 from graphai.client_api.image import extract_text_from_slide
 from graphai.client_api.translation import translate_text
 from graphai.client_api.video import extract_slides, extract_audio, get_video_token
@@ -24,9 +24,9 @@ def process_video(
     :param debug: if True debug output is enabled.
     :return: a dictionary containing the results ot the processing.
     """
-    StatusMSG(
+    status_msg(
         f'processing the video {video_url}',
-        Color='grey', Sections=['GRAPHAI', 'DOWNLOAD VIDEO', 'PROCESSING']
+        color='grey', sections=['GRAPHAI', 'DOWNLOAD VIDEO', 'PROCESSING']
     )
     video_token = get_video_token(video_url, graph_ai_server=graph_ai_server, debug=debug, force=force)
     if video_token is None:
@@ -47,9 +47,9 @@ def process_video(
     else:
         audio_language = None
         segments = None
-    StatusMSG(
+    status_msg(
         f'The video {video_url} has been successfully processed',
-        Color='green', Sections=['GRAPHAI', 'VIDEO', 'SUCCESS']
+        color='green', sections=['GRAPHAI', 'VIDEO', 'SUCCESS']
     )
     return dict(
         url=video_url,
@@ -77,26 +77,43 @@ def process_slides(
     :return: a 2-tuple containing first the language detected by the OCR (or forced by slides_language) and
         second a dictionary containing the result of the processing.
     """
-    StatusMSG(
+    status_msg(
         f'extracting slides',
-        Color='grey', Sections=['GRAPHAI', 'EXTRACT SLIDES', 'PROCESSING']
+        color='grey', sections=['GRAPHAI', 'EXTRACT SLIDES', 'PROCESSING']
     )
     slide_tokens = extract_slides(video_token, force=force, graph_ai_server=graph_ai_server, debug=debug)
     if slide_tokens is None:
         slides = None
     else:
-        StatusMSG(
+        status_msg(
             f'extracting text from {len(slide_tokens)} slides',
-            Color='grey', Sections=['GRAPHAI', 'EXTRACT TEXT FROM SLIDES', 'PROCESSING']
+            color='grey', sections=['GRAPHAI', 'EXTRACT TEXT FROM SLIDES', 'PROCESSING']
         )
         slides_text = extract_text_from_slides(
             slide_tokens, force=force, slides_language=slides_language, graph_ai_server=graph_ai_server, debug=debug
         )
         if slides_language is None and len(slides_text) > 0:
+            # single language statistically determined in extract_text_from_slides(), so we can just get the 1st result
             slides_language = [k for k in slides_text[0].keys() if k != 'timestamp'][0]
-        StatusMSG(
-            f'translate text from {len(slides_text)} slides',
-            Color='grey', Sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
+        if slides_language not in ['en', 'fr', 'de', 'it']:
+            status_msg(
+                f'OCR was detected as {slides_language} which is not supported, OCR discarded',
+                color='yellow', sections=['GRAPHAI', 'EXTRACT TEXT FROM SLIDES', 'WARNING']
+            )
+            slides_language = None
+        if slides_language is None:
+            # we try to force english if OCR failed
+            status_msg(
+                f'try to force English while doing OCR',
+                color='yellow', sections=['GRAPHAI', 'EXTRACT TEXT FROM SLIDES', 'WARNING']
+            )
+            slides_text = extract_text_from_slides(
+                slide_tokens, force=force, slides_language='en', graph_ai_server=graph_ai_server, debug=debug
+            )
+            slides_language = 'en'
+        status_msg(
+            f'translate text from {len(slides_text)} slides in {slides_language}',
+            color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
         )
         slides_text = translate_extracted_text(
             slides_text, force=force, source_language=slides_language, destination_languages=destination_languages,
@@ -131,26 +148,50 @@ def process_audio(
     :return: a 2-tuple containing first the language detected by the transcription (or forced by audio_language) and
         second a dictionary containing the result of the processing.
     """
-    StatusMSG(
+    status_msg(
         f'extracting audio',
-        Color='grey', Sections=['GRAPHAI', 'EXTRACT AUDIO', 'PROCESSING']
+        color='grey', sections=['GRAPHAI', 'EXTRACT AUDIO', 'PROCESSING']
     )
     audio_token = extract_audio(video_token, force=force, graph_ai_server=graph_ai_server, debug=debug)
     if audio_token is None:
         segments = None
     else:
-        StatusMSG(
+        status_msg(
             f'transcribe audio',
-            Color='grey', Sections=['GRAPHAI', 'TRANSCRIBE', 'PROCESSING']
+            color='grey', sections=['GRAPHAI', 'TRANSCRIBE', 'PROCESSING']
         )
         audio_language, segments = transcribe_audio(
             audio_token, force=force, force_lang=audio_language, graph_ai_server=graph_ai_server, debug=debug
         )
-        StatusMSG(
-            f'translate transcription for {len(segments)} segments',
-            Color='grey', Sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
-        )
+        if audio_language not in ['en', 'fr', 'de', 'it']:
+            status_msg(
+                f'Audio language was detected as {audio_language} which is not supported, transcription discarded.',
+                color='yellow', sections=['GRAPHAI', 'TRANSCRIBE', 'WARNING']
+            )
+            audio_language = None
+        if audio_language is None:
+            # we try to force english if transcription failed
+            status_msg(
+                f'try to force English while transcribing audio',
+                color='yellow', sections=['GRAPHAI', 'TRANSCRIBE', 'WARNING']
+            )
+            audio_language, segments = transcribe_audio(
+                audio_token, force=force, force_lang='en', graph_ai_server=graph_ai_server, debug=debug
+            )
+        if audio_language is None:
+            # we try to force french if transcription failed
+            status_msg(
+                f'try to force French while transcribing audio',
+                color='yellow', sections=['GRAPHAI', 'TRANSCRIBE', 'WARNING']
+            )
+            audio_language, segments = transcribe_audio(
+                audio_token, force=force, force_lang='fr', graph_ai_server=graph_ai_server, debug=debug
+            )
         if segments is not None:
+            status_msg(
+                f'translate transcription for {len(segments)} segments in {audio_language}',
+                color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
+            )
             segments = translate_subtitles(
                 segments, force=force, source_language=audio_language, destination_languages=destination_languages,
                 graph_ai_server=graph_ai_server, debug=debug
@@ -228,16 +269,16 @@ def translate_extracted_text(
                 sections=sections, force=force, debug=debug
             )
             if translated_text is None:
-                StatusMSG(
+                status_msg(
                     f'failed to translate "{text_to_translate}"',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
+                    color='yellow', sections=list(sections) + ['WARNING']
                 )
             # take care of a quirk of the API: when translating a list of length 1, the result is a string
             elif len(text_to_translate) != 1 and len(translated_text) != len(text_to_translate):
-                StatusMSG(
+                status_msg(
                     f'Error during the translation of "{text_to_translate}", '
                     f'the translation has a different length: {translated_text}',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
+                    color='yellow', sections=list(sections) + ['WARNING']
                 )
             elif len(text_to_translate) == 1 and isinstance(translated_text, str):
                 slides_text[0][lang] = translated_text
@@ -275,15 +316,15 @@ def translate_subtitles(
                 sections=sections, force=force, debug=debug
             )
             if translated_text is None:
-                StatusMSG(
+                status_msg(
                     f'failed to translate "{text_to_translate}"',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
+                    color='yellow', sections=list(sections) + ['WARNING']
                 )
             elif len(text_to_translate) != 1 and len(translated_text) != len(text_to_translate):
-                StatusMSG(
+                status_msg(
                     f'Error during the translation of "{text_to_translate}", '
                     f'the translation has a different length: {translated_text}',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
+                    color='yellow', sections=list(sections) + ['WARNING']
                 )
             elif len(text_to_translate) == 1 and isinstance(translated_text, str):
                 segments[0][lang] = translated_text
@@ -309,8 +350,8 @@ if __name__ == '__main__':
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00h8gj93/format/download/protocol/https/flavorParamIds/0'
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00ie24lu/format/download/protocol/https/flavorParamIds/0' # (10min slide extr/ 3min OCR/ 27min translate ocr/ 31min transcribe/ 18+min translate audio) 100 min video
 
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00gdquzv/format/download/protocol/https/flavorParamIds/0'  # 40s video FAST!
-    url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00fajklv/format/download/protocol/https/flavorParamIds/0' # 48min video
+    url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00gdquzv/format/download/protocol/https/flavorParamIds/0'  # 40s video FAST!
+    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00fajklv/format/download/protocol/https/flavorParamIds/0' # 48min video
 
     video_info = process_video(url, force=True)
     print(video_info)

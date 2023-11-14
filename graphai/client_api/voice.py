@@ -1,7 +1,7 @@
 from graphai.client_api.utils import get_response
 from time import sleep
 from requests import get, post
-from graphai.utils import StatusMSG
+from graphai.utils import status_msg
 
 
 def transcribe_audio(
@@ -42,18 +42,25 @@ def transcribe_audio(
         elif transcribe_status == 'SUCCESS':
             task_result = response_transcribe_status_json['task_result']
             if not task_result['fresh']:
-                StatusMSG(
+                status_msg(
                     f'audio {audio_token} has already been transcribed in the past',
-                    Color='yellow', Sections=list(sections) + ['WARNING']
+                    color='yellow', sections=list(sections) + ['WARNING']
                 )
-            segments = [
-                {'start': segment['start'], 'end': segment['end'], task_result['language']: segment['text'].strip()}
-                for segment in task_result['subtitle_results']
-            ]
-            StatusMSG(
-                f'{len(segments)} segments have been extracted from {audio_token}',
-                Color='green', Sections=list(sections) + ['SUCCESS']
-            )
+            if task_result['subtitle_results'] is None:
+                segments = None
+                status_msg(
+                    f'No segments have been extracted from {audio_token}',
+                    color='yellow', sections=list(sections) + ['WARNING']
+                )
+            else:
+                segments = [
+                    {'start': segment['start'], 'end': segment['end'], task_result['language']: segment['text'].strip()}
+                    for segment in task_result['subtitle_results']
+                ]
+                status_msg(
+                    f'{len(segments)} segments have been extracted from {audio_token}',
+                    color='green', sections=list(sections) + ['SUCCESS']
+                )
             return task_result['language'], segments
         else:
             raise ValueError(

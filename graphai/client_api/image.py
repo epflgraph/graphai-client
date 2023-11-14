@@ -1,7 +1,7 @@
 from graphai.client_api.utils import get_response, task_result_is_ok
 from time import sleep
 from requests import get, post
-from graphai.utils import StatusMSG
+from graphai.utils import status_msg
 
 
 def extract_text_from_slide(
@@ -45,9 +45,9 @@ def extract_text_from_slide(
                 # we use document text detection which should perform better with coherent documents
                 if result['method'] == 'ocr_google_1_token' or result['method'] == 'ocr_google_1_results':
                     return {'text': result['text'], 'language': task_result['language']}
-            StatusMSG(
+            status_msg(
                 f'document text detection result not found',
-                Color='yellow', Sections=list(sections) + ['WARNING']
+                color='yellow', sections=list(sections) + ['WARNING']
             )
             return {'text': task_result['result'][0]['text'], 'language': task_result['language']}
         else:

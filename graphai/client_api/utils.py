@@ -1,7 +1,7 @@
 from time import sleep
 from requests import get
 from typing import Union
-from graphai.utils import StatusMSG
+from graphai.utils import status_msg
 
 
 def get_response(url, request_func=get, headers=None, json=None, n_trials=5, sections=tuple(), debug=False):
@@ -21,42 +21,42 @@ def get_response(url, request_func=get, headers=None, json=None, n_trials=5, sec
         if response.ok:
             return response
         else:
-            StatusMSG(
+            status_msg(
                 f'Error {response.status_code}: {response.reason} while doing {request_func.__name__.upper()} on {url}',
-                Color='yellow', Sections=list(sections) + ['WARNING']
+                color='yellow', sections=list(sections) + ['WARNING']
             )
             if response.status_code == 422:
                 response_json = response.json()
                 if 'detail' in response_json:
                     if isinstance(response_json['detail'], list):
                         for detail in response_json['detail']:
-                            StatusMSG(str(detail), Color='yellow', Sections=list(sections) + ['WARNING'])
-                    StatusMSG(str(response_json['detail']), Color='yellow', Sections=list(sections) + ['WARNING'])
+                            status_msg(str(detail), color='yellow', sections=list(sections) + ['WARNING'])
+                    status_msg(str(response_json['detail']), color='yellow', sections=list(sections) + ['WARNING'])
             sleep(1)
     return None
 
 
 def task_result_is_ok(task_result: Union[dict, None], token: str, input_type='text', sections=('GRAPHAI', 'OCR')):
     if task_result is None:
-        StatusMSG(
+        status_msg(
             f'Bad task result while extracting {input_type} from {token}',
-            Color='yellow', Sections=list(sections) + ['WARNING']
+            color='yellow', sections=list(sections) + ['WARNING']
         )
         return False
     if not task_result['successful']:
-        StatusMSG(
+        status_msg(
             f'extraction of the {input_type} from {token} failed',
-            Color='yellow', Sections=list(sections) + ['WARNING']
+            color='yellow', sections=list(sections) + ['WARNING']
         )
         return False
     if not task_result['fresh']:
-        StatusMSG(
+        status_msg(
             f'{input_type} from {token} has already been extracted in the past',
-            Color='yellow', Sections=list(sections) + ['WARNING']
+            color='yellow', sections=list(sections) + ['WARNING']
         )
     else:
-        StatusMSG(
+        status_msg(
             f'{input_type} has been extracted from {token}',
-            Color='green', Sections=list(sections) + ['SUCCESS']
+            color='green', sections=list(sections) + ['SUCCESS']
         )
     return True
