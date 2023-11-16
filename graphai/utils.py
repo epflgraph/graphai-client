@@ -108,8 +108,15 @@ def prepare_values_mysql(values):
 
 def insert_line_into_table(cursor, schema, table_name, columns, values):
     values_str = prepare_values_mysql(values)
-    cursor.execute(f"""
-        INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
-        VALUES ({', '.join(values_str)});
-    """)
-
+    try:
+        cursor.execute(f"""
+            INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
+            VALUES ({', '.join(values_str)});
+        """)
+    except Exception as e:
+        msg = f'Error while inserting data in `{schema}`.`{table_name}`:\n'
+        msg += f'the data was:\n'
+        for c, v in zip(columns, values):
+            msg += f'{c}={v}\n'
+        msg = 'the exception received was: ' + str(e)
+        raise RuntimeError(msg)
