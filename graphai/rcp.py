@@ -53,10 +53,17 @@ def process_videos_on_rcp(
                     FROM ca_kaltura.Videos AS k
                     WHERE k.kalturaVideoID="{kaltura_video_id}";
                 ''')
+                video_details = list(piper_cursor)
+                if len(video_details) == 0:
+                    status_msg(
+                        f'Skipping video {kaltura_video_id} as it does not exists in ca_kaltura.Videos.',
+                        color='yellow', sections=['KALTURA', 'VIDEO', 'WARNING']
+                    )
+                    continue
                 (
                     kaltura_url_api, thumbnail_url, kaltura_creation_time, kaltura_update_time, title,
                     description, kaltura_owner, kaltura_creator, tags, categories, kaltura_entitled_editor, ms_duration
-                ) = list(piper_cursor)[0]
+                ) = video_details[0]
                 kaltura_url, octet_size = get_video_link_and_size(kaltura_url_api)
                 if kaltura_url is None:
                     status_msg(
@@ -131,6 +138,9 @@ def process_videos_on_rcp(
                     slides = video_information['slides']
                 # update gen_kaltura with processed info
                 if slides is not None:
+                    piper_cursor.execute(
+                        f'DELETE FROM `gen_kaltura`.`Slides` WHERE kalturaVideoId="{kaltura_video_id}"'
+                    )
                     for slide_number, slide in enumerate(slides):
                         slide_time = strfdelta(timedelta(seconds=slide['timestamp']), '{H:02}:{M:02}:{S:02}')
                         insert_line_into_table(
@@ -147,6 +157,9 @@ def process_videos_on_rcp(
                             )
                         )
                 if subtitles is not None:
+                    piper_cursor.execute(
+                        f'DELETE FROM `gen_kaltura`.`Subtitles` WHERE kalturaVideoId="{kaltura_video_id}"'
+                    )
                     for idx, segment in enumerate(subtitles):
                         insert_line_into_table(
                             piper_cursor, 'gen_kaltura', 'Subtitles',
@@ -162,6 +175,9 @@ def process_videos_on_rcp(
                                 segment.get('fr', None), segment.get('en', None)
                             )
                         )
+                piper_cursor.execute(
+                    f'DELETE FROM `gen_kaltura`.`Videos` WHERE kalturaVideoId="{kaltura_video_id}"'
+                )
                 insert_line_into_table(
                     piper_cursor, 'gen_kaltura', 'Videos',
                     (
