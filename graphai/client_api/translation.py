@@ -58,7 +58,7 @@ def translate_text(
                 )
             if not task_result['successful']:
                 status_msg(
-                    f'translation of the text failed',
+                    f'translation of the text failed, task result was: {task_result}',
                     color='yellow', sections=list(sections) + ['WARNING']
                 )
             else:

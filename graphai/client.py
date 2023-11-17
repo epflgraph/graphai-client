@@ -330,7 +330,10 @@ def translate_subtitles(
                 segments[0][lang] = translated_text
             else:
                 for idx, translated_segment in enumerate(translated_text):
-                    segments[idx][lang] = translated_segment.strip()
+                    if translated_segment is None:
+                        segments[idx][lang] = None
+                    else:
+                        segments[idx][lang] = translated_segment.strip()
     return segments
 
 
