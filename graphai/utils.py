@@ -118,5 +118,5 @@ def insert_line_into_table(cursor, schema, table_name, columns, values):
         msg += f'the data was:\n'
         for c, v in zip(columns, values):
             msg += f'{c}={v}\n'
-        msg = 'the exception received was: ' + str(e)
+        msg += 'the exception received was: ' + str(e)
         raise RuntimeError(msg)
