@@ -111,7 +111,7 @@ def extract_audio(
     task_id = response_extraction.json()['task_id']
     # wait for the extraction to be completed
     tries_extraction_status = 0
-    while tries_extraction_status < 6000:
+    while tries_extraction_status < 300:
         tries_extraction_status += 1
         response_extraction_status = get_response(
             url=graph_ai_server + f'/video/extract_audio/status/{task_id}',
