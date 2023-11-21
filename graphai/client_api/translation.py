@@ -9,7 +9,7 @@ def translate_text(
         text: Union[str, list], source_language, target_language, graph_ai_server='http://127.0.0.1:28800',
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False
 ):
-    if text is None or len(text) == 0 or (len(text) == 1 and len(text[0]) == 1) or source_language == target_language:
+    if text is None or len(text) == 0 or (len(text) == 1 and len(text[0]) == 0) or source_language == target_language:
         return text
     if isinstance(text, list):
         text_to_translate = []

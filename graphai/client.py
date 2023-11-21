@@ -356,6 +356,6 @@ if __name__ == '__main__':
     url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00gdquzv/format/download/protocol/https/flavorParamIds/0'  # 40s video FAST!
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00fajklv/format/download/protocol/https/flavorParamIds/0' # 48min video
 
-    video_info = process_video(url, force=True)
+    video_info = process_video(url, force=True, graph_ai_server='http://127.0.0.1:28800')
     print(video_info)
 
