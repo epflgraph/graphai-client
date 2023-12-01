@@ -87,10 +87,10 @@ def strfdelta(time_delta: timedelta, fmt='{H:02}:{M:02}:{S:02},{m:03}'):
     return f.format(fmt, **values)
 
 
-def prepare_values_mysql(values):
+def prepare_values_mysql(values, encoding='utf8'):
     values_str = []
     for val in values:
-        val_str = str(val)
+        val_str = str(val).encode(encoding, errors='ignore').decode(encoding)
         nan_or_inf = False
         try:
             val_float = float(val)
@@ -106,17 +106,16 @@ def prepare_values_mysql(values):
     return values_str
 
 
-def insert_line_into_table(cursor, schema, table_name, columns, values):
-    values_str = prepare_values_mysql(values)
+def insert_line_into_table(cursor, schema, table_name, columns, values, encoding='utf8'):
+    values_str = prepare_values_mysql(values, encoding=encoding)
+    sql_query = f"""
+                INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
+                VALUES ({', '.join(values_str)});
+            """
     try:
-        cursor.execute(f"""
-            INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
-            VALUES ({', '.join(values_str)});
-        """)
+        cursor.execute(sql_query)
     except Exception as e:
         msg = f'Error while inserting data in `{schema}`.`{table_name}`:\n'
-        msg += f'the data was:\n'
-        for c, v in zip(columns, values):
-            msg += f'{c}={v}\n'
+        msg += f'the query was:\n {sql_query}'
         msg += 'the exception received was: ' + str(e)
         raise RuntimeError(msg)
