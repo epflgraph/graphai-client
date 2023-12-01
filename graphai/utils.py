@@ -102,7 +102,7 @@ def prepare_values_mysql(values, encoding='utf8'):
         elif val_str.isdigit():
             values_str.append(val_str)
         else:
-            values_str.append(f"'" + val_str.replace("'", "\\'").replace(";", "\\;") + "'")
+            values_str.append(f"'" + val_str.replace("\\", "\\\\").replace("'", "\\'").replace(";", "\\;") + "'")
     return values_str
 
 
