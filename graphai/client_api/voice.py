@@ -41,6 +41,9 @@ def transcribe_audio(
             sleep(1)
         elif transcribe_status == 'SUCCESS':
             task_result = response_transcribe_status_json['task_result']
+            if task_result is None:
+                sleep(1)
+                continue
             if not task_result['fresh']:
                 status_msg(
                     f'audio {audio_token} has already been transcribed in the past',

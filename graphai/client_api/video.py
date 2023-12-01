@@ -1,7 +1,6 @@
 from graphai.client_api.utils import get_response, task_result_is_ok
 from time import sleep
 from requests import get, post
-from graphai.utils import status_msg
 
 
 def get_video_token(
@@ -173,21 +172,9 @@ def extract_slides(
             sleep(1)
         elif slides_status == 'SUCCESS':
             task_result = response_slides_status_json['task_result']
-            if not task_result['fresh']:
-                status_msg(
-                    f'slides from {video_token} has already been extracted in the past',
-                    color='yellow', sections=list(sections) + ['WARNING']
-                )
-            if not task_result['successful']:
-                status_msg(
-                    f'extraction of the slides from {video_token} failed',
-                    color='yellow', sections=list(sections) + ['WARNING']
-                )
-            else:
-                status_msg(
-                    f'{len(task_result["slide_tokens"])} slides has been extracted from {video_token}',
-                    color='green', sections=list(sections) + ['SUCCESS']
-                )
+            if not task_result_is_ok(task_result, token=video_token, input_type='slide', sections=sections):
+                sleep(1)
+                continue
             return task_result['slide_tokens']
         else:
             raise ValueError(

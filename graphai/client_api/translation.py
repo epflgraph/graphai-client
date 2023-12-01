@@ -1,8 +1,8 @@
-from graphai.client_api.utils import get_response
 from time import sleep
 from requests import get, post
-from graphai.utils import status_msg
 from typing import Union
+from graphai.utils import status_msg
+from graphai.client_api.utils import get_response, task_result_is_ok
 
 
 def translate_text(
@@ -47,29 +47,22 @@ def translate_text(
             return None
         response_translate_status_json = response_translate_status.json()
         translate_status = response_translate_status_json['task_status']
-        if translate_status in ['PENDING', 'STARTED'] or response_translate_status_json['task_result'] is None:
+        if translate_status in ['PENDING', 'STARTED']:
             sleep(1)
         elif translate_status == 'SUCCESS':
             task_result = response_translate_status_json['task_result']
-            if not task_result['fresh']:
+            if not task_result_is_ok(task_result, token='text', input_type='translation', sections=sections):
+                sleep(1)
+                continue
+            if task_result['text_too_large']:
                 status_msg(
-                    f'text has already been translated in the past',
-                    color='yellow', sections=list(sections) + ['WARNING']
-                )
-            if not task_result['successful']:
-                status_msg(
-                    f'translation of the text failed, task result was: {task_result}',
+                    f'text was too large to be translated',
                     color='yellow', sections=list(sections) + ['WARNING']
                 )
             else:
                 status_msg(
                     f'text has been translated',
                     color='green', sections=list(sections) + ['SUCCESS']
-                )
-            if task_result['text_too_large']:
-                status_msg(
-                    f'text was too large to be translated',
-                    color='yellow', sections=list(sections) + ['WARNING']
                 )
             if isinstance(text, list) and isinstance(task_result['result'], list):
                 translated_text_full = [None] * len(text)
