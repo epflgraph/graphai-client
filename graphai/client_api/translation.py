@@ -52,6 +52,10 @@ def translate_text(
         elif translate_status == 'SUCCESS':
             task_result = response_translate_status_json['task_result']
             if not task_result_is_ok(task_result, token='text', input_type='translation', sections=sections):
+                status_msg(
+                    f'text was:\n{text_to_translate}',
+                    color='yellow', sections=list(sections) + ['WARNING']
+                )
                 sleep(1)
                 continue
             if task_result['text_too_large']:
@@ -79,3 +83,8 @@ def translate_text(
                 f'Unexpected status while requesting the status of translation for text: '
                 + translate_status
             )
+    status_msg(
+        f'timeout while trying to translate the following text:\n{text_to_translate}',
+        color='yellow', sections=list(sections) + ['WARNING']
+    )
+    return None
