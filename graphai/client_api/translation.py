@@ -51,7 +51,9 @@ def translate_text(
             sleep(1)
         elif translate_status == 'SUCCESS':
             task_result = response_translate_status_json['task_result']
-            if not task_result_is_ok(task_result, token='text', input_type='translation', sections=sections):
+            if not task_result_is_ok(
+                    task_result, token=source_language + ' text', input_type='translation', sections=sections
+            ):
                 status_msg(
                     f'text was:\n{text_to_translate}',
                     color='yellow', sections=list(sections) + ['WARNING']
