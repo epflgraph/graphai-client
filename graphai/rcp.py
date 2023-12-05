@@ -2,8 +2,123 @@ from datetime import timedelta
 from mysql.connector import connect as mysql_connect
 from json import load as load_json
 from os.path import dirname, join
+from re import match
 from graphai.utils import status_msg, get_video_link_and_size, strfdelta, insert_line_into_table
 from graphai.client import process_video, translate_extracted_text
+
+
+def process_video_urls_on_rcp(
+        videos_urls: list, analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'), force=False,
+        graph_ai_server='http://127.0.0.1:28800', debug=False, piper_mysql_json_file=None
+):
+    if piper_mysql_json_file is None:
+        piper_mysql_json_file = join(dirname(__file__), 'config', 'piper_db.json')
+    with open(piper_mysql_json_file) as fp:
+        piper_con_info = load_json(fp)
+    with mysql_connect(
+        host=piper_con_info['host'], port=piper_con_info['port'], user=piper_con_info['user'],
+        password=piper_con_info['password']
+    ) as piper_connection:
+        with piper_connection.cursor() as piper_cursor:
+            kaltura_videos_id = []
+            for video_url in videos_urls:
+                video_url_redirect, octet_size = get_video_link_and_size(video_url)
+                if video_url_redirect is None:
+                    status_msg(
+                        f'The video at {video_url} is not accessible',
+                        color='yellow', sections=['VIDEO', 'WARNING']
+                    )
+                    continue
+                kaltura_id = get_kaltura_id_from_url(video_url)
+                if kaltura_id:
+                    kaltura_videos_id.append(kaltura_id)
+                    continue
+                video_information = process_video(
+                    video_url, analyze_audio=analyze_audio, analyze_slides=analyze_slides, force=force,
+                    destination_languages=destination_languages, graph_ai_server=graph_ai_server, debug=debug
+                )
+                slides_detected_language = video_information['slides_language']
+                audio_detected_language = video_information['audio_language']
+                subtitles = video_information['subtitles']
+                slides = video_information['slides']
+                # update gen_kaltura with processed info
+                if slides is not None:
+                    piper_cursor.execute(
+                        f'DELETE FROM `gen_video`.`Slides` WHERE VideoUrl="{video_url}"'
+                    )
+                    for slide_number, slide in enumerate(slides):
+                        slide_time = strfdelta(timedelta(seconds=slide['timestamp']), '{H:02}:{M:02}:{S:02}')
+                        insert_line_into_table(
+                            piper_cursor, 'gen_kaltura', 'Slides',
+                            (
+                                'VideoUrl', 'slideNumber',
+                                'timestamp', 'slideTime',
+                                'textFr', 'textEn'
+                            ),
+                            (
+                                video_url, slide_number,
+                                slide['timestamp'], slide_time,
+                                slide.get('fr', None), slide.get('en', None)
+                            )
+                        )
+                if subtitles is not None:
+                    piper_cursor.execute(
+                        f'DELETE FROM `gen_video`.`Subtitles` WHERE VideoUrl="{video_url}"'
+                    )
+                    for idx, segment in enumerate(subtitles):
+                        insert_line_into_table(
+                            piper_cursor, 'gen_kaltura', 'Subtitles',
+                            (
+                                'VideoUrl', 'segmentId', 'startMilliseconds', 'endMilliseconds',
+                                'startTime', 'endTime',
+                                'textFr', 'textEn'
+                            ),
+                            (
+                                video_url, idx, segment['start'], segment['end'],
+                                strfdelta(timedelta(seconds=segment['start']), '{H:02}:{M:02}:{S:02}.{m:03}'),
+                                strfdelta(timedelta(seconds=segment['end']), '{H:02}:{M:02}:{S:02}.{m:03}'),
+                                segment.get('fr', None), segment.get('en', None)
+                            )
+                        )
+                piper_cursor.execute(
+                    f'DELETE FROM `gen_video`.`Videos` WHERE VideoUrl="{video_url}"'
+                )
+                insert_line_into_table(
+                    piper_cursor, 'gen_kaltura', 'Videos',
+                    (
+                        'VideoUrl', 'kalturaUrl', 'thumbnailUrl', 'kalturaCreationTime', 'kalturaUpdateTime',
+                        'title', 'description', 'kalturaOwner', 'kalturaCreator', 'tags', 'categories',
+                        'kalturaEntitledEditors', 'msDuration', 'octetSize',
+                        'slidesDetectedLanguage', 'audioDetectedLanguage', 'switchVideoId'
+                    ),
+                    (
+                        video_url, octet_size, slides_detected_language, audio_detected_language
+                    )
+                )
+                piper_connection.commit()
+                status_msg(
+                    f'The video {video_url} has been processed',
+                    color='green', sections=['KALTURA', 'VIDEO', 'SUCCESS']
+                )
+    if len(kaltura_videos_id) > 0:
+        process_kaltura_videos_on_rcp(
+            kaltura_videos_id, analyze_audio=analyze_audio, analyze_slides=analyze_slides,
+            destination_languages=destination_languages, force=force,graph_ai_server=graph_ai_server, debug=debug,
+            piper_mysql_json_file=piper_mysql_json_file
+        )
+
+
+def get_kaltura_id_from_url(url):
+    m = match(r'(?:https?://)?api.cast.switch.ch/.*/entryId/(0_[\w]{8})', url)
+    if m:
+        return m.group(1)
+    m = match(r'(?:https?://)?mediaspace.epfl.ch/media/(0_[\w]{8})', url)
+    if m:
+        return m.group(1)
+    m = match(r'(?:https?://)?mediaspace.epfl.ch/media/[^/]*/(0_[\w]{8})', url)
+    if m:
+        return m.group(1)
+    return None
 
 
 def process_videos_on_rcp(
@@ -120,7 +235,7 @@ def process_videos_on_rcp(
                     if analyze_audio:
                         video_information = process_video(
                             kaltura_url, analyze_audio=True, analyze_slides=False, force=force,
-                            graph_ai_server=graph_ai_server, debug=debug
+                            destination_languages=destination_languages, graph_ai_server=graph_ai_server, debug=debug
                         )
                         audio_detected_language = video_information['audio_language']
                         subtitles = video_information['subtitles']
@@ -130,7 +245,7 @@ def process_videos_on_rcp(
                 else:  # full processing of the video
                     video_information = process_video(
                         kaltura_url, analyze_audio=analyze_audio, analyze_slides=analyze_slides, force=force,
-                        graph_ai_server=graph_ai_server, debug=debug
+                        destination_languages=destination_languages, graph_ai_server=graph_ai_server, debug=debug
                     )
                     slides_detected_language = video_information['slides_language']
                     audio_detected_language = video_information['audio_language']
@@ -169,7 +284,7 @@ def process_videos_on_rcp(
                                 'textFr', 'textEn'
                             ),
                             (
-                                kaltura_video_id, idx, segment['start'], segment['end'],
+                                kaltura_video_id, idx, int(segment['start']*1000), int(segment['end']*1000),
                                 strfdelta(timedelta(seconds=segment['start']), '{H:02}:{M:02}:{S:02}.{m:03}'),
                                 strfdelta(timedelta(seconds=segment['end']), '{H:02}:{M:02}:{S:02}.{m:03}'),
                                 segment.get('fr', None), segment.get('en', None)
