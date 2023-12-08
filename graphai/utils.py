@@ -4,6 +4,7 @@ from requests import get
 from datetime import datetime, timedelta
 from string import Formatter
 from numpy import isnan, isinf
+from re import match, compile
 
 
 def status_msg(msg, color=None, sections=(), print_flag=True):
@@ -119,3 +120,74 @@ def insert_line_into_table(cursor, schema, table_name, columns, values, encoding
         msg += f'the query was:\n {sql_query}'
         msg += 'the exception received was: ' + str(e)
         raise RuntimeError(msg)
+
+
+def convert_caption_data_into_segments(caption_data, file_ext='srt', text_key='text'):
+    caption_lines = caption_data.encode('utf8').decode('utf-8-sig', errors='ignore').split('\n')
+    time1_regexp = r'(:?(:?(?P<h1>[\d]{1,2}):)?(?P<m1>[\d]{1,2}):)?(?P<s1>[\d]{1,2})(:?[.,](?P<subs1>[\d]{0,6}))?'
+    time2_regexp = r'(:?(:?(?P<h2>[\d]{1,2}):)?(?P<m2>[\d]{1,2}):)?(?P<s2>[\d]{1,2})(:?[.,](?P<subs2>[\d]{0,6}))?'
+    time_regexp = compile(r'[\s]*' + time1_regexp + r'[\s]+-->[\s]+' + time2_regexp + r'[\s]*')
+    if file_ext == 'srt':
+        current_line_type = 'id'
+    elif file_ext == 'vtt':
+        current_line_type = 'time'
+        while not time_regexp.match(caption_lines[0]):
+            caption_lines = caption_lines[1:]
+    else:
+        raise ValueError(f'Unsupported file extension {file_ext}, must be "srt" or "vtt"')
+    segments = []
+    text = ''
+    start = 0
+    end = 0
+    for line in caption_lines:
+        if current_line_type == 'id':
+            if line.strip():
+                segment_id = int(line) - 1
+                current_line_type = 'time'
+        elif current_line_type == 'time':
+            match_time = time_regexp.match(line)
+            if match_time:
+                time_dict = match_time.groupdict(default='0')
+                start = int(time_dict.get('h1', 0)) * 3600 + int(time_dict.get('m1', 0)) * 60 + \
+                        int(time_dict['s1']) + float('0.' + time_dict.get('subs1', 0))
+                end = int(time_dict.get('h2', 0)) * 3600 + int(time_dict.get('m2', 0)) * 60 + \
+                        int(time_dict['s2']) + float('0.' + time_dict.get('subs2', 0))
+            else:
+                raise RuntimeError(f'Expected segment start and end time but got: {line}')
+            current_line_type = 'text'
+            text = ''
+        elif current_line_type == 'text':
+            if line.strip():
+                if text:
+                    text += '\n' + line
+                else:
+                    text = line
+            else:
+                segments.append({'start': start, 'end': end, text_key: text})
+                text = ''
+                if file_ext == 'srt':
+                    current_line_type = 'id'
+                elif file_ext == 'vtt':
+                    current_line_type = 'time'
+    if text:
+        segments.append({'start': start, 'end': end, text_key: text})
+    return segments
+
+
+def combine_language_segments(text_key='text', **kwargs):
+    segments_combined = []
+    languages = list(kwargs.keys())
+    n_segments = len(kwargs[languages[0]])
+    for lang in languages[1:]:
+        if len(kwargs[lang]) != n_segments:
+            raise ValueError(f'the number of segment is not the same for {languages[0]} and {lang}')
+    for lang, segments_lang in kwargs.items():
+        for seg_idx, segment in enumerate(segments_lang):
+            if len(segments_combined) <= seg_idx:
+                segments_combined.append({'start': segment['start'], 'end': segment['end'], lang: segment[text_key]})
+            else:
+                segment_equiv = segments_combined[seg_idx]
+                if segment['start'] != segment_equiv['start'] or segment['end'] != segment_equiv['end']:
+                    raise ValueError(f'{seg_idx}th segment timing are not the same for {languages[0]} and {lang}')
+                segments_combined[seg_idx][lang] = segment[text_key]
+    return segments_combined

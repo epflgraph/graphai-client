@@ -3,8 +3,11 @@ from mysql.connector import connect as mysql_connect
 from json import load as load_json
 from os.path import dirname, join
 from re import match
-from graphai.utils import status_msg, get_video_link_and_size, strfdelta, insert_line_into_table
-from graphai.client import process_video, translate_extracted_text
+from graphai.utils import (
+    status_msg, get_video_link_and_size, strfdelta, insert_line_into_table, convert_caption_data_into_segments,
+    combine_language_segments
+)
+from graphai.client import process_video, translate_extracted_text, translate_subtitles
 
 
 def process_video_urls_on_rcp(
@@ -101,7 +104,7 @@ def process_video_urls_on_rcp(
                     color='green', sections=['KALTURA', 'VIDEO', 'SUCCESS']
                 )
     if len(kaltura_videos_id) > 0:
-        process_kaltura_videos_on_rcp(
+        process_videos_on_rcp(
             kaltura_videos_id, analyze_audio=analyze_audio, analyze_slides=analyze_slides,
             destination_languages=destination_languages, force=force,graph_ai_server=graph_ai_server, debug=debug,
             piper_mysql_json_file=piper_mysql_json_file
@@ -233,23 +236,47 @@ def process_videos_on_rcp(
                                 slide[k] = v
                         slides.append(slide)
                     if analyze_audio:
-                        video_information = process_video(
-                            kaltura_url, analyze_audio=True, analyze_slides=False, force=force,
+                        subtitles = get_subtitles_from_kaltura(
+                            kaltura_video_id, piper_cursor=piper_cursor, force=force,
                             destination_languages=destination_languages, graph_ai_server=graph_ai_server, debug=debug
                         )
-                        audio_detected_language = video_information['audio_language']
-                        subtitles = video_information['subtitles']
+                        if subtitles:
+                            video_information = process_video(
+                                kaltura_url, analyze_audio=False, analyze_slides=False, force=force,
+                                detect_audio_language=True, audio_language=None,
+                                graph_ai_server=graph_ai_server, debug=debug
+                            )
+                            audio_detected_language = video_information['audio_language']
+                        else:
+                            video_information = process_video(
+                                kaltura_url, analyze_audio=True, analyze_slides=False, force=force,
+                                destination_languages=destination_languages, audio_language=None,
+                                graph_ai_server=graph_ai_server, debug=debug
+                            )
+                            audio_detected_language = video_information['audio_language']
+                            subtitles = video_information['subtitles']
                     else:
                         audio_detected_language = None
                         subtitles = None
                 else:  # full processing of the video
-                    video_information = process_video(
-                        kaltura_url, analyze_audio=analyze_audio, analyze_slides=analyze_slides, force=force,
+                    subtitles = get_subtitles_from_kaltura(
+                        kaltura_video_id, piper_cursor=piper_cursor, force=force,
                         destination_languages=destination_languages, graph_ai_server=graph_ai_server, debug=debug
                     )
+                    if subtitles:
+                        video_information = process_video(
+                            kaltura_url, analyze_audio=False, analyze_slides=analyze_slides, force=force,
+                            detect_audio_language=True, audio_language=None,
+                            destination_languages=destination_languages, graph_ai_server=graph_ai_server, debug=debug
+                        )
+                    else:
+                        video_information = process_video(
+                            kaltura_url, analyze_audio=analyze_audio, analyze_slides=analyze_slides, force=force,
+                            destination_languages=destination_languages, graph_ai_server=graph_ai_server, debug=debug
+                        )
+                        subtitles = video_information['subtitles']
                     slides_detected_language = video_information['slides_language']
                     audio_detected_language = video_information['audio_language']
-                    subtitles = video_information['subtitles']
                     slides = video_information['slides']
                 # update gen_kaltura with processed info
                 if slides is not None:
@@ -314,3 +341,73 @@ def process_videos_on_rcp(
                     color='green', sections=['KALTURA', 'VIDEO', 'SUCCESS']
                 )
 
+
+def get_subtitles_from_kaltura(
+        kaltura_video_id, piper_cursor=None, piper_mysql_json_file=None, force=False,
+        destination_languages=('en', 'fr'), graph_ai_server='http://127.0.0.1:28800', debug=False
+):
+    piper_connection = None
+    if piper_cursor is None:
+        if piper_mysql_json_file is None:
+            piper_mysql_json_file = join(dirname(__file__), 'config', 'piper_db.json')
+        with open(piper_mysql_json_file) as fp:
+            piper_con_info = load_json(fp)
+        piper_connection = mysql_connect(
+                host=piper_con_info['host'], port=piper_con_info['port'], user=piper_con_info['user'],
+                password=piper_con_info['password']
+        )
+        piper_cursor = piper_connection.cursor()
+    subtitles_in_kaltura = {}
+    piper_cursor.execute(f'''
+        SELECT captionData, fileExt, language 
+        FROM ca_kaltura.Captions WHERE kalturaVideoId='{kaltura_video_id}';
+    ''')
+    caption_info = list(piper_cursor)
+    if len(caption_info) > 0:
+        for caption_data, file_ext, language in caption_info:
+            if 'french' in language.lower():
+                lang = 'fr'
+            elif 'english' in language.lower():
+                lang = 'en'
+            elif 'italian' in language.lower():
+                lang = 'it'
+            elif 'german' in language.lower():
+                lang = 'de'
+            else:
+                print(f'Unknown caption language: {language}')
+                continue
+            subtitles_in_kaltura[lang] = convert_caption_data_into_segments(
+                caption_data, file_ext=file_ext
+            )
+    if not subtitles_in_kaltura:
+        return None
+    subtitles = combine_language_segments(**subtitles_in_kaltura)
+    if destination_languages:
+        missing_destination_language = []
+        for lang in destination_languages:
+            if lang not in subtitles_in_kaltura:
+                missing_destination_language.append(lang)
+        if missing_destination_language:
+            if 'en' in subtitles_in_kaltura:
+                translate_from = 'en'
+            elif 'fr' in subtitles_in_kaltura:
+                translate_from = 'fr'
+            elif 'de' in subtitles_in_kaltura:
+                translate_from = 'de'
+            elif 'it' in subtitles_in_kaltura:
+                translate_from = 'it'
+            else:
+                translate_from = subtitles_in_kaltura.keys()[0]
+            status_msg(
+                f'translate transcription for {len(subtitles)} segments in {translate_from}',
+                color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
+            )
+            subtitles = translate_subtitles(
+                subtitles, force=force, source_language=translate_from,
+                destination_languages=missing_destination_language,
+                graph_ai_server=graph_ai_server, debug=debug
+            )
+    if piper_connection:
+        piper_cursor.close()
+        piper_connection.close()
+    return subtitles
