@@ -70,3 +70,64 @@ def transcribe_audio(
                 f'Unexpected status while requesting the status of transcription for {audio_token}: '
                 + transcribe_status
             )
+
+
+def detect_language(
+        audio_token, force=False, graph_ai_server='http://127.0.0.1:28800',
+        sections=('GRAPHAI', 'AUDIO LANGUAGE'), debug=False
+):
+    json_data = {"token": audio_token, "force": force}
+    response_language = get_response(
+        url=graph_ai_server + '/voice/detect_language',
+        request_func=post,
+        headers={'Content-Type': 'application/json'},
+        json=json_data,
+        sections=sections,
+        debug=debug
+    )
+    if response_language is None:
+        return None
+    task_id = response_language.json()['task_id']
+    # wait for the transcription to be completed
+    tries_language_status = 0
+    while tries_language_status < 6000:
+        tries_language_status += 1
+        response_language_status = get_response(
+            url=graph_ai_server + f'/voice/detect_language/status/{task_id}',
+            request_func=get,
+            headers={'Content-Type': 'application/json'},
+            sections=sections,
+            debug=debug
+        )
+        if response_language_status is None:
+            return None
+        response_language_status_json = response_language_status.json()
+        language_status = response_language_status_json['task_status']
+        if language_status in ['PENDING', 'STARTED']:
+            sleep(1)
+        elif language_status == 'SUCCESS':
+            task_result = response_language_status_json['task_result']
+            if task_result is None:
+                sleep(1)
+                continue
+            if not task_result['fresh']:
+                status_msg(
+                    f'language of audio {audio_token} has already been detected in the past',
+                    color='yellow', sections=list(sections) + ['WARNING']
+                )
+            if task_result['language'] is None:
+                status_msg(
+                    f'Language could not be detected from {audio_token}',
+                    color='yellow', sections=list(sections) + ['WARNING']
+                )
+            else:
+                status_msg(
+                    f'{task_result["language"]} language has been detected for audio {audio_token}',
+                    color='green', sections=list(sections) + ['SUCCESS']
+                )
+            return task_result['language']
+        else:
+            raise ValueError(
+                f'Unexpected status while requesting the status of language detection for {audio_token}: '
+                + language_status
+            )

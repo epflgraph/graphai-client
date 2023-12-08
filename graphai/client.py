@@ -2,11 +2,12 @@ from graphai.utils import status_msg
 from graphai.client_api.image import extract_text_from_slide
 from graphai.client_api.translation import translate_text
 from graphai.client_api.video import extract_slides, extract_audio, get_video_token
-from graphai.client_api.voice import transcribe_audio
+from graphai.client_api.voice import transcribe_audio, detect_language
 
 
 def process_video(
-        video_url, force=False, audio_language=None, slides_language=None, analyze_audio=True, analyze_slides=True,
+        video_url, force=False, audio_language=None, slides_language=None,
+        detect_audio_language=False, analyze_audio=True, analyze_slides=True,
         destination_languages=('fr', 'en'), graph_ai_server='http://127.0.0.1:28800', debug=False
 ):
     """
@@ -17,6 +18,8 @@ def process_video(
         specified language.
     :param slides_language: if not None, language detection is skipped and the OCR is performed in the specified
         language.
+    :param detect_audio_language: should the audio be extracted, and language detection on the audio be done.
+        Only useful if analyze_audio is False and audio_language is None.
     :param analyze_audio: should the audio be extracted, transcription done and then translation if needed.
     :param analyze_slides: should slides be extracted, then OCR performed and then translation if needed.
     :param destination_languages: tuple of target languages. Perform translations if needed.
@@ -42,6 +45,11 @@ def process_video(
     if analyze_audio:
         audio_language, segments = process_audio(
             video_token, force=force, audio_language=audio_language, destination_languages=destination_languages,
+            graph_ai_server=graph_ai_server, debug=debug
+        )
+    elif detect_audio_language:
+        audio_language, segments = process_audio(
+            video_token, force=force, audio_language=audio_language, only_detect_language=True,
             graph_ai_server=graph_ai_server, debug=debug
         )
     else:
@@ -133,20 +141,21 @@ def process_slides(
 
 
 def process_audio(
-        video_token, force=False, audio_language=None, destination_languages=('fr', 'en'),
+        video_token, force=False, only_detect_language=False, audio_language=None, destination_languages=('fr', 'en'),
         graph_ai_server='http://127.0.0.1:28800', debug=False
 ):
     """
     Extract audio from a video, perform transcription and translate the text.
     :param video_token: token associated with a video, typically the result of a call to get_video_token()
     :param force: if True, the cache is ignored and all operations are performed.
+    :param only_detect_language: perform only language detection on the audio (skip transcription and translation).
     :param audio_language: if not None, language detection is skipped and the transcription is performed in the
         specified language.
     :param destination_languages: tuple of target languages. Perform translations if needed.
     :param graph_ai_server: address of the graphAI server (including protocol and port, f.e. "http://127.0.0.1:28800").
     :param debug: if True debug output is enabled.
-    :return: a 2-tuple containing first the language detected by the transcription (or forced by audio_language) and
-        second a dictionary containing the result of the processing.
+    :return: a 2-tuple containing first the language detected for the audio (or forced by audio_language) and
+        second a dictionary containing the result of the processing (None if only_detect_language is True).
     """
     status_msg(
         f'extracting audio',
@@ -156,6 +165,10 @@ def process_audio(
     if audio_token is None:
         segments = None
     else:
+        if only_detect_language:
+            if not audio_language:
+                audio_language = detect_language(audio_token, force=force, graph_ai_server=graph_ai_server, debug=debug)
+            return audio_language, None
         status_msg(
             f'transcribe audio',
             color='grey', sections=['GRAPHAI', 'TRANSCRIBE', 'PROCESSING']
@@ -353,9 +366,33 @@ if __name__ == '__main__':
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00h8gj93/format/download/protocol/https/flavorParamIds/0'
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00ie24lu/format/download/protocol/https/flavorParamIds/0' # (10min slide extr/ 3min OCR/ 27min translate ocr/ 31min transcribe/ 18+min translate audio) 100 min video
 
-    url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00gdquzv/format/download/protocol/https/flavorParamIds/0'  # 40s video FAST!
+    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00gdquzv/format/download/protocol/https/flavorParamIds/0'  # 40s video FAST!
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00fajklv/format/download/protocol/https/flavorParamIds/0' # 48min video
+    url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_0gn6xnrf/format/download/protocol/https/flavorParamIds/0'  # german
+    video_info = translate_text(
+        [
+            'Im Rahmen eines eigenen Projekts können die Schülerinnen und Schüler kreativ tätig werden',
+            'und ihre Interessen und Stärken einbringen.',
+            'Das spricht insbesondere Lernende an, welche offene Aufgabenstellungen mögen.',
+            'Für andere kann es aber auch herausfordernd sein.',
+            'Hier kann es helfen, wenn die Lehrperson den Themenbereich doch etwas einschränkt',
+            'oder Beispielprojekte als Inspiration zeigt.',
+            'In diesem Abschnitt werden verschiedene Ausgangslagen für eigene Projekte vorgestellt.',
+            'In einem Beispiel wird der Tymio nicht nur programmiert, sondern auch mit einer Papiervorlage passend gestaltet.',
+            'Fast die Schülerinnen und Schüler bereits gute Vorkenntnisse mit der Probamiersprache in Scratch haben,',
+            'bietet es sich an, diese mit dem Tymio zu kombinieren.',
+            'Der Schwerpunkt kann aber auch auf die Konstruktion gelegt werden, in dem etwas an den Tymio angebaut wird.',
+            'In allen Fällen soll am Schluss etwas Eigenes und Vorzeigbares entstehen.',
+            'Untertitel im Auftrag des ZDF, 2018'
+        ],
+        source_language='de', target_language='en', force=True, debug=True
+    )
 
-    video_info = process_video(url, force=True, graph_ai_server='http://127.0.0.1:28800')
+    # video with no voice:
+    # url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_191runee/format/download/protocol/https/flavorParamIds/0'  # music
+    # url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_i8zqj20g/format/download/protocol/https/flavorParamIds/0'  # silence
+    # url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_xuvg6ca5/format/download/protocol/https/flavorParamIds/0'  # off voice + music
+    # url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_u1offnl2/format/download/protocol/https/flavorParamIds/0'  # music
+    #video_info = process_video(url, force=True, graph_ai_server='http://127.0.0.1:28800', analyze_slides=False)
     print(video_info)
 
