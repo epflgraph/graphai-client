@@ -1,0 +1,771 @@
+1
+00:00:04,071 --> 00:00:04,586
+Bonjour.
+
+2
+00:00:04,587 --> 00:00:06,271
+Dans ce module,
+nous allons nous intéresser
+
+3
+00:00:06,272 --> 00:00:08,714
+au contrôle en position
+de l'entraînement électrique.
+
+4
+00:00:08,971 --> 00:00:12,880
+Nous nous sommes intéressés précédemment
+au contrôle en vitesse de ce système.
+
+5
+00:00:13,160 --> 00:00:15,329
+Pour cela,
+nous allons employer la méthode
+
+6
+00:00:15,330 --> 00:00:17,671
+de Ziegler-Nichols
+pour synthétiser le régulateur.
+
+7
+00:00:17,800 --> 00:00:20,371
+Nous allons voir comment calculer
+les différents paramètres.
+
+8
+00:00:20,600 --> 00:00:22,357
+Nous allons également
+voir la règle des deux
+
+9
+00:00:22,486 --> 00:00:23,857
+qui permet de rendre
+
+10
+00:00:24,120 --> 00:00:27,114
+un régulateur calculé
+par Ziegler-Nichols moins agressif.
+
+11
+00:00:27,520 --> 00:00:29,414
+Pour finir,
+nous allons faire quelques exercices
+
+12
+00:00:29,415 --> 00:00:32,286
+pour valider les régulateurs
+que nous avons synthétisés
+
+13
+00:00:32,287 --> 00:00:34,040
+par la méthode de Ziegler-Nichols.
+
+14
+00:00:34,720 --> 00:00:36,271
+Dans ce module,
+nous allons employer
+
+15
+00:00:36,272 --> 00:00:39,186
+le même entraînement électrique
+que dans les modules précédents.
+
+16
+00:00:39,440 --> 00:00:42,422
+Cependant, au lieu de mesurer
+la vitesse angulaire de la masse,
+
+17
+00:00:42,423 --> 00:00:44,900
+nous allons nous intéresser
+à la position du disque.
+
+18
+00:00:45,520 --> 00:00:47,886
+On va toujours appliquer
+une tension U au système
+
+19
+00:00:47,887 --> 00:00:50,386
+et cette fois, nous allons
+mesurer la position du disque
+
+20
+00:00:50,387 --> 00:00:51,471
+au travers d'un capteur.
+
+21
+00:00:51,840 --> 00:00:54,800
+La mesure,
+c'est l'angle θ qu'on voit ici,
+
+22
+00:00:54,801 --> 00:00:56,386
+donc la sortie yθ.
+
+23
+00:00:56,600 --> 00:01:00,486
+Cette sortie est exprimée en volts,
+entre plus ou moins 5 volts
+
+24
+00:01:00,814 --> 00:01:05,429
+et comme le système tourne à l'infini,
+la tension va monter,
+
+25
+00:01:05,957 --> 00:01:11,799
+monter puis quand elle arrivera
+à par exemple 359 degré,
+
+26
+00:01:11,800 --> 00:01:15,886
+elle va revenir à zéro
+pour ensuite remonter et ainsi de suite.
+
+27
+00:01:19,129 --> 00:01:20,057
+Un autre tiret ici.
+
+28
+00:01:27,920 --> 00:01:30,960
+La fonction de transfert de notre système
+en boucle ouverte est très similaire
+
+29
+00:01:30,961 --> 00:01:34,286
+à celle que nous avions
+pour le système en vitesse.
+
+30
+00:01:34,429 --> 00:01:35,880
+Seulement, nous voyons ici
+
+31
+00:01:36,960 --> 00:01:40,920
+un terme intégrateur
+qui est dû à la mesure de la position.
+
+32
+00:01:42,160 --> 00:01:44,529
+On voit également ici
+qu'on a le gain statique
+
+33
+00:01:44,530 --> 00:01:45,486
+comme précédemment.
+
+34
+00:01:45,629 --> 00:01:50,757
+Le gain, c'est le gain vu
+par le capteur de position
+
+35
+00:01:50,900 --> 00:01:53,457
+et plus le gain vu
+par le capteur de vitesse.
+
+36
+00:01:53,458 --> 00:02:00,114
+Donc le gain statique que nous avions
+précédemment n'est pas du tout égal
+
+37
+00:02:00,640 --> 00:02:03,586
+au gain statique
+que nous avons pour la position.
+
+38
+00:02:03,880 --> 00:02:06,143
+Par contre, la constante de temps,
+
+39
+00:02:06,520 --> 00:02:09,000
+elle est similaire à celle
+que nous avions précédemment.
+
+40
+00:02:09,600 --> 00:02:10,297
+Intuitivement,
+
+41
+00:02:10,298 --> 00:02:13,513
+on sent bien que la constante
+du temps du système devrait
+
+42
+00:02:13,514 --> 00:02:15,386
+ressembler à celle
+que nous avons précédemment.
+
+43
+00:02:15,387 --> 00:02:15,943
+Rien ne change.
+
+44
+00:02:15,944 --> 00:02:17,428
+Par contre, la mesure
+
+45
+00:02:17,429 --> 00:02:20,557
+que nous faisons au travers
+de deux capteurs différents implique
+
+46
+00:02:20,558 --> 00:02:22,043
+que le gain statique est différent.
+
+47
+00:02:23,720 --> 00:02:26,486
+La méthode de synthèse du régulateur
+que nous allons voir aujourd'hui
+
+48
+00:02:26,487 --> 00:02:28,900
+est la première méthode
+de Ziegler-Nichols.
+
+49
+00:02:28,957 --> 00:02:32,786
+C'est une méthode qui a été définie
+dans les années 1940.
+
+50
+00:02:34,071 --> 00:02:37,786
+Cette figure représente une réponse
+typique à un saut unité pour un système
+
+51
+00:02:37,787 --> 00:02:40,880
+qui a été synthétisé
+à l'aide des Ziegler-Nichols.
+
+52
+00:02:41,257 --> 00:02:44,120
+Cette méthode est relativement
+simple et facile à implémenter.
+
+53
+00:02:44,786 --> 00:02:47,186
+Il suffit d'appliquer
+un saut en boucle ouverte au système
+
+54
+00:02:47,357 --> 00:02:51,571
+pour pouvoir trouver les informations
+nécessaires au design du régulateur PID.
+
+55
+00:02:52,071 --> 00:02:54,200
+Il n'y a pas de connaissances
+a priori à avoir.
+
+56
+00:02:54,371 --> 00:02:56,213
+Par contre, ce qu'on voit,
+c'est que la réponse est
+
+57
+00:02:56,214 --> 00:02:57,429
+relativement agressive.
+
+58
+00:02:57,671 --> 00:03:00,600
+Il y a un over shoot
+qui peut être néfaste dans certains cas.
+
+59
+00:03:00,601 --> 00:03:05,200
+Il suffit d'imaginer que vous allez
+contrôler l'axe d'une machine-outil
+
+60
+00:03:05,201 --> 00:03:08,586
+et si vous avez un dépassement de ce type,
+vous allez mordre dans la matière.
+
+61
+00:03:09,800 --> 00:03:12,100
+Dans quelques semaines,
+nous allons voir comment réduire
+
+62
+00:03:12,101 --> 00:03:15,257
+l'agressivité du régulateur
+designé par Ziegler-Nichols.
+
+63
+00:03:17,971 --> 00:03:20,729
+La première méthode
+de Ziegler-Nichols fonctionne comme suit.
+
+64
+00:03:22,157 --> 00:03:25,771
+Vous avez ici la réponse
+d'un système soit avec un intégrateur,
+
+65
+00:03:25,772 --> 00:03:27,600
+soit sans intégrateur
+
+66
+00:03:28,214 --> 00:03:30,529
+et on va s'intéresser
+à quelques paramètres clés.
+
+67
+00:03:30,843 --> 00:03:34,586
+Le premier paramètre qui nous intéresse,
+c'est la pente de cette courbe ici.
+
+68
+00:03:34,729 --> 00:03:37,614
+On voit qu'ici,
+on a notre point d'inflexion I
+
+69
+00:03:37,957 --> 00:03:41,957
+et la pente de notre courbe
+ici que l'on définit comme a.
+
+70
+00:03:43,043 --> 00:03:45,113
+Il y a aussi l'autre point
+qui nous intéresse,
+
+71
+00:03:45,114 --> 00:03:46,471
+c'est cette valeur L,
+
+72
+00:03:46,900 --> 00:03:53,214
+c'est au moment où la droite
+coupe l'axe du temps.
+
+73
+00:03:53,686 --> 00:03:58,457
+Nous avons également ici
+la valeur moins a fois L.
+
+74
+00:03:59,400 --> 00:04:02,257
+Une fois que nous avons identifié
+ces valeurs a et L,
+
+75
+00:04:02,557 --> 00:04:06,243
+on peut à l'aide d'une table fournie
+par Ziegler-Nichols,
+
+76
+00:04:06,500 --> 00:04:10,800
+calculer les paramètres des différents
+régulateurs P, PI ou PID.
+
+77
+00:04:12,529 --> 00:04:16,143
+Vous avez ici la table pour la première
+méthode de Ziegler–Nichols
+
+78
+00:04:16,144 --> 00:04:18,586
+en rentrant
+vos différentes valeurs a et L
+
+79
+00:04:18,587 --> 00:04:20,629
+et en fonction du régulateur
+que vous trouvez,
+
+80
+00:04:20,630 --> 00:04:24,629
+vous pouvez trouver les valeurs
+des différents paramètres Kp, Ti ou Td.
+
+81
+00:04:25,440 --> 00:04:28,129
+Dans la pratique,
+c'est rarement un saut unité
+
+82
+00:04:28,130 --> 00:04:29,829
+que vous avez
+appliqué à votre système.
+
+83
+00:04:29,910 --> 00:04:34,414
+Donc, vous devez en tenir compte
+et diviser a pour tenir compte
+
+84
+00:04:34,415 --> 00:04:36,300
+de l'amplitude du signal qui est appliqué.
+
+85
+00:04:37,720 --> 00:04:39,286
+Dans cette première expérimentation,
+
+86
+00:04:39,600 --> 00:04:43,400
+nous allons synthétiser en régulateur
+à l'aide de la méthode de Ziegler-Nichols.
+
+87
+00:04:43,920 --> 00:04:47,314
+Pour cela, nous allons faire en premier
+une mesure en boucle ouverte
+
+88
+00:04:47,329 --> 00:04:50,086
+en mesurant
+la réponse en position du système.
+
+89
+00:04:50,414 --> 00:04:53,086
+Nous allons appliquer un saut
+dans la zone linéaire
+
+90
+00:04:53,087 --> 00:04:57,357
+entre à peu près zéro-sept et deux volts
+et nous allons enregistrer le résultat.
+
+91
+00:04:57,840 --> 00:04:59,614
+Ensuite,
+nous allons utiliser l'outil
+
+92
+00:04:59,615 --> 00:05:00,700
+de filtre temporel.
+
+93
+00:05:01,186 --> 00:05:04,469
+Nous allons sélectionner le modèle
+qui correspond à celui que nous avons
+
+94
+00:05:04,500 --> 00:05:06,986
+et nous allons ajuster
+les valeurs de a et L.
+
+95
+00:05:07,520 --> 00:05:10,200
+Une fois que nous avons trouvé
+ces deux paramètres a et L,
+
+96
+00:05:10,200 --> 00:05:12,971
+nous allons regarder dans la table
+de Ziegler-Nichols qui correspond
+
+97
+00:05:12,972 --> 00:05:16,514
+à la première méthode pour trouver
+les gains d'un régulateurs PID.
+
+98
+00:05:17,240 --> 00:05:20,257
+Le but de cette expérience est
+de poursuivre une rampe sans trainée.
+
+99
+00:05:20,258 --> 00:05:23,800
+Nous allons employer
+le régulateur PID précédent.
+
+100
+00:05:23,801 --> 00:05:25,914
+Nous allons appliquer une rampe entre
+
+101
+00:05:25,971 --> 00:05:28,886
+plus ou moins un volt
+avec une fréquence de 0,05 hertz
+
+102
+00:05:29,600 --> 00:05:31,171
+et vous allez observer la réponse.
+
+103
+00:05:31,271 --> 00:05:35,759
+Est-ce que votre système suit correctement
+la rampe qui est injectée.
+
+104
+00:05:35,760 --> 00:05:38,814
+Dans un deuxième temps,
+vous allez désactiver le terme intégrateur
+
+105
+00:05:39,029 --> 00:05:40,600
+et vous allez observer la réponse.
+
+106
+00:05:40,700 --> 00:05:43,200
+Normalement,
+un traînée devrait apparaître.
+
+107
+00:05:44,486 --> 00:05:46,571
+Dans cette troisième expérience,
+vous allez toujours employer
+
+108
+00:05:46,572 --> 00:05:49,686
+le même régulateur PID,
+mais cette fois avec un signal carré,
+
+109
+00:05:49,687 --> 00:05:51,243
+toujours entre zéro et un volt.
+
+110
+00:05:51,429 --> 00:05:53,543
+Et vous allez
+observer la réponse du système
+
+111
+00:05:53,544 --> 00:05:56,286
+et plus particulièrement la commande
+qui est appliquée au système.
+
+112
+00:05:56,757 --> 00:06:00,829
+Vous allez ensuite désactiver
+le terme d et le terme I du régulateur
+
+113
+00:06:00,830 --> 00:06:03,271
+et vous allez de nouveau
+observer la commande.
+
+114
+00:06:03,529 --> 00:06:05,714
+Vous allez ensuite répondre
+aux questions ouvertes
+
+115
+00:06:05,886 --> 00:06:07,300
+qui sont proposées dans ce module.
+
+116
+00:06:07,914 --> 00:06:10,843
+La synthèse d'un régulateur
+à l'aide de Ziegler-Nichols produit
+
+117
+00:06:10,844 --> 00:06:12,857
+souvent un régulateur
+qui est très agressif.
+
+118
+00:06:13,371 --> 00:06:17,229
+Une des méthodes pour le rendre
+moins agressif est la règle des deux.
+
+119
+00:06:17,571 --> 00:06:21,386
+C'est une règle empirique qui divise
+le gain Kp par deux
+
+120
+00:06:21,387 --> 00:06:24,043
+et qui multiplie Ti et Td par deux.
+
+121
+00:06:24,257 --> 00:06:27,700
+On voit ici le premier système
+avec une réponse de Ziegler-Nichols.
+
+122
+00:06:27,701 --> 00:06:31,457
+On voit qu'on a une pente assez rapide,
+de forts dépassements,
+
+123
+00:06:31,529 --> 00:06:34,614
+mais par contre le temps,
+ici, est assez rapide.
+
+124
+00:06:35,120 --> 00:06:37,586
+On voit ici la réponse du même système,
+mais cette fois,
+
+125
+00:06:37,587 --> 00:06:41,600
+on a appliqué la règle des deux
+aux différents gains du régulateur PID
+
+126
+00:06:41,601 --> 00:06:44,757
+et on voit qu'ici le temps d'établissement
+est beaucoup plus grand
+
+127
+00:06:44,971 --> 00:06:49,057
+par l'amplitude ici est beaucoup
+plus faible que celle qu'on avait ici.
+
+128
+00:06:49,557 --> 00:06:53,043
+Notre régulateur est moins agressif,
+mais il est aussi plus lent.
+
+129
+00:06:54,280 --> 00:06:58,400
+Dans cette quatrième expérience,
+on va mettre en œuvre la règle des deux.
+
+130
+00:06:58,543 --> 00:07:00,314
+Pour cela,
+nous allons employer le régulateur
+
+131
+00:07:00,315 --> 00:07:03,300
+que nous avons calculé précédemment
+à l'aide de Ziegler-Nichols.
+
+132
+00:07:03,440 --> 00:07:06,957
+On va appliquer toujours un signal carré
+entre -1 et 1 volt
+
+133
+00:07:06,958 --> 00:07:09,071
+avec une fréquence de 0,02 hertz.
+
+134
+00:07:09,072 --> 00:07:10,143
+On va regarder la réponse.
+
+135
+00:07:10,144 --> 00:07:13,171
+Ensuite,
+on va appliquer la règle des deux
+
+136
+00:07:13,172 --> 00:07:17,471
+et modifier les paramètres
+du régulateur PID, Kp,
+
+137
+00:07:17,614 --> 00:07:21,343
+on va le diviser par deux
+et on va multiplier par deux Ti Td.
+
+138
+00:07:21,640 --> 00:07:25,200
+Vous allez ensuite observer
+la réponse pour pouvoir répondre
+
+139
+00:07:25,201 --> 00:07:26,886
+aux questions vertes du module courant.
+
+140
+00:07:27,360 --> 00:07:30,720
+Dans cette dernière expérience,
+on va voir comment un régulateur PID
+
+141
+00:07:30,721 --> 00:07:34,571
+pour le système en position peut
+rejeter une perturbation constante.
+
+142
+00:07:34,857 --> 00:07:36,280
+Cette perturbation constante,
+
+143
+00:07:36,629 --> 00:07:40,171
+on va la simuler à l'aide d'une commande
+a priori qu'on applique au système.
+
+144
+00:07:40,557 --> 00:07:44,514
+On a vu que le terme I permettait
+de compenser le frottement du moteur,
+
+145
+00:07:44,686 --> 00:07:48,871
+mais on va voir qui permet aussi
+de rejeter une perturbation constante.
+
+146
+00:07:49,457 --> 00:07:51,600
+Pour cela,
+nous allons prendre le régulateur PID
+
+147
+00:07:51,601 --> 00:07:53,300
+que nous avons calculé précédemment,
+
+148
+00:07:53,411 --> 00:07:55,814
+nous allons appliquer
+un signal constant de 1 volt,
+
+149
+00:07:56,057 --> 00:07:58,929
+puis, nous allons changer
+la commande a priori U0
+
+150
+00:07:58,930 --> 00:08:00,300
+en passant de 0 à 2 volts.
+
+151
+00:08:00,760 --> 00:08:05,186
+Puis, vous allez désactiver le terme PID
+et observer l'effet sur la réponse.
+
+152
+00:08:05,786 --> 00:08:06,743
+Vous pourrez ensuite répondre
+
+153
+00:08:06,744 --> 00:08:09,640
+aux différentes questions ouvertes
+relatives à cette expérience.
+
+154
+00:08:10,043 --> 00:08:12,743
+Aujourd'hui,
+nous avons vu que le système en position
+
+155
+00:08:12,744 --> 00:08:14,786
+à un intégrateur qui est déjà présent.
+
+156
+00:08:15,840 --> 00:08:19,160
+Nous avons également vu la méthode
+de synthèse de Ziegler-Nichols
+
+157
+00:08:19,160 --> 00:08:21,520
+qui définit un régulateur
+qui est relativement agressif.
+
+158
+00:08:21,540 --> 00:08:23,270
+Nous avons vu la méthode des deux
+
+159
+00:08:23,271 --> 00:08:27,186
+qui permet de réduire
+l'« agressivité » de ce régulateur.
+
+160
+00:08:27,900 --> 00:08:31,943
+On a aussi vu que le terme intégrateur
+permet un, de vaincre les frottements
+
+161
+00:08:32,314 --> 00:08:35,000
+et également de rejeter
+une perturbation constante.
+

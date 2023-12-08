@@ -1,0 +1,643 @@
+1
+00:00:04,071 --> 00:00:04,586
+Bonjour.
+
+2
+00:00:04,587 --> 00:00:06,271
+In this module, we will focus on
+
+3
+00:00:06,272 --> 00:00:08,714
+to control the position of the electric drive.
+
+4
+00:00:08,971 --> 00:00:12,880
+We were previously interested in the speed control of this system.
+
+5
+00:00:13,160 --> 00:00:15,329
+For this, we will use the method
+
+6
+00:00:15,330 --> 00:00:17,671
+of Ziegler-Nichols to synthesize the regulator.
+
+7
+00:00:17,800 --> 00:00:20,371
+We will see how to calculate the different parameters.
+
+8
+00:00:20,600 --> 00:00:22,357
+We will also look at the rule of two
+
+9
+00:00:22,486 --> 00:00:23,857
+which allows you to make
+
+10
+00:00:24,120 --> 00:00:27,114
+a regulator calculated by Ziegler-Nichols that is less aggressive.
+
+11
+00:00:27,520 --> 00:00:29,414
+Finally, we are going to do some exercises
+
+12
+00:00:29,415 --> 00:00:32,286
+to validate the regulators that we have synthesized
+
+13
+00:00:32,287 --> 00:00:34,040
+by the Ziegler-Nichols method.
+
+14
+00:00:34,720 --> 00:00:36,271
+In this module, we will use
+
+15
+00:00:36,272 --> 00:00:39,186
+the same electric drive as in the previous modules.
+
+16
+00:00:39,440 --> 00:00:42,422
+However, instead of measuring the angular velocity of the mass,
+
+17
+00:00:42,423 --> 00:00:44,900
+we will focus on the position of the disk.
+
+18
+00:00:45,520 --> 00:00:47,886
+We will always apply a voltage U to the system
+
+19
+00:00:47,887 --> 00:00:50,386
+and this time we will measure the position of the disk
+
+20
+00:00:50,387 --> 00:00:51,471
+through a sensor.
+
+21
+00:00:51,840 --> 00:00:54,800
+The measurement is the angle θ that we see here,
+
+22
+00:00:54,801 --> 00:00:56,386
+therefore the output yθ.
+
+23
+00:00:56,600 --> 00:01:00,486
+This output is expressed in volts, between plus or minus 5 volts
+
+24
+00:01:00,814 --> 00:01:05,429
+and as the system runs infinitely, the voltage will rise,
+
+25
+00:01:05,957 --> 00:01:11,799
+go up then when it reaches for example 359 degrees,
+
+26
+00:01:11,800 --> 00:01:15,886
+it will return to zero and then go back up and so on.
+
+27
+00:01:19,129 --> 00:01:20,057
+Another dash here.
+
+28
+00:01:27,920 --> 00:01:30,960
+The transfer function of our open loop system is very similar
+
+29
+00:01:30,961 --> 00:01:34,286
+to the one we had for the speed system.
+
+30
+00:01:34,429 --> 00:01:35,880
+Only we see here
+
+31
+00:01:36,960 --> 00:01:40,920
+an integrator term which is due to the measurement of the position.
+
+32
+00:01:42,160 --> 00:01:44,529
+We also see here that we have the static gain
+
+33
+00:01:44,530 --> 00:01:45,486
+like before.
+
+34
+00:01:45,629 --> 00:01:50,757
+The gain is the gain seen by the position sensor
+
+35
+00:01:50,900 --> 00:01:53,457
+and the greater the gain seen by the speed sensor.
+
+36
+00:01:53,458 --> 00:02:00,114
+So the static gain that we had previously is not at all equal
+
+37
+00:02:00,640 --> 00:02:03,586
+to the static gain we have for the position.
+
+38
+00:02:03,880 --> 00:02:06,143
+On the other hand, the time constant,
+
+39
+00:02:06,520 --> 00:02:09,000
+it is similar to the one we had previously.
+
+40
+00:02:09,600 --> 00:02:10,297
+Intuitively,
+
+41
+00:02:10,298 --> 00:02:13,513
+we feel that the time constant of the system should
+
+42
+00:02:13,514 --> 00:02:15,386
+look like the one we have previously.
+
+43
+00:02:15,387 --> 00:02:15,943
+Nothing changes.
+
+44
+00:02:15,944 --> 00:02:17,428
+On the other hand, the measurement
+
+45
+00:02:17,429 --> 00:02:20,557
+that we do through two different sensors implies
+
+46
+00:02:20,558 --> 00:02:22,043
+that the static gain is different.
+
+47
+00:02:23,720 --> 00:02:26,486
+The regulator synthesis method that we will see today
+
+48
+00:02:26,487 --> 00:02:28,900
+is the first Ziegler-Nichols method.
+
+49
+00:02:28,957 --> 00:02:32,786
+It is a method that was defined in the 1940s.
+
+50
+00:02:34,071 --> 00:02:37,786
+This figure represents a typical response to a unit jump for a system
+
+51
+00:02:37,787 --> 00:02:40,880
+which was synthesized using Ziegler-Nichols.
+
+52
+00:02:41,257 --> 00:02:44,120
+This method is relatively simple and easy to implement.
+
+53
+00:02:44,786 --> 00:02:47,186
+Just apply an open loop jump to the system
+
+54
+00:02:47,357 --> 00:02:51,571
+to be able to find the information necessary for the design of the PID regulator.
+
+55
+00:02:52,071 --> 00:02:54,200
+There is no a priori knowledge to have.
+
+56
+00:02:54,371 --> 00:02:56,213
+On the other hand, what we see is that the answer is
+
+57
+00:02:56,214 --> 00:02:57,429
+relatively aggressive.
+
+58
+00:02:57,671 --> 00:03:00,600
+There is an over shoot which can be harmful in certain cases.
+
+59
+00:03:00,601 --> 00:03:05,200
+Just imagine that you are going to control the axis of a machine tool
+
+60
+00:03:05,201 --> 00:03:08,586
+and if you have an overshoot like that, you're going to bite into the material.
+
+61
+00:03:09,800 --> 00:03:12,100
+In a few weeks we will see how to reduce
+
+62
+00:03:12,101 --> 00:03:15,257
+the aggressiveness of the regulator designed by Ziegler-Nichols.
+
+63
+00:03:17,971 --> 00:03:20,729
+The first Ziegler-Nichols method works as follows.
+
+64
+00:03:22,157 --> 00:03:25,771
+Here you have the answer of a system either with an integrator,
+
+65
+00:03:25,772 --> 00:03:27,600
+either without an integrator
+
+66
+00:03:28,214 --> 00:03:30,529
+and we will focus on a few key parameters.
+
+67
+00:03:30,843 --> 00:03:34,586
+The first parameter that interests us is the slope of this curve here.
+
+68
+00:03:34,729 --> 00:03:37,614
+We see that here we have our inflection point I
+
+69
+00:03:37,957 --> 00:03:41,957
+and the slope of our curve here which we define as a.
+
+70
+00:03:43,043 --> 00:03:45,113
+There is also the other point that interests us,
+
+71
+00:03:45,114 --> 00:03:46,471
+it is this value L,
+
+72
+00:03:46,900 --> 00:03:53,214
+this is when the line intersects the time axis.
+
+73
+00:03:53,686 --> 00:03:58,457
+We also have here the value minus a times L.
+
+74
+00:03:59,400 --> 00:04:02,257
+Once we have identified these values ​​a and L,
+
+75
+00:04:02,557 --> 00:04:06,243
+we can, using a table provided by Ziegler-Nichols,
+
+76
+00:04:06,500 --> 00:04:10,800
+calculate the parameters of the different P, PI or PID regulators.
+
+77
+00:04:12,529 --> 00:04:16,143
+Here you have the table for the first Ziegler–Nichols method
+
+78
+00:04:16,144 --> 00:04:18,586
+by entering your different values ​​a and L
+
+79
+00:04:18,587 --> 00:04:20,629
+and depending on the regulator you find,
+
+80
+00:04:20,630 --> 00:04:24,629
+you can find the values ​​of the different parameters Kp, Ti or Td.
+
+81
+00:04:25,440 --> 00:04:28,129
+In practice, it is rarely a unit jump
+
+82
+00:04:28,130 --> 00:04:29,829
+that you have applied to your system.
+
+83
+00:04:29,910 --> 00:04:34,414
+So you need to take that into account and divide a to account for
+
+84
+00:04:34,415 --> 00:04:36,300
+of the amplitude of the signal that is applied.
+
+85
+00:04:37,720 --> 00:04:39,286
+In this first experiment,
+
+86
+00:04:39,600 --> 00:04:43,400
+we will synthesize into a regulator using the Ziegler-Nichols method.
+
+87
+00:04:43,920 --> 00:04:47,314
+To do this, we will first do an open loop measurement.
+
+88
+00:04:47,329 --> 00:04:50,086
+by measuring the position response of the system.
+
+89
+00:04:50,414 --> 00:04:53,086
+We will apply a jump in the linear zone
+
+90
+00:04:53,087 --> 00:04:57,357
+between about zero-seven and two volts and we're going to record the result.
+
+91
+00:04:57,840 --> 00:04:59,614
+Next, we will use the tool
+
+92
+00:04:59,615 --> 00:05:00,700
+temporal filter.
+
+93
+00:05:01,186 --> 00:05:04,469
+We will select the model that corresponds to the one we have
+
+94
+00:05:04,500 --> 00:05:06,986
+and we will adjust the values ​​of a and L.
+
+95
+00:05:07,520 --> 00:05:10,200
+Once we find these two parameters a and L,
+
+96
+00:05:10,200 --> 00:05:12,971
+we will look in the Ziegler-Nichols table which corresponds
+
+97
+00:05:12,972 --> 00:05:16,514
+to the first method to find the gains of a PID regulator.
+
+98
+00:05:17,240 --> 00:05:20,257
+The goal of this experiment is to continue a ramp without drag.
+
+99
+00:05:20,258 --> 00:05:23,800
+We will use the previous PID regulator.
+
+100
+00:05:23,801 --> 00:05:25,914
+We are going to apply a ramp between
+
+101
+00:05:25,971 --> 00:05:28,886
+plus or minus one volt with a frequency of 0.05 hertz
+
+102
+00:05:29,600 --> 00:05:31,171
+and you will observe the response.
+
+103
+00:05:31,271 --> 00:05:35,759
+Does your system correctly follow the ramp that is injected?
+
+104
+00:05:35,760 --> 00:05:38,814
+Secondly, you will deactivate the integrator term
+
+105
+00:05:39,029 --> 00:05:40,600
+and you will observe the response.
+
+106
+00:05:40,700 --> 00:05:43,200
+Normally a streak should appear.
+
+107
+00:05:44,486 --> 00:05:46,571
+In this third experiment, you will always use
+
+108
+00:05:46,572 --> 00:05:49,686
+the same PID regulator, but this time with a square wave,
+
+109
+00:05:49,687 --> 00:05:51,243
+always between zero and one volt.
+
+110
+00:05:51,429 --> 00:05:53,543
+And you will observe the response of the system
+
+111
+00:05:53,544 --> 00:05:56,286
+and more particularly the command that is applied to the system.
+
+112
+00:05:56,757 --> 00:06:00,829
+You will then deactivate the d term and the I term of the regulator
+
+113
+00:06:00,830 --> 00:06:03,271
+and you will observe the command again.
+
+114
+00:06:03,529 --> 00:06:05,714
+You will then answer the open questions
+
+115
+00:06:05,886 --> 00:06:07,300
+which are offered in this module.
+
+116
+00:06:07,914 --> 00:06:10,843
+Synthesis of a regulator using Ziegler-Nichols product
+
+117
+00:06:10,844 --> 00:06:12,857
+often a regulator that is very aggressive.
+
+118
+00:06:13,371 --> 00:06:17,229
+One method to make him less aggressive is the rule of two.
+
+119
+00:06:17,571 --> 00:06:21,386
+It is an empirical rule that divides the gain Kp by two
+
+120
+00:06:21,387 --> 00:06:24,043
+and which multiplies Ti and Td by two.
+
+121
+00:06:24,257 --> 00:06:27,700
+Here we see the first system with a Ziegler-Nichols response.
+
+122
+00:06:27,701 --> 00:06:31,457
+We see that we have a fairly steep slope, strong overruns,
+
+123
+00:06:31,529 --> 00:06:34,614
+but on the other hand, time here is quite fast.
+
+124
+00:06:35,120 --> 00:06:37,586
+Here we see the response of the same system, but this time,
+
+125
+00:06:37,587 --> 00:06:41,600
+we applied the rule of two to the different gains of the PID regulator
+
+126
+00:06:41,601 --> 00:06:44,757
+and we see that here the establishment time is much greater
+
+127
+00:06:44,971 --> 00:06:49,057
+by the amplitude here is much lower than that which we had here.
+
+128
+00:06:49,557 --> 00:06:53,043
+Our regulator is less aggressive, but it is also slower.
+
+129
+00:06:54,280 --> 00:06:58,400
+In this fourth experiment, we will implement the rule of two.
+
+130
+00:06:58,543 --> 00:07:00,314
+For this, we will use the regulator
+
+131
+00:07:00,315 --> 00:07:03,300
+which we calculated previously using Ziegler-Nichols.
+
+132
+00:07:03,440 --> 00:07:06,957
+We will always apply a square signal between -1 and 1 volt
+
+133
+00:07:06,958 --> 00:07:09,071
+with a frequency of 0.02 hertz.
+
+134
+00:07:09,072 --> 00:07:10,143
+We will look at the answer.
+
+135
+00:07:10,144 --> 00:07:13,171
+Then, we will apply the rule of two
+
+136
+00:07:13,172 --> 00:07:17,471
+and modify the parameters of the PID regulator, Kp,
+
+137
+00:07:17,614 --> 00:07:21,343
+we're going to divide it by two and we're going to multiply Ti Td by two.
+
+138
+00:07:21,640 --> 00:07:25,200
+You will then observe the response to be able to respond
+
+139
+00:07:25,201 --> 00:07:26,886
+to the green questions of the current module.
+
+140
+00:07:27,360 --> 00:07:30,720
+In this last experiment, we will see how a PID regulator
+
+141
+00:07:30,721 --> 00:07:34,571
+for the system in position can reject a constant disturbance.
+
+142
+00:07:34,857 --> 00:07:36,280
+This constant disturbance,
+
+143
+00:07:36,629 --> 00:07:40,171
+we will simulate it using an a priori command that we apply to the system.
+
+144
+00:07:40,557 --> 00:07:44,514
+We saw that the term I made it possible to compensate for the friction of the engine,
+
+145
+00:07:44,686 --> 00:07:48,871
+but we will see which also allows us to reject a constant disturbance.
+
+146
+00:07:49,457 --> 00:07:51,600
+For this, we will take the PID regulator
+
+147
+00:07:51,601 --> 00:07:53,300
+that we calculated previously,
+
+148
+00:07:53,411 --> 00:07:55,814
+we will apply a constant signal of 1 volt,
+
+149
+00:07:56,057 --> 00:07:58,929
+then, we will change the a priori order U0
+
+150
+00:07:58,930 --> 00:08:00,300
+going from 0 to 2 volts.
+
+151
+00:08:00,760 --> 00:08:05,186
+Then you will turn off the PID term and observe the effect on the response.
+
+152
+00:08:05,786 --> 00:08:06,743
+You can then respond
+
+153
+00:08:06,744 --> 00:08:09,640
+to the various open questions relating to this experience.
+
+154
+00:08:10,043 --> 00:08:12,743
+Today we saw that the system in position
+
+155
+00:08:12,744 --> 00:08:14,786
+to an integrator who is already present.
+
+156
+00:08:15,840 --> 00:08:19,160
+We also saw the Ziegler-Nichols synthesis method
+
+157
+00:08:19,160 --> 00:08:21,520
+which defines a regulator that is relatively aggressive.
+
+158
+00:08:21,540 --> 00:08:23,270
+We have seen the method of both
+
+159
+00:08:23,271 --> 00:08:27,186
+which makes it possible to reduce the “aggressiveness” of this regulator.
+
+160
+00:08:27,900 --> 00:08:31,943
+We have also seen that the integrator term allows us to overcome friction
+
+161
+00:08:32,314 --> 00:08:35,000
+and also to reject constant disturbance.
