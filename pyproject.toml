@@ -24,3 +24,16 @@ dependencies = [
 [project.urls]
 "Homepage" = "https://github.com/epflgraph/graphai-client"
 "Bug Tracker" = "https://github.com/epflgraph/graphai-client/issues"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "graphai/",
+]
+exclude = [
+  "/config/",
+  "/venv/",
+  "__pycache__/",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["graphai"]
