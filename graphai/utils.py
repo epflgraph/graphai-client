@@ -191,3 +191,40 @@ def combine_language_segments(text_key='text', **kwargs):
                     raise ValueError(f'{seg_idx}th segment timing are not the same for {languages[0]} and {lang}')
                 segments_combined[seg_idx][lang] = segment[text_key]
     return segments_combined
+
+
+def add_initial_disclaimer(segments, disclaimer_per_language):
+    if segments[0]['start'] == 0:
+        add_first_segment = False
+        set_first_segment_start_to_zero = False
+    elif segments[0]['start'] <= 2:
+        add_first_segment = False
+        set_first_segment_start_to_zero = True
+    else:
+        add_first_segment = True
+        set_first_segment_start_to_zero = False
+    modified_segments = []
+    if add_first_segment:
+        first_segment = {'id': 0, 'start': 0, 'end': 2}
+        for lang in segments[0].keys():
+            if lang in ('id', 'start', 'end'):
+                continue
+            first_segment[lang] = disclaimer_per_language.get(lang, '')
+        modified_segments.append(first_segment)
+    for idx, seg in enumerate(segments):
+        seg_id = seg.get('id', idx)
+        start = seg['start']
+        end = seg['end']
+        if seg_id == 0 and set_first_segment_start_to_zero:
+            start = 0
+        if add_first_segment:
+            seg_id += 1
+        modified_seg = {'id': seg_id, 'start': start, 'end': end}
+        for lang, text in seg.items():
+            if lang in ('id', 'start', 'end'):
+                continue
+            if seg_id == 0:  # cannot happen here with add_first_segment=True
+                text = disclaimer_per_language.get(lang, '') + '\n' + text
+            modified_seg[lang] = text
+        modified_segments.append(modified_seg)
+    return modified_segments
