@@ -4,7 +4,14 @@ from requests import get
 from datetime import datetime, timedelta
 from string import Formatter
 from numpy import isnan, isinf
-from re import match, compile
+from re import compile
+
+default_disclaimer = {
+    'en': 'These subtitles have been generated automatically',
+    'fr': 'Ces sous-titres ont été générés automatiquement',
+    'de': 'Diese Untertitel wurden automatisch generiert',
+    'it': 'Questi sottotitoli sono stati generati automaticamente'
+}
 
 
 def status_msg(msg, color=None, sections=(), print_flag=True):
@@ -122,7 +129,7 @@ def insert_line_into_table(cursor, schema, table_name, columns, values, encoding
         raise RuntimeError(msg)
 
 
-def convert_caption_data_into_segments(caption_data, file_ext='srt', text_key='text'):
+def convert_subtitle_into_segments(caption_data, file_ext='srt', text_key='text'):
     caption_lines = caption_data.encode('utf8').decode('utf-8-sig', errors='ignore').split('\n')
     time1_regexp = r'(:?(:?(?P<h1>[\d]{1,2}):)?(?P<m1>[\d]{1,2}):)?(?P<s1>[\d]{1,2})(:?[.,](?P<subs1>[\d]{0,6}))?'
     time2_regexp = r'(:?(:?(?P<h2>[\d]{1,2}):)?(?P<m2>[\d]{1,2}):)?(?P<s2>[\d]{1,2})(:?[.,](?P<subs2>[\d]{0,6}))?'
@@ -139,6 +146,7 @@ def convert_caption_data_into_segments(caption_data, file_ext='srt', text_key='t
     text = ''
     start = 0
     end = 0
+    segment_id = 0
     for line in caption_lines:
         if current_line_type == 'id':
             if line.strip():
@@ -163,14 +171,15 @@ def convert_caption_data_into_segments(caption_data, file_ext='srt', text_key='t
                 else:
                     text = line
             else:
-                segments.append({'start': start, 'end': end, text_key: text})
+                segments.append({'id': segment_id, 'start': start, 'end': end, text_key: text})
                 text = ''
+                segment_id += 1
                 if file_ext == 'srt':
                     current_line_type = 'id'
                 elif file_ext == 'vtt':
                     current_line_type = 'time'
     if text:
-        segments.append({'start': start, 'end': end, text_key: text})
+        segments.append({'id': segment_id, 'start': start, 'end': end, text_key: text})
     return segments
 
 
@@ -184,7 +193,13 @@ def combine_language_segments(text_key='text', **kwargs):
     for lang, segments_lang in kwargs.items():
         for seg_idx, segment in enumerate(segments_lang):
             if len(segments_combined) <= seg_idx:
-                segments_combined.append({'start': segment['start'], 'end': segment['end'], lang: segment[text_key]})
+                segments_combined.append(
+                    {
+                        'id': segment.get('id', seg_idx),
+                        'start': segment['start'], 'end': segment['end'],
+                        lang: segment[text_key]
+                    }
+                )
             else:
                 segment_equiv = segments_combined[seg_idx]
                 if segment['start'] != segment_equiv['start'] or segment['end'] != segment_equiv['end']:
@@ -193,7 +208,19 @@ def combine_language_segments(text_key='text', **kwargs):
     return segments_combined
 
 
-def add_initial_disclaimer(segments, disclaimer_per_language):
+def add_initial_disclaimer(segments, disclaimer_per_language=None, restrict_lang=None):
+    """
+    Add a disclaimer at the beginning of subtitles for languages in restrict_lang
+    If the first subtitle appears before 2s, its start is changed to 0, otherwise a new segment is added for 0 to 2s.
+
+    :param segments: subtitles as a list of dictionaries with id, start, end and the 2 letter language as keys
+    :param disclaimer_per_language: a dictionary giving the disclaimer for each language
+    :param restrict_lang: a tuple with the list o language for which the disclaimer must be added. It is added to all
+        languages if restrict_lang=None
+    :return:
+    """
+    if disclaimer_per_language is None:
+        disclaimer_per_language = default_disclaimer
     if segments[0]['start'] == 0:
         add_first_segment = False
         set_first_segment_start_to_zero = False
@@ -209,6 +236,8 @@ def add_initial_disclaimer(segments, disclaimer_per_language):
         for lang in segments[0].keys():
             if lang in ('id', 'start', 'end'):
                 continue
+            if restrict_lang and lang not in restrict_lang:
+                continue
             first_segment[lang] = disclaimer_per_language.get(lang, '')
         modified_segments.append(first_segment)
     for idx, seg in enumerate(segments):
@@ -222,6 +251,8 @@ def add_initial_disclaimer(segments, disclaimer_per_language):
         modified_seg = {'id': seg_id, 'start': start, 'end': end}
         for lang, text in seg.items():
             if lang in ('id', 'start', 'end'):
+                continue
+            if restrict_lang and lang not in restrict_lang:
                 continue
             if seg_id == 0:  # cannot happen here with add_first_segment=True
                 text = disclaimer_per_language.get(lang, '') + '\n' + text

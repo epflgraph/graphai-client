@@ -4,7 +4,7 @@ from json import load as load_json
 from os.path import dirname, join
 from re import match
 from graphai.utils import (
-    status_msg, get_video_link_and_size, strfdelta, insert_line_into_table, convert_caption_data_into_segments,
+    status_msg, get_video_link_and_size, strfdelta, insert_line_into_table, convert_subtitle_into_segments,
     combine_language_segments
 )
 from graphai.client import process_video, translate_extracted_text, translate_subtitles
@@ -376,9 +376,7 @@ def get_subtitles_from_kaltura(
             else:
                 print(f'Unknown caption language: {language}')
                 continue
-            subtitles_in_kaltura[lang] = convert_caption_data_into_segments(
-                caption_data, file_ext=file_ext
-            )
+            subtitles_in_kaltura[lang] = convert_subtitle_into_segments(caption_data, file_ext=file_ext)
     if not subtitles_in_kaltura:
         return None
     subtitles = combine_language_segments(**subtitles_in_kaltura)

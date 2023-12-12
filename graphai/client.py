@@ -1,4 +1,4 @@
-from graphai.utils import status_msg
+from graphai.utils import status_msg, add_initial_disclaimer
 from graphai.client_api.image import extract_text_from_slide
 from graphai.client_api.translation import translate_text
 from graphai.client_api.video import extract_slides, extract_audio, get_video_token
@@ -209,6 +209,7 @@ def process_audio(
                 segments, force=force, source_language=audio_language, destination_languages=destination_languages,
                 graph_ai_server=graph_ai_server, debug=debug
             )
+    segments = add_initial_disclaimer(segments)
     return audio_language, segments
 
 
