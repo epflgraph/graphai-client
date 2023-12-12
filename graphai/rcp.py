@@ -5,7 +5,7 @@ from os.path import dirname, join
 from re import match
 from graphai.utils import (
     status_msg, get_video_link_and_size, strfdelta, insert_line_into_table, convert_subtitle_into_segments,
-    combine_language_segments
+    combine_language_segments, add_initial_disclaimer
 )
 from graphai.client import process_video, translate_extracted_text, translate_subtitles
 
@@ -405,6 +405,7 @@ def get_subtitles_from_kaltura(
                 destination_languages=missing_destination_language,
                 graph_ai_server=graph_ai_server, debug=debug
             )
+            subtitles = add_initial_disclaimer(subtitles, restrict_lang=missing_destination_language)
     if piper_connection:
         piper_cursor.close()
         piper_connection.close()
