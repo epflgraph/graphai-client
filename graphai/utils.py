@@ -255,7 +255,8 @@ def add_initial_disclaimer(segments, disclaimer_per_language=None, restrict_lang
             if restrict_lang and lang not in restrict_lang:
                 continue
             if seg_id == 0:  # cannot happen here with add_first_segment=True
-                text = disclaimer_per_language.get(lang, '') + '\n' + text
+                if text.split('\n')[0] != disclaimer_per_language.get(lang, ''):
+                    text = disclaimer_per_language.get(lang, '') + '\n' + text
             modified_seg[lang] = text
         modified_segments.append(modified_seg)
     return modified_segments
