@@ -77,7 +77,7 @@ def process_video_urls_on_rcp(
                                 'textFr', 'textEn'
                             ),
                             (
-                                video_url, idx, segment['start'], segment['end'],
+                                video_url, idx, int(segment['start']*1000), int(segment['end']*1000),
                                 strfdelta(timedelta(seconds=segment['start']), '{H:02}:{M:02}:{S:02}.{m:03}'),
                                 strfdelta(timedelta(seconds=segment['end']), '{H:02}:{M:02}:{S:02}.{m:03}'),
                                 segment.get('fr', None), segment.get('en', None)

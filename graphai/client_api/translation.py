@@ -11,6 +11,23 @@ def translate_text(
 ):
     if text is None or len(text) == 0 or (len(text) == 1 and len(text[0]) == 0) or source_language == target_language:
         return text
+    # use english as an intermediary if needed
+    if source_language not in ('en', 'fr') and target_language != 'en':
+        translated_text_en = translate_text(
+            text, source_language, 'en', graph_ai_server=graph_ai_server,
+            sections=sections, force=force, debug=debug
+        )
+        if translated_text_en is None:
+            status_msg(
+                f'failed to translate "{text}" from {source_language} into en',
+                color='yellow', sections=list(sections) + ['WARNING']
+            )
+            return None
+        return translate_text(
+            translated_text_en, 'en', target_language, graph_ai_server=graph_ai_server,
+            sections=sections, force=force, debug=debug
+        )
+    # get rid of None in list input
     if isinstance(text, list):
         text_to_translate = []
         translated_line_to_original_mapping = {}
@@ -70,6 +87,7 @@ def translate_text(
                     f'text has been translated',
                     color='green', sections=list(sections) + ['SUCCESS']
                 )
+            # put back None in the output so the number of element is the same as in the input
             if isinstance(text, list) and isinstance(task_result['result'], list):
                 translated_text_full = [None] * len(text)
                 for tr_line_idx, translated_line in enumerate(task_result['result']):
