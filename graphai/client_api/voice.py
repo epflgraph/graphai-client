@@ -6,9 +6,9 @@ from graphai.utils import status_msg
 
 def transcribe_audio(
         audio_token, force=False, force_lang=None, graph_ai_server='http://127.0.0.1:28800',
-        sections=('GRAPHAI', 'TRANSCRIBE'), debug=False
+        sections=('GRAPHAI', 'TRANSCRIBE'), debug=False, strict=False
 ):
-    json_data = {"token": audio_token, "force": force}
+    json_data = {"token": audio_token, "force": force, "strict": strict}
     if force_lang is not None:
         json_data["force_lang"] = force_lang
     response_transcribe = get_response(
