@@ -174,7 +174,8 @@ def process_audio(
             color='grey', sections=['GRAPHAI', 'TRANSCRIBE', 'PROCESSING']
         )
         audio_language, segments = transcribe_audio(
-            audio_token, force=force, force_lang=audio_language, graph_ai_server=graph_ai_server, debug=debug
+            audio_token, force=force, force_lang=audio_language, graph_ai_server=graph_ai_server, debug=debug,
+            strict=True
         )
         if audio_language not in ['en', 'fr', 'de', 'it']:
             status_msg(
@@ -189,8 +190,10 @@ def process_audio(
                 color='yellow', sections=['GRAPHAI', 'TRANSCRIBE', 'WARNING']
             )
             audio_language, segments = transcribe_audio(
-                audio_token, force=force, force_lang='en', graph_ai_server=graph_ai_server, debug=debug
+                audio_token, force=force, force_lang='en', graph_ai_server=graph_ai_server, debug=debug, strict=True
             )
+            if not segments:
+                audio_language = None
         if audio_language is None:
             # we try to force french if transcription failed
             status_msg(
@@ -198,9 +201,11 @@ def process_audio(
                 color='yellow', sections=['GRAPHAI', 'TRANSCRIBE', 'WARNING']
             )
             audio_language, segments = transcribe_audio(
-                audio_token, force=force, force_lang='fr', graph_ai_server=graph_ai_server, debug=debug
+                audio_token, force=force, force_lang='fr', graph_ai_server=graph_ai_server, debug=debug, strict=True
             )
-        if segments is not None:
+            if not segments:
+                audio_language = None
+        if segments:
             status_msg(
                 f'translate transcription for {len(segments)} segments in {audio_language}',
                 color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
@@ -209,7 +214,9 @@ def process_audio(
                 segments, force=force, source_language=audio_language, destination_languages=destination_languages,
                 graph_ai_server=graph_ai_server, debug=debug
             )
-    segments = add_initial_disclaimer(segments)
+            segments = add_initial_disclaimer(segments)
+        else:
+            audio_language = None
     return audio_language, segments
 
 
@@ -369,31 +376,13 @@ if __name__ == '__main__':
 
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00gdquzv/format/download/protocol/https/flavorParamIds/0'  # 40s video FAST!
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00fajklv/format/download/protocol/https/flavorParamIds/0' # 48min video
-    url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_0gn6xnrf/format/download/protocol/https/flavorParamIds/0'  # german
-    video_info = translate_text(
-        [
-            'Im Rahmen eines eigenen Projekts können die Schülerinnen und Schüler kreativ tätig werden',
-            'und ihre Interessen und Stärken einbringen.',
-            'Das spricht insbesondere Lernende an, welche offene Aufgabenstellungen mögen.',
-            'Für andere kann es aber auch herausfordernd sein.',
-            'Hier kann es helfen, wenn die Lehrperson den Themenbereich doch etwas einschränkt',
-            'oder Beispielprojekte als Inspiration zeigt.',
-            'In diesem Abschnitt werden verschiedene Ausgangslagen für eigene Projekte vorgestellt.',
-            'In einem Beispiel wird der Tymio nicht nur programmiert, sondern auch mit einer Papiervorlage passend gestaltet.',
-            'Fast die Schülerinnen und Schüler bereits gute Vorkenntnisse mit der Probamiersprache in Scratch haben,',
-            'bietet es sich an, diese mit dem Tymio zu kombinieren.',
-            'Der Schwerpunkt kann aber auch auf die Konstruktion gelegt werden, in dem etwas an den Tymio angebaut wird.',
-            'In allen Fällen soll am Schluss etwas Eigenes und Vorzeigbares entstehen.',
-            'Untertitel im Auftrag des ZDF, 2018'
-        ],
-        source_language='de', target_language='en', force=True, debug=True
-    )
+    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_0gn6xnrf/format/download/protocol/https/flavorParamIds/0'  # german
 
     # video with no voice:
-    # url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_191runee/format/download/protocol/https/flavorParamIds/0'  # music
+    url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_191runee/format/download/protocol/https/flavorParamIds/0'  # music
     # url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_i8zqj20g/format/download/protocol/https/flavorParamIds/0'  # silence
     # url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_xuvg6ca5/format/download/protocol/https/flavorParamIds/0'  # off voice + music
     # url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_u1offnl2/format/download/protocol/https/flavorParamIds/0'  # music
-    #video_info = process_video(url, force=True, graph_ai_server='http://127.0.0.1:28800', analyze_slides=False)
+    video_info = process_video(url, force=True, graph_ai_server='http://127.0.0.1:28800', analyze_slides=False)
     print(video_info)
 
