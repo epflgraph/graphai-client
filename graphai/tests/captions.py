@@ -70,6 +70,22 @@ class Captions(unittest.TestCase):
         self.assertEqual(subtitles_with_disclaimer[0]['end'], subtitles_from_kaltura[0]['end'])
         self.assertEqual(subtitles_with_disclaimer[0]['en'].split('\n')[0], default_disclaimer['en'])
 
+    def test_initial_disclaimer_with_empty_lang(self):
+        from graphai.utils import add_initial_disclaimer, default_disclaimer
+
+        test_subtitles = [
+            {'id': 0, 'start': 0, 'end': 2, 'fr': None, 'en': None, 'it': 'test'},
+            {'id': 1, 'start': 0, 'end': 2, 'fr': None, 'en': 'test', 'it': 'test'},
+            {'id': 2, 'start': 0, 'end': 2, 'fr': None, 'en': None, 'it': 'test'},
+        ]
+        subtitles_with_disclaimer = add_initial_disclaimer(test_subtitles, default_disclaimer)
+        self.assertEqual(subtitles_with_disclaimer[0]['id'], 0)
+        self.assertEqual(subtitles_with_disclaimer[0]['start'], 0)
+        self.assertEqual(subtitles_with_disclaimer[0]['end'], 2)
+        self.assertEqual(subtitles_with_disclaimer[0]['fr'], None)
+        self.assertEqual(subtitles_with_disclaimer[0]['en'], default_disclaimer['en'])
+        self.assertEqual(subtitles_with_disclaimer[0]['it'].split('\n')[0], default_disclaimer['it'])
+
 
 if __name__ == '__main__':
     unittest.main()

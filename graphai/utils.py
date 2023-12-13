@@ -221,6 +221,20 @@ def add_initial_disclaimer(segments, disclaimer_per_language=None, restrict_lang
     """
     if disclaimer_per_language is None:
         disclaimer_per_language = default_disclaimer
+    segments_lang_to_modify = []
+    segments_lang_to_keep = []
+    for lang in segments[0].keys():
+        if lang in ('id', 'start', 'end'):
+            continue
+        if restrict_lang and lang not in restrict_lang:
+            segments_lang_to_keep.append(lang)
+            continue
+        # skip languages where all text is None
+        if segments[0][lang] is None:
+            if len([1 for seg in segments if seg[lang] is not None]) == 0:
+                segments_lang_to_keep.append(lang)
+                continue
+        segments_lang_to_modify.append(lang)
     if segments[0]['start'] == 0:
         add_first_segment = False
         set_first_segment_start_to_zero = False
@@ -233,11 +247,7 @@ def add_initial_disclaimer(segments, disclaimer_per_language=None, restrict_lang
     modified_segments = []
     if add_first_segment:
         first_segment = {'id': 0, 'start': 0, 'end': 2}
-        for lang in segments[0].keys():
-            if lang in ('id', 'start', 'end'):
-                continue
-            if restrict_lang and lang not in restrict_lang:
-                continue
+        for lang in segments_lang_to_modify:
             first_segment[lang] = disclaimer_per_language.get(lang, '')
         modified_segments.append(first_segment)
     for idx, seg in enumerate(segments):
@@ -249,14 +259,15 @@ def add_initial_disclaimer(segments, disclaimer_per_language=None, restrict_lang
         if add_first_segment:
             seg_id += 1
         modified_seg = {'id': seg_id, 'start': start, 'end': end}
-        for lang, text in seg.items():
-            if lang in ('id', 'start', 'end'):
-                continue
-            if restrict_lang and lang not in restrict_lang:
-                continue
+        for lang in segments_lang_to_modify:
+            text = seg.get(lang, None)
             if seg_id == 0:  # cannot happen here with add_first_segment=True
-                if text.split('\n')[0] != disclaimer_per_language.get(lang, ''):
+                if text is None:
+                    text = disclaimer_per_language.get(lang, '')
+                elif text.split('\n')[0] != disclaimer_per_language.get(lang, ''):
                     text = disclaimer_per_language.get(lang, '') + '\n' + text
             modified_seg[lang] = text
+        for lang in segments_lang_to_keep:
+            modified_seg[lang] = seg.get(lang, None)
         modified_segments.append(modified_seg)
     return modified_segments

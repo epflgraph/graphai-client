@@ -284,7 +284,7 @@ def translate_extracted_text(
             )
             if translated_text is None:
                 status_msg(
-                    f'failed to translate "{text_to_translate}"',
+                    f'failed to translate "{text_to_translate}" from {source_language} into {lang}',
                     color='yellow', sections=list(sections) + ['WARNING']
                 )
             # take care of a quirk of the API: when translating a list of length 1, the result is a string
