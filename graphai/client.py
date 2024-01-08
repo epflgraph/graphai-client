@@ -329,7 +329,7 @@ def translate_subtitles(
             raise ValueError(
                 f'could not determine the language used in most of the segments. The count is: {language_segments}'
             )
-    text_to_translate = [seg[source_language] for seg in segments]
+    text_to_translate = [seg[source_language].replace('\n', ' ') for seg in segments]
     for lang in destination_languages:
         if source_language != lang:
             translated_text = translate_text(
