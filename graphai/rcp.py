@@ -377,7 +377,7 @@ def get_subtitles_from_kaltura(
         partner_data_info = list(piper_cursor)
         languages_with_auto_captions = []
         if len(partner_data_info) > 0:
-            if partner_data_info[0]:
+            if partner_data_info[0][0]:
                 partner_data = partner_data_info[0][0].split(',')
                 for data in partner_data:
                     matched = fullmatch(r'sub_([a-z]+)_auto', data)
