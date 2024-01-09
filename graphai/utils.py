@@ -153,6 +153,8 @@ def convert_subtitle_into_segments(caption_data, file_ext='srt', text_key='text'
                 segment_id = int(line) - 1
                 current_line_type = 'time'
         elif current_line_type == 'time':
+            if not line.strip():
+                continue
             match_time = time_regexp.match(line)
             if match_time:
                 time_dict = match_time.groupdict(default='0')
