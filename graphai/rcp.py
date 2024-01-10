@@ -391,6 +391,8 @@ def get_subtitles_from_kaltura(
     caption_info = list(piper_cursor)
     if len(caption_info) > 0:
         for caption_data, file_ext, language in caption_info:
+            if caption_data is None:
+                continue
             if language.lower() in language_to_short:
                 lang = language_to_short[language.lower()]
             else:
