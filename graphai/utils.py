@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from string import Formatter
 from numpy import isnan, isinf
 from re import compile
+from typing import Literal
 
 default_disclaimer = {
     'en': 'These subtitles have been generated automatically',
@@ -95,27 +96,30 @@ def strfdelta(time_delta: timedelta, fmt='{H:02}:{M:02}:{S:02},{m:03}'):
     return f.format(fmt, **values)
 
 
-def prepare_values_mysql(values, encoding='utf8'):
+def prepare_values_mysql_with_types(values, types: list[Literal["str", "int", "float"]], encoding='utf8'):
     values_str = []
-    for val in values:
-        val_str = str(val).encode(encoding, errors='ignore').decode(encoding)
-        nan_or_inf = False
-        try:
-            val_float = float(val)
-            nan_or_inf = isnan(val_float) or isinf(val_float)
-        except (TypeError, ValueError):
-            pass
-        if val is None or nan_or_inf:
+    assert len(values) == len(types)
+    for val, val_type in zip(values, types):
+        if val is None:
             values_str.append("NULL")
-        elif val_str.isdigit():
-            values_str.append(val_str)
-        else:
+        elif val_type == "str":
+            val_str = str(val).encode(encoding, errors='ignore').decode(encoding)
             values_str.append(f"'" + val_str.replace("\\", "\\\\").replace("'", "\\'").replace(";", "\\;") + "'")
+        elif val_type == "int":
+            values_str.append(str(int(val)))
+        elif val_type == "float":
+            val_float = float(val)
+            if isnan(val_float) or isinf(val_float):
+                values_str.append("NULL")
+            else:
+                values_str.append(str(float(val)))
+        else:
+            raise ValueError('types must be a list of either "str", "int" or "float".')
     return values_str
 
 
-def insert_line_into_table(cursor, schema, table_name, columns, values, encoding='utf8'):
-    values_str = prepare_values_mysql(values, encoding=encoding)
+def insert_line_into_table_with_types(cursor, schema, table_name, columns, values, types, encoding='utf8'):
+    values_str = prepare_values_mysql_with_types(values, types, encoding=encoding)
     sql_query = f"""
                 INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
                 VALUES ({', '.join(values_str)});

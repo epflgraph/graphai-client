@@ -4,7 +4,7 @@ from json import load as load_json
 from os.path import dirname, join
 from re import match, fullmatch
 from graphai.utils import (
-    status_msg, get_video_link_and_size, strfdelta, insert_line_into_table, convert_subtitle_into_segments,
+    status_msg, get_video_link_and_size, strfdelta, insert_line_into_table_with_types, convert_subtitle_into_segments,
     combine_language_segments, add_initial_disclaimer, default_disclaimer
 )
 from graphai.client import process_video, translate_extracted_text, translate_subtitles
@@ -59,7 +59,7 @@ def process_video_urls_on_rcp(
                     )
                     for slide_number, slide in enumerate(slides):
                         slide_time = strfdelta(timedelta(seconds=slide['timestamp']), '{H:02}:{M:02}:{S:02}')
-                        insert_line_into_table(
+                        insert_line_into_table_with_types(
                             piper_cursor, 'gen_kaltura', 'Slides',
                             (
                                 'VideoUrl', 'slideNumber',
@@ -70,6 +70,11 @@ def process_video_urls_on_rcp(
                                 video_url, slide_number,
                                 slide['timestamp'], slide_time,
                                 slide.get('fr', None), slide.get('en', None)
+                            ),
+                            (
+                                'str', 'int',
+                                'int', 'str',
+                                'str', 'str'
                             )
                         )
                 if subtitles is not None:
@@ -77,7 +82,7 @@ def process_video_urls_on_rcp(
                         f'DELETE FROM `gen_video`.`Subtitles` WHERE VideoUrl="{video_url}"'
                     )
                     for idx, segment in enumerate(subtitles):
-                        insert_line_into_table(
+                        insert_line_into_table_with_types(
                             piper_cursor, 'gen_kaltura', 'Subtitles',
                             (
                                 'VideoUrl', 'segmentId', 'startMilliseconds', 'endMilliseconds',
@@ -89,12 +94,17 @@ def process_video_urls_on_rcp(
                                 strfdelta(timedelta(seconds=segment['start']), '{H:02}:{M:02}:{S:02}.{m:03}'),
                                 strfdelta(timedelta(seconds=segment['end']), '{H:02}:{M:02}:{S:02}.{m:03}'),
                                 segment.get('fr', None), segment.get('en', None)
+                            ),
+                            (
+                                'str', 'int', 'int', 'int',
+                                'str', 'str',
+                                'str', 'str'
                             )
                         )
                 piper_cursor.execute(
                     f'DELETE FROM `gen_video`.`Videos` WHERE VideoUrl="{video_url}"'
                 )
-                insert_line_into_table(
+                insert_line_into_table_with_types(
                     piper_cursor, 'gen_kaltura', 'Videos',
                     (
                         'VideoUrl', 'kalturaUrl', 'thumbnailUrl', 'kalturaCreationTime', 'kalturaUpdateTime',
@@ -104,6 +114,12 @@ def process_video_urls_on_rcp(
                     ),
                     (
                         video_url, octet_size, slides_detected_language, audio_detected_language
+                    ),
+                    (
+                        'str', 'str', 'str', 'str', 'str',
+                        'str', 'str', 'str', 'str', 'str', 'str',
+                        'str', 'int', 'int',
+                        'str', 'str', 'str'
                     )
                 )
                 piper_connection.commit()
@@ -293,7 +309,7 @@ def process_videos_on_rcp(
                     )
                     for slide_number, slide in enumerate(slides):
                         slide_time = strfdelta(timedelta(seconds=slide['timestamp']), '{H:02}:{M:02}:{S:02}')
-                        insert_line_into_table(
+                        insert_line_into_table_with_types(
                             piper_cursor, 'gen_kaltura', 'Slides',
                             (
                                 'kalturaVideoId', 'slideNumber',
@@ -304,6 +320,11 @@ def process_videos_on_rcp(
                                 kaltura_video_id, slide_number,
                                 slide['timestamp'], slide_time,
                                 slide.get('fr', None),  slide.get('en', None)
+                            ),
+                            (
+                                'str', 'int',
+                                'int', 'str',
+                                'str', 'str'
                             )
                         )
                 if subtitles is not None:
@@ -311,7 +332,7 @@ def process_videos_on_rcp(
                         f'DELETE FROM `gen_kaltura`.`Subtitles` WHERE kalturaVideoId="{kaltura_video_id}"'
                     )
                     for idx, segment in enumerate(subtitles):
-                        insert_line_into_table(
+                        insert_line_into_table_with_types(
                             piper_cursor, 'gen_kaltura', 'Subtitles',
                             (
                                 'kalturaVideoId', 'segmentId', 'startMilliseconds', 'endMilliseconds',
@@ -323,12 +344,17 @@ def process_videos_on_rcp(
                                 strfdelta(timedelta(seconds=segment['start']), '{H:02}:{M:02}:{S:02}.{m:03}'),
                                 strfdelta(timedelta(seconds=segment['end']), '{H:02}:{M:02}:{S:02}.{m:03}'),
                                 segment.get('fr', None), segment.get('en', None)
+                            ),
+                            (
+                                'str', 'int', 'int', 'int',
+                                'str', 'str',
+                                'str', 'str'
                             )
                         )
                 piper_cursor.execute(
                     f'DELETE FROM `gen_kaltura`.`Videos` WHERE kalturaVideoId="{kaltura_video_id}"'
                 )
-                insert_line_into_table(
+                insert_line_into_table_with_types(
                     piper_cursor, 'gen_kaltura', 'Videos',
                     (
                         'kalturaVideoId', 'kalturaUrl', 'thumbnailUrl', 'kalturaCreationTime', 'kalturaUpdateTime',
@@ -341,6 +367,12 @@ def process_videos_on_rcp(
                         title, description, kaltura_owner, kaltura_creator, tags, categories,
                         kaltura_entitled_editor, ms_duration, octet_size,
                         slides_detected_language, audio_detected_language, switchtube_video_id
+                    ),
+                    (
+                        'str', 'str', 'str', 'str', 'str',
+                        'str', 'str', 'str', 'str', 'str', 'str',
+                        'str', 'int', 'int',
+                        'str', 'str', 'str'
                     )
                 )
                 piper_connection.commit()
