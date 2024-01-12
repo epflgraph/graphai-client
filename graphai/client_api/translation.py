@@ -53,7 +53,7 @@ def translate_text(
     task_id = response_translate.json()['task_id']
     # wait for the translation to be completed
     tries_translate_status = 0
-    while tries_translate_status < 900:
+    while tries_translate_status < 3000:
         tries_translate_status += 1
         response_translate_status = get_response(
             url=graph_ai_server + f'/translation/translate/status/{task_id}',
