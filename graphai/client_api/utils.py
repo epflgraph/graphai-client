@@ -33,7 +33,10 @@ def get_response(url, request_func=get, headers=None, json=None, n_trials=5, sec
                             status_msg(str(detail), color='yellow', sections=list(sections) + ['WARNING'])
                     status_msg(str(response_json['detail']), color='yellow', sections=list(sections) + ['WARNING'])
             sleep(1)
-    return None
+    if response.status_code == 500:
+        raise RuntimeError(f'could not get response for {request_func.__name__.upper()} on "{url}"')
+    else:
+        return None
 
 
 def task_result_is_ok(task_result: Union[dict, None], token: str, input_type='text', sections=('GRAPHAI', 'OCR')):
