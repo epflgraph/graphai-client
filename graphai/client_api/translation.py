@@ -84,6 +84,7 @@ def translate_text(
                     f'text was too large to be translated',
                     color='yellow', sections=list(sections) + ['WARNING']
                 )
+                return None
             else:
                 status_msg(
                     f'text has been translated',
