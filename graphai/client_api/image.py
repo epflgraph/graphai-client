@@ -21,7 +21,7 @@ def extract_text_from_slide(
     task_id = response_text.json()['task_id']
     # wait for the detection of slides to be completed
     tries_text_status = 0
-    while tries_text_status < 6000:
+    while tries_text_status < 600:
         tries_text_status += 1
         response_text_status = get_response(
             url=graph_ai_server + f'/image/extract_text/status/{task_id}',

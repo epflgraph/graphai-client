@@ -251,8 +251,10 @@ def extract_text_from_slides(
             lang: text for lang, text in slides_language_count.items() if lang in ['fr', 'en', 'de', 'it']}
         if len(slides_language_count_filtered) > 0:
             slides_language = max(slides_language_count_filtered, key=slides_language_count.get)
-        else:
+        elif len(slides_language_count) > 0:
             slides_language = max(slides_language_count, key=slides_language_count.get)
+        else:
+            return []
     result_slides_text = []
     for slide_idx in range(len(slides_text)):
         if slides_text[slide_idx] is None:
@@ -379,10 +381,15 @@ if __name__ == '__main__':
     #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_0gn6xnrf/format/download/protocol/https/flavorParamIds/0'  # german
 
     # video with no voice:
-    url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_191runee/format/download/protocol/https/flavorParamIds/0'  # music
+    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_191runee/format/download/protocol/https/flavorParamIds/0'  # music
     # url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_i8zqj20g/format/download/protocol/https/flavorParamIds/0'  # silence
     # url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_xuvg6ca5/format/download/protocol/https/flavorParamIds/0'  # off voice + music
     # url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_u1offnl2/format/download/protocol/https/flavorParamIds/0'  # music
-    video_info = process_video(url, force=True, graph_ai_server='http://127.0.0.1:28800', analyze_slides=False)
-    print(video_info)
+
+    #url = "https://api.cast.switch.ch/p/113/sp/11300/serveFlavor/entryId/0_vgsq7l1z/v/2/flavorId/0_lm3u67lv/fileName/Result_of_trial15_C001H001S0001_(Source).avi/forceproxy/true/name/a.avi"  # no slide/no sound
+    #video_info = process_video(url, force=True, graph_ai_server='http://127.0.0.1:28800', analyze_slides=False, debug=True)
+    #print(video_info)
+    from graphai.rcp import process_videos_on_rcp
+
+    process_videos_on_rcp(['0_sltslw7z'], force=True, debug=True)
 
