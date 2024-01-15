@@ -34,7 +34,12 @@ def get_response(url, request_func=get, headers=None, json=None, n_trials=5, sec
                     status_msg(str(response_json['detail']), color='yellow', sections=list(sections) + ['WARNING'])
             sleep(1)
     if response.status_code == 500:
-        raise RuntimeError(f'could not get response for {request_func.__name__.upper()} on "{url}"')
+        msg = f'Could not get response for {request_func.__name__.upper()} on "{url}"'
+        if headers is not None:
+            msg += f' with headers "{headers}"'
+        if json is not None:
+            msg += f' with json data "{json}"'
+        raise RuntimeError(msg)
     else:
         return None
 
