@@ -55,13 +55,21 @@ def translate_text(
     tries_translate_status = 0
     while tries_translate_status < 3000:
         tries_translate_status += 1
-        response_translate_status = get_response(
-            url=graph_ai_server + f'/translation/translate/status/{task_id}',
-            request_func=get,
-            headers={'Content-Type': 'application/json'},
-            sections=sections,
-            debug=debug
-        )
+        try:
+            response_translate_status = get_response(
+                url=graph_ai_server + f'/translation/translate/status/{task_id}',
+                request_func=get,
+                headers={'Content-Type': 'application/json'},
+                sections=sections,
+                debug=debug
+            )
+        except RuntimeError as e:
+            status_msg(
+                f'Translation from {source_language} to {target_language} caused an exception, '
+                f'the text to translate was:\n{text_to_translate}',
+                color='red', sections=list(sections) + ['ERROR']
+            )
+            raise e
         if response_translate_status is None:
             return None
         response_translate_status_json = response_translate_status.json()
