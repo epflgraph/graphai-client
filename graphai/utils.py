@@ -208,7 +208,7 @@ def combine_language_segments(text_key='text', **kwargs):
                 )
             else:
                 segment_equiv = segments_combined[seg_idx]
-                if segment['start'] != segment_equiv['start'] or segment['end'] != segment_equiv['end']:
+                if -1 < segment['start'] - segment_equiv['start'] < 1 or -1 < segment['end'] - segment_equiv['end'] < 1:
                     raise ValueError(f'{seg_idx}th segment timing are not the same for {languages[0]} and {lang}')
                 segments_combined[seg_idx][lang] = segment[text_key]
     return segments_combined
