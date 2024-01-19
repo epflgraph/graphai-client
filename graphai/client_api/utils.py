@@ -68,3 +68,21 @@ def task_result_is_ok(task_result: Union[dict, None], token: str, input_type='te
             color='green', sections=list(sections) + ['SUCCESS']
         )
     return True
+
+
+def split_text(text: str, max_length: int, split_characters=('\n', '.', ';', ',', ' ')):
+    result = []
+    assert max_length > 0
+    while len(text) > max_length:
+        for split_char in split_characters:
+            pos = text[:max_length].rfind(split_char)
+            if pos > 0:
+                result.append(text[:pos+1])
+                text = text[pos+1:]
+                break
+        if len(text) > max_length:
+            result.append(text[:max_length])
+            text = text[max_length:]
+    if len(text) > 0:
+        result.append(text)
+    return result

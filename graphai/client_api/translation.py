@@ -2,12 +2,12 @@ from time import sleep
 from requests import get, post
 from typing import Union
 from graphai.utils import status_msg
-from graphai.client_api.utils import get_response, task_result_is_ok
+from graphai.client_api.utils import get_response, task_result_is_ok, split_text
 
 
 def translate_text(
         text: Union[str, list], source_language, target_language, graph_ai_server='http://127.0.0.1:28800',
-        sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False
+        sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None
 ):
     if text is None or len(text) == 0 or \
             (len(text) == 1 and (text[0] is None or len(text[0]) == 0)) or\
@@ -17,7 +17,7 @@ def translate_text(
     if source_language not in ('en', 'fr') and target_language != 'en':
         translated_text_en = translate_text(
             text, source_language, 'en', graph_ai_server=graph_ai_server,
-            sections=sections, force=force, debug=debug
+            sections=sections, force=force, debug=debug, max_text_length=max_text_length
         )
         if translated_text_en is None:
             status_msg(
@@ -27,7 +27,7 @@ def translate_text(
             return None
         return translate_text(
             translated_text_en, 'en', target_language, graph_ai_server=graph_ai_server,
-            sections=sections, force=force, debug=debug
+            sections=sections, force=force, debug=debug, max_text_length=max_text_length
         )
     # get rid of None in list input
     if isinstance(text, list):
@@ -35,11 +35,25 @@ def translate_text(
         translated_line_to_original_mapping = {}
         for line_idx, line in enumerate(text):
             if isinstance(line, str):
-                translated_line_to_original_mapping[len(text_to_translate)] = line_idx
-                text_to_translate.append(line)
+                if max_text_length and len(line) > max_text_length:
+                    split_line = split_text(line, max_text_length)
+                    for line_portion in split_line:
+                        translated_line_to_original_mapping[len(text_to_translate)] = line_idx
+                        text_to_translate.append(line_portion)
+                else:
+                    translated_line_to_original_mapping[len(text_to_translate)] = line_idx
+                    text_to_translate.append(line)
     else:
-        text_to_translate = text
-        translated_line_to_original_mapping = None
+        if max_text_length and len(text) > max_text_length:
+            translated_line_to_original_mapping = {}
+            text_to_translate = []
+            text_portions = split_text(text, max_text_length)
+            for text_portion in text_portions:
+                translated_line_to_original_mapping[len(text_to_translate)] = 0
+                text_to_translate.append(text_portion)
+        else:
+            text_to_translate = text
+            translated_line_to_original_mapping = None
     response_translate = get_response(
         url=graph_ai_server + '/translation/translate',
         request_func=post,
@@ -89,10 +103,19 @@ def translate_text(
                 continue
             if task_result['text_too_large']:
                 status_msg(
-                    f'text was too large to be translated',
+                    f'text was too large to be translated, trying to split it up ...',
                     color='yellow', sections=list(sections) + ['WARNING']
                 )
-                return None
+                if max_text_length:
+                    return translate_text(
+                        text, source_language, target_language, graph_ai_server=graph_ai_server,
+                        sections=sections, force=force, debug=debug, max_text_length=max_text_length-200
+                    )
+                else:
+                    return translate_text(
+                        text, source_language, target_language, graph_ai_server=graph_ai_server,
+                        sections=sections, force=force, debug=debug, max_text_length=2000
+                    )
             else:
                 status_msg(
                     f'text has been translated',
@@ -103,8 +126,13 @@ def translate_text(
                 translated_text_full = [None] * len(text)
                 for tr_line_idx, translated_line in enumerate(task_result['result']):
                     original_line_idx = translated_line_to_original_mapping[tr_line_idx]
-                    translated_text_full[original_line_idx] = translated_line
+                    if translated_text_full[original_line_idx] is None:
+                        translated_text_full[original_line_idx] = translated_line
+                    else:
+                        translated_text_full[original_line_idx] += translated_line
                 return translated_text_full
+            elif max_text_length and isinstance(text, str) and isinstance(task_result['result'], list):
+                return ''.join(task_result['result'])
             else:
                 return task_result['result']
         elif translate_status == 'FAILURE':
