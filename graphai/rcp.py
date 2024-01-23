@@ -206,6 +206,12 @@ def process_videos_on_rcp(
                     kaltura_url_api, thumbnail_url, kaltura_creation_time, kaltura_update_time, title,
                     description, kaltura_owner, kaltura_creator, tags, categories, kaltura_entitled_editor, ms_duration
                 ) = video_details[0]
+                if not kaltura_url_api:
+                    status_msg(
+                        f'Skipping video {kaltura_video_id} which has no download link',
+                        color='yellow', sections=['KALTURA', 'VIDEO', 'WARNING']
+                    )
+                    continue
                 kaltura_url, octet_size = get_video_link_and_size(kaltura_url_api)
                 if kaltura_url is None:
                     status_msg(
