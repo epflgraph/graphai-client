@@ -9,10 +9,19 @@ def translate_text(
         text: Union[str, list], source_language, target_language, graph_ai_server='http://127.0.0.1:28800',
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None
 ):
-    if text is None or len(text) == 0 or \
-            (len(text) == 1 and (text[0] is None or len(text[0]) == 0)) or\
-            source_language == target_language:
+    if source_language == target_language:
         return text
+    # check for empty text
+    if isinstance(text, str) and not text:
+        return text
+    else:  # check for list of empty text
+        is_empty = True
+        for line in text:
+            if line and line.strip():
+                is_empty = False
+                break
+        if is_empty:
+            return text
     # use english as an intermediary if needed
     if source_language not in ('en', 'fr') and target_language != 'en':
         translated_text_en = translate_text(
