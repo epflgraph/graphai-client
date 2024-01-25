@@ -453,7 +453,7 @@ def get_subtitles_from_kaltura(
                     languages_to_ignore.append(lang)
         for lang in languages_to_ignore:
             del subtitles_in_kaltura[lang]
-    subtitles = combine_language_segments(**subtitles_in_kaltura)
+    subtitles = combine_language_segments(**subtitles_in_kaltura, precision_s=2)
     if destination_languages:
         missing_destination_language = []
         for lang in destination_languages:
