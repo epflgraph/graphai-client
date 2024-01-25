@@ -1,0 +1,899 @@
+﻿1
+00:00:05,200 --> 00:00:08,090
+Bonjour et bienvenue a se
+moque de thermodynamique.
+
+2
+00:00:08,120 --> 00:00:13,460
+Cette leçon est consacrée à l'équilibre
+mécanique et aux transferts mécaniques.
+
+3
+00:00:13,490 --> 00:00:17,720
+Pour ce faire, on va considérer un système
+isolé qui est constitué de deux sous
+
+4
+00:00:17,740 --> 00:00:24,660
+systèmes simples qui sont séparés par une
+paroi dit à terme mobile et imperméable.
+
+5
+00:00:24,680 --> 00:00:27,000
+Dans un premier temps,
+on va établir la condition d'équilibre
+
+6
+00:00:27,030 --> 00:00:32,820
+mécanique et dans un deuxième temps,
+on va examiner le transfert mécanique.
+
+7
+00:00:32,850 --> 00:00:37,260
+On considère donc un système isolé.
+
+8
+00:00:37,290 --> 00:00:39,540
+Qui est constitué de deux
+
+9
+00:00:39,570 --> 00:00:43,840
+sous systèmes simple
+sous système simple un ici sous système
+
+10
+00:00:43,870 --> 00:00:50,220
+simple, deux là,
+qui sont séparés par une paroi dit à terme
+
+11
+00:00:50,250 --> 00:00:55,340
+mobile et imperméable
+vu que le système est isolé.
+
+12
+00:00:55,370 --> 00:00:58,200
+La puissance thermique PQ est la puissance
+
+13
+00:00:58,230 --> 00:01:03,660
+mécanique PW qui sont exercées
+par l'extérieur sur le système.
+
+14
+00:01:03,680 --> 00:01:05,200
+Elles nul ?
+
+15
+00:01:05,640 --> 00:01:08,000
+Pour caractériser la thermodynamique de ce
+
+16
+00:01:08,030 --> 00:01:12,570
+système, il faut deux types
+de variables d'état extensive.
+
+17
+00:01:12,600 --> 00:01:14,180
+Tout d'abord l'entropie.
+
+18
+00:01:14,210 --> 00:01:16,380
+Ensuite le volume.
+
+19
+00:01:16,400 --> 00:01:17,840
+Pour chaque sous système simple,
+
+20
+00:01:17,870 --> 00:01:22,020
+il faut une variable entropie
+et une variable volume.
+
+21
+00:01:22,050 --> 00:01:29,760
+Les quatre variables d'état
+sont donc un S2, V1 et V2.
+
+22
+00:01:30,160 --> 00:01:36,340
+On suppose que ce système a déjà atteint
+l'état d'équilibre thermique.
+
+23
+00:01:36,360 --> 00:01:38,640
+Quand un système
+atteint un équilibre thermique,
+
+24
+00:01:38,670 --> 00:01:42,570
+ça veut dire que les deux sous systèmes
+ont la même température.
+
+25
+00:01:42,600 --> 00:01:45,140
+La température est une fonction d'état,
+
+26
+00:01:45,170 --> 00:01:50,620
+c'est donc une fonction des variables
+d'état de chaque sous système.
+
+27
+00:01:50,650 --> 00:01:54,490
+Par conséquent, l'équilibre thermique
+s'écrit de la manière suivante.
+
+28
+00:01:54,520 --> 00:01:57,280
+La température T du premier sous système,
+
+29
+00:01:57,310 --> 00:02:02,720
+qui est une fonction de S1 et devient,
+est égale à la température T du deuxième
+
+30
+00:02:02,750 --> 00:02:08,060
+sous système, qui est
+une fonction de S2 et de V2.
+
+31
+00:02:08,090 --> 00:02:13,700
+l'Énergie interne, la température
+et la pression sont des fonctions d'état.
+
+32
+00:02:13,730 --> 00:02:20,660
+Ce sont donc des fonctions des variables
+d'état de chaque sous système.
+
+33
+00:02:20,690 --> 00:02:28,920
+Le un point CT est un point
+moins t1 v un point.
+
+34
+00:02:29,040 --> 00:02:36,220
+Le premier principe nous affirme que la
+cause de la variation temporelle de un.
+
+35
+00:02:36,240 --> 00:02:37,600
+C'est.
+
+36
+00:02:37,680 --> 00:02:43,520
+Les puissances thermiques et mécaniques
+qui sont exercées par le deuxième sous
+
+37
+00:02:43,550 --> 00:02:50,880
+système sur le premier sous système,
+à savoir PQ deux un et PW deux un.
+
+38
+00:02:51,840 --> 00:02:55,720
+De manière similaire deux points.
+
+39
+00:02:55,800 --> 00:02:57,300
+CT.
+
+40
+00:02:57,330 --> 00:03:00,280
+Est ce 2.01 p2 ?
+V.
+
+41
+00:03:00,280 --> 00:03:01,640
+Deux point.
+
+42
+00:03:01,880 --> 00:03:08,860
+Et la cause de la variation de l'énergie
+interne du deuxième sous système.
+
+43
+00:03:08,890 --> 00:03:12,980
+D'après le premier principe,
+c'est la puissance thermique
+
+44
+00:03:13,010 --> 00:03:16,860
+et la puissance mécanique exercée
+par le premier sous système
+
+45
+00:03:16,890 --> 00:03:23,360
+sur le deuxième sous système,
+c'est à dire PQ un deux et PW un deux.
+
+46
+00:03:24,360 --> 00:03:29,360
+l'Énergie interne, c'est une fonction
+d'état, donc l'énergie interne.
+
+47
+00:03:29,440 --> 00:03:31,840
+Pour l'ensemble du système,
+c'est une fonction de l'ensemble
+
+48
+00:03:31,870 --> 00:03:36,140
+des variables d'état du système,
+c'est à dire que c'est une fonction de S1,
+
+49
+00:03:36,170 --> 00:03:40,980
+S2, V1 et V2,
+une fonction d'état extensive.
+
+50
+00:03:41,010 --> 00:03:44,280
+Donc l'énergie interne u du système.
+
+51
+00:03:44,440 --> 00:03:47,580
+Et la somme de l'énergie interne
+de ce système.
+
+52
+00:03:47,610 --> 00:03:50,720
+Un de l'énergie interne deux.
+Du sous système.
+
+53
+00:03:50,720 --> 00:03:51,920
+Deux.
+
+54
+00:03:52,560 --> 00:03:56,240
+On peut maintenant prendre la dérivée
+temporelle de cette relation.
+
+55
+00:03:56,560 --> 00:04:01,120
+Huit points, c'est
+un point plus deux point.
+
+56
+00:04:02,040 --> 00:04:04,180
+D'après le premier principe.
+
+57
+00:04:04,210 --> 00:04:05,800
+Il y eut un point.
+
+58
+00:04:06,800 --> 00:04:13,280
+CPQ de un, pw de un et u deux point.
+
+59
+00:04:13,800 --> 00:04:18,280
+CPQ un deux plus PW un deux.
+
+60
+00:04:18,440 --> 00:04:22,700
+Par conséquent, si le système est isolé,
+
+61
+00:04:22,720 --> 00:04:27,740
+le premier principe nous
+affirme que le point est nul.
+
+62
+00:04:27,770 --> 00:04:30,220
+Donc on en tire deux identités.
+
+63
+00:04:30,250 --> 00:04:35,380
+Tout d'abord, il y eut un point
+qui est égal à moins de points.
+
+64
+00:04:35,410 --> 00:04:39,700
+Et puis PQ un de plus pw
+un deux qui est égal à moi.
+
+65
+00:04:39,720 --> 00:04:43,860
+PQ deux un moins pw deux un.
+
+66
+00:04:43,880 --> 00:04:45,100
+On doit maintenant tenir compte
+
+67
+00:04:45,130 --> 00:04:50,020
+explicitement de l'extensibilité,
+de l'entropie et du volume.
+
+68
+00:04:50,040 --> 00:04:51,360
+L'entropie est une variable d'état
+
+69
+00:04:51,390 --> 00:04:58,040
+extensive, donc l'entropie S du système
+est la somme de l'entropie S un du premier
+
+70
+00:04:58,070 --> 00:05:02,020
+sous système et de l'entropie S
+deux du deuxième sous système.
+
+71
+00:05:02,040 --> 00:05:04,900
+Le volume est aussi
+une variable d'état extensive.
+
+72
+00:05:04,920 --> 00:05:09,940
+Par conséquent, le volume V
+du système est la somme du volume V1
+
+73
+00:05:09,970 --> 00:05:15,240
+du premier sous système et du volume
+V2 du deuxième sous système.
+
+74
+00:05:16,080 --> 00:05:19,860
+On peut maintenant prendre des dérivés
+temporels de ces variables d'état.
+
+75
+00:05:19,890 --> 00:05:24,140
+Tout d'abord ce point
+un point plus est deux points.
+
+76
+00:05:24,160 --> 00:05:25,940
+Puis ensuite 20 points.
+
+77
+00:05:25,970 --> 00:05:30,260
+Qui est égal avait un points
+plus élevé deux points.
+
+78
+00:05:30,290 --> 00:05:32,840
+Finalement,
+on tient compte explicitement du fait
+
+79
+00:05:32,860 --> 00:05:36,080
+que le système est isolé
+si le système est isolé.
+
+80
+00:05:36,100 --> 00:05:37,740
+D'après le deuxième principe
+
+81
+00:05:37,770 --> 00:05:43,520
+est ce point est égal à Pi de s
+qui est positif ou nul.
+
+82
+00:05:43,640 --> 00:05:48,860
+Et si le système est isolé,
+le volume du système est constant,
+
+83
+00:05:48,890 --> 00:05:54,660
+donc v points est nul, ce qui implique
+que v un point est égal à -22 points.
+
+84
+00:05:54,690 --> 00:05:59,260
+Par conséquent,
+si le volume d'un sous système augmente,
+
+85
+00:05:59,290 --> 00:06:03,840
+le volume de l'autre sous système va
+diminuer et vice versa à l'aide
+
+86
+00:06:03,860 --> 00:06:07,820
+de l'expression qu'on a établie tout à
+l'heure pour eu un point et u de points.
+
+87
+00:06:07,850 --> 00:06:14,780
+On peut maintenant déduire des expressions
+pour s un point et s de points.
+
+88
+00:06:14,800 --> 00:06:21,260
+S 1.71 sur la température
+qui multiplie U un point plus p1.
+
+89
+00:06:21,290 --> 00:06:28,380
+V un point et S 2.71 sur T qui multiplie
+
+90
+00:06:28,410 --> 00:06:32,180
+u deux points plus p2 v deux points.
+
+91
+00:06:32,200 --> 00:06:35,520
+On va maintenant tenir compte
+explicitement du fait que le système est
+
+92
+00:06:35,540 --> 00:06:40,900
+isolé, c'est à dire que u de points
+est égal à moins et un point.
+
+93
+00:06:40,920 --> 00:06:45,160
+Et que V2 points est égale
+à moins v1 un point.
+
+94
+00:06:46,080 --> 00:06:49,580
+Ce qui nous permet
+de déduire l'expression explicite.
+
+95
+00:06:49,600 --> 00:06:51,700
+La dérivée temporelle de l'entropie
+
+96
+00:06:51,730 --> 00:06:57,900
+du système est le point qui est la somme
+de un point et de s deux point.
+
+97
+00:06:57,920 --> 00:07:06,340
+Ceci s'écrit donc un surtout qui multiplie
+P1 moins p2 le toutefois v un point.
+
+98
+00:07:06,360 --> 00:07:09,820
+On veut maintenant
+remettre en forme cette équation
+
+99
+00:07:09,850 --> 00:07:13,780
+pour faire apparaître explicitement
+des différentielles.
+
+100
+00:07:13,800 --> 00:07:17,620
+Donc on a multiplie par l'intervalle
+de temps infinitésimal dt
+
+101
+00:07:17,650 --> 00:07:22,940
+et on obtient dans le membre de gauche DS
+et dans le membre de droite.
+
+102
+00:07:22,970 --> 00:07:25,120
+Le dernier terme, c'est la différentielle
+
+103
+00:07:25,150 --> 00:07:29,880
+du volume du premier sous système,
+c'est à dire d'hévéa.
+
+104
+00:07:30,320 --> 00:07:31,960
+On peut donc maintenant prendre la dérivée
+
+105
+00:07:31,980 --> 00:07:35,740
+partielle de l'entropie par rapport
+au volume du premier sous système
+
+106
+00:07:35,770 --> 00:07:41,460
+des ronds s sur des ronds vient qui est
+égal à un sûreté qui multiplie
+
+107
+00:07:41,480 --> 00:07:46,180
+la différence des pressions,
+c'est à dire P1 et P2.
+
+108
+00:07:46,210 --> 00:07:47,680
+Le deuxième principe
+
+109
+00:07:47,680 --> 00:07:50,160
+de la thermodynamique,
+et plus exactement la condition
+
+110
+00:07:50,190 --> 00:07:56,020
+d'équilibre du deuxième principe,
+affirme que l'entropie est maximale
+
+111
+00:07:56,040 --> 00:07:59,020
+à l'équilibre,
+par conséquent à l'équilibre,
+
+112
+00:07:59,040 --> 00:08:03,800
+la dérivée partielle de l'entropie
+par rapport au volume du premier sous
+
+113
+00:08:03,830 --> 00:08:09,080
+système, c'est à dire
+des ronds s sur des ronds V1 et nuls.
+
+114
+00:08:09,960 --> 00:08:12,900
+Compte tenu de l'expression
+
+115
+00:08:12,920 --> 00:08:17,700
+qui se trouve sur la première ligne,
+c'est à dire des ronds sur des ronds V1.
+
+116
+00:08:17,730 --> 00:08:22,800
+Un sûreté qui multiplie P1 et moins P2.
+
+117
+00:08:24,120 --> 00:08:26,780
+Compte tenu de cette expression du maximum
+
+118
+00:08:26,800 --> 00:08:30,680
+d'entropie,
+on obtient la condition d'équilibre
+
+119
+00:08:30,710 --> 00:08:35,100
+mécanique, à savoir que les termes qui se
+trouvent entre parenthèses
+
+120
+00:08:35,130 --> 00:08:40,140
+dans la première expression
+doivent s'annuler, ce qui implique.
+
+121
+00:08:40,170 --> 00:08:42,080
+L'équilibre mécanique.
+
+122
+00:08:42,480 --> 00:08:44,780
+La pression du premier sous système P1
+
+123
+00:08:44,810 --> 00:08:48,620
+doit être égale à la pression
+du deuxième sous système P2.
+
+124
+00:08:48,650 --> 00:08:51,920
+Par conséquent,
+le premier et le deuxième principe
+
+125
+00:08:51,940 --> 00:08:57,460
+requiert que les pressions des sous
+systèmes et la même valeur à l'équilibre
+
+126
+00:08:57,490 --> 00:09:02,420
+mécanique avant que le système
+atteigne l'état d'équilibre mécanique.
+
+127
+00:09:02,440 --> 00:09:07,440
+Il y a un transfert mécanique qui s'opère
+entre les deux sous systèmes.
+
+128
+00:09:07,480 --> 00:09:09,640
+L'équilibre mécanique est caractérisé
+
+129
+00:09:09,670 --> 00:09:13,340
+par l'égalité des pressions
+des deux sous systèmes.
+
+130
+00:09:13,370 --> 00:09:14,620
+Par conséquent,
+
+131
+00:09:14,650 --> 00:09:18,760
+durant le transfert mécanique,
+la pression P1 du premier sous système est
+
+132
+00:09:18,790 --> 00:09:22,520
+différente de la pression P2
+du deuxième sous système.
+
+133
+00:09:23,160 --> 00:09:25,820
+Pour examiner ces transferts mécaniques,
+
+134
+00:09:25,850 --> 00:09:30,580
+on va se baser sur l'expression
+de la dérivée temporelle de l'entropie.
+
+135
+00:09:30,600 --> 00:09:31,460
+Est ce point ?
+
+136
+00:09:31,490 --> 00:09:38,360
+C'est un sûreté qui multiplie p1
+mois, P2 fois, v un point.
+
+137
+00:09:39,760 --> 00:09:42,000
+P1 est différent de P2.
+
+138
+00:09:42,960 --> 00:09:47,560
+De plus, vu qu'il y a
+un transfert mécanique.
+
+139
+00:09:48,520 --> 00:09:52,100
+Le volume v1 du premier
+sous système va varier.
+
+140
+00:09:52,130 --> 00:09:55,260
+Donc il est non nul, ce qui implique que.
+
+141
+00:09:55,290 --> 00:09:58,080
+Est ce point et non nul ?
+
+142
+00:09:58,360 --> 00:10:01,860
+De plus, on a un système qui est isolé.
+
+143
+00:10:01,890 --> 00:10:04,300
+Pour un système isolé.
+
+144
+00:10:04,320 --> 00:10:07,860
+Ce point est égal au taux
+de production d'entropie Pi de S.
+
+145
+00:10:07,890 --> 00:10:11,580
+Vu que ce point est non nul
+et qu'il est égal à Pi de S.
+
+146
+00:10:11,610 --> 00:10:13,900
+Il doit donc être positif,
+
+147
+00:10:13,930 --> 00:10:19,340
+ce qui signifie qu'on a affaire
+à un processus irréversible.
+
+148
+00:10:19,370 --> 00:10:20,960
+L'expression explicite du taux
+
+149
+00:10:20,960 --> 00:10:22,640
+de production d'entropie
+est donc la suivante.
+
+150
+00:10:22,670 --> 00:10:28,300
+Puis de s, c'est sur la température
+qui multiplie P1 et P2.
+
+151
+00:10:28,320 --> 00:10:32,700
+Soit 20 points de baisse, est positif.
+
+152
+00:10:32,730 --> 00:10:36,260
+Il faut maintenant distinguer
+deux cas de figure.
+
+153
+00:10:36,290 --> 00:10:40,720
+Dans le premier cas,
+on considère que la pression B1 du premier
+
+154
+00:10:40,750 --> 00:10:45,100
+sous système est supérieure à la pression
+P2 du deuxième sous système.
+
+155
+00:10:45,130 --> 00:10:48,740
+Ceci implique que la différence.
+
+156
+00:10:48,770 --> 00:10:52,260
+Des deux termes qui se trouvent ici
+entre parenthèses est positive.
+
+157
+00:10:52,280 --> 00:10:53,760
+Par conséquent, pour que pi de s soit
+
+158
+00:10:53,790 --> 00:10:59,240
+positif, il faut que 20 un points
+soit lui aussi positif.
+
+159
+00:10:59,600 --> 00:11:00,980
+La puissance
+
+160
+00:11:01,010 --> 00:11:05,620
+mécanique exercée par le premier sous
+système assure le deuxième sous système.
+
+161
+00:11:05,650 --> 00:11:09,820
+PW deux est défini comme moins.
+
+162
+00:11:09,850 --> 00:11:12,540
+P1 v2 point.
+
+163
+00:11:12,560 --> 00:11:14,320
+On sait par ailleurs que V de point est
+
+164
+00:11:14,350 --> 00:11:24,260
+égal à V un point, donc p w un deux
+cp1 v un point qui est positif.
+
+165
+00:11:24,290 --> 00:11:26,700
+Par conséquent, si la pression
+
+166
+00:11:26,730 --> 00:11:32,180
+du premier sous système est supérieure
+à la pression P2 du deuxième sous système,
+
+167
+00:11:32,210 --> 00:11:37,520
+il y a un travail qui est effectué par
+le premier sous système sur le deuxième
+
+168
+00:11:37,550 --> 00:11:43,880
+sous système, c'est à dire que la paroi
+va se déplacer vers la droite.
+
+169
+00:11:44,160 --> 00:11:45,420
+Deuxième cas de figure.
+
+170
+00:11:45,450 --> 00:11:48,460
+P2 est supérieur à P1.
+
+171
+00:11:48,480 --> 00:11:51,880
+Dans ce cas là, la différence des deux
+termes qui apparaissent dans l'expression
+
+172
+00:11:51,910 --> 00:11:55,320
+du taux de production
+d'entropie est négative.
+
+173
+00:11:55,360 --> 00:11:58,080
+Pour copie de S soit défini positif,
+
+174
+00:11:58,110 --> 00:12:02,840
+il faut alors que 21 points
+soient aussi négatifs.
+
+175
+00:12:03,280 --> 00:12:05,700
+La puissance mécanique
+
+176
+00:12:05,730 --> 00:12:13,020
+exercée par le sous système de son sous
+système un PW deux est définie comme P2.
+
+177
+00:12:13,040 --> 00:12:14,560
+V.
+Un point.
+
+178
+00:12:15,120 --> 00:12:17,420
+Elle est donc positive.
+
+179
+00:12:17,450 --> 00:12:19,840
+Par conséquent, si la pression P2 du sous
+
+180
+00:12:19,870 --> 00:12:25,320
+système deux est supérieure
+à la pression P1 du sous système un.
+
+181
+00:12:25,360 --> 00:12:31,140
+Le sous système deux va effectuer
+un travail sur le sous système un.
+
+182
+00:12:31,170 --> 00:12:32,840
+Ce travail.
+
+183
+00:12:33,000 --> 00:12:38,200
+Va correspondre à un déplacement
+de la paroi vers la gauche.
+
+184
+00:12:38,400 --> 00:12:40,120
+Par conséquent.
+
+185
+00:12:40,280 --> 00:12:43,660
+Lors d'un transfert mécanique.
+
+186
+00:12:43,690 --> 00:12:47,000
+Le travail est effectué par le sous
+
+187
+00:12:47,030 --> 00:12:49,620
+système dont la pression
+est la plus élevée.
+
+188
+00:12:49,650 --> 00:12:54,620
+Notée B+ sur le sous système
+dont la pression est la moins élevée,
+
+189
+00:12:54,650 --> 00:12:59,240
+notée P mois,
+ce transfert mécanique est un processus
+
+190
+00:12:59,270 --> 00:13:04,620
+irréversible, c'est à dire
+que pi de s est positif.
+
+191
+00:13:04,650 --> 00:13:09,180
+Et ce transfert mécanique
+va progressivement.
+
+192
+00:13:09,210 --> 00:13:14,500
+Amener le système vers un état d'équilibre
+mécanique et à l'équilibre mécanique.
+
+193
+00:13:14,530 --> 00:13:18,880
+P1 est égal à P2, c'est à dire
+que le transfert mécanique est nul.
+
+

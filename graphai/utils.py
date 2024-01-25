@@ -4,7 +4,7 @@ from requests import get
 from datetime import datetime, timedelta
 from string import Formatter
 from numpy import isnan, isinf
-from re import compile
+from re import compile, finditer
 from typing import Literal
 
 default_disclaimer = {
@@ -189,13 +189,22 @@ def convert_subtitle_into_segments(caption_data, file_ext='srt', text_key='text'
     return segments
 
 
-def combine_language_segments(text_key='text', **kwargs):
+def combine_language_segments(text_key='text', precision_s=0.5, **kwargs):
     segments_combined = []
     languages = list(kwargs.keys())
     n_segments = len(kwargs[languages[0]])
     for lang in languages[1:]:
         if len(kwargs[lang]) != n_segments:
-            raise ValueError(f'the number of segment is not the same for {languages[0]} and {lang}')
+            for precision in (0.5, 1, 2):
+                try:
+                    segments_combined = harmonize_segments(text_key='text', precision_s=precision, **kwargs)
+                    return segments_combined
+                except ValueError as e:
+                    status_msg(
+                        f'failed to harmonize segments with a precision of {precision}s: {str(e)}', color='yellow',
+                        sections=['KALTURA', 'COMBINE SEGMENTS', 'WARNING']
+                    )
+            raise ValueError(f'failed to harmonize segments')
     for lang, segments_lang in kwargs.items():
         for seg_idx, segment in enumerate(segments_lang):
             if len(segments_combined) <= seg_idx:
@@ -208,11 +217,205 @@ def combine_language_segments(text_key='text', **kwargs):
                 )
             else:
                 segment_equiv = segments_combined[seg_idx]
-                if not -1 < segment['start'] - segment_equiv['start'] < 1 or \
-                        not -1 < segment['end'] - segment_equiv['end'] < 1:
+                if not -precision_s < segment['start'] - segment_equiv['start'] < precision_s or \
+                        not -precision_s < segment['end'] - segment_equiv['end'] < precision_s:
                     raise ValueError(f'{seg_idx}th segment timing are not the same for {languages[0]} and {lang}')
                 segments_combined[seg_idx][lang] = segment[text_key]
     return segments_combined
+
+
+def harmonize_segments(precision_s=0.5, text_key='text', **kwargs):
+    harmonized_segments_start, harmonized_segments_end = _harmonize_segments_interval(precision_s=precision_s, **kwargs)
+    harmonized_segments = [
+        {'id': idx, 'start': start, 'end': end, }
+        for idx, (start, end) in enumerate(zip(harmonized_segments_start, harmonized_segments_end))
+    ]
+    for lang, segments_lang in kwargs.items():
+        harm_seg_idx = 0
+        while harm_seg_idx < len(harmonized_segments):
+            for seg_lang in segments_lang:
+                if -precision_s < seg_lang['start'] - harmonized_segments[harm_seg_idx]['start'] < precision_s:
+                    if -precision_s < seg_lang['end'] - harmonized_segments[harm_seg_idx]['end'] < precision_s:
+                        harmonized_segments[harm_seg_idx][lang] = seg_lang[text_key]
+                        harm_seg_idx += 1
+                    else:
+                        harm_seg_end_idx = harm_seg_idx + 1
+                        while harmonized_segments[harm_seg_end_idx]['end'] <= seg_lang['end'] + precision_s:
+                            if -precision_s < seg_lang['end'] - harmonized_segments[harm_seg_end_idx]['end'] < precision_s:
+                                break
+                            harm_seg_end_idx += 1
+                        if -precision_s < seg_lang['end'] - harmonized_segments[harm_seg_end_idx]['end'] < precision_s:
+                            intervals = [
+                                (harmonized_segments_start[idx], harmonized_segments_end[idx])
+                                for idx in range(harm_seg_idx, harm_seg_end_idx + 1)
+                            ]
+                            split_text = _split_text_in_intervals(seg_lang[text_key], intervals)
+                            for text_interval in split_text:
+                                harmonized_segments[harm_seg_idx][lang] = text_interval
+                                harm_seg_idx += 1
+                        else:
+                            ValueError(f"end of {lang} segment ({seg_lang['end']}) does not match "
+                                       f"the harmonized one ({harmonized_segments[harm_seg_end_idx]['end']})")
+                else:
+                    raise ValueError(f"start of {lang} segment ({seg_lang['start']}) does not match "
+                                     f"the harmonized one ({harmonized_segments[harm_seg_idx]['start']})")
+    return harmonized_segments
+
+
+def _split_text_in_intervals(text, split_intervals, split_characters=('\n', '.', ';', ',', ' ')):
+    split_text = []
+    split_characters = list(split_characters)
+    if len(split_characters) > 0:
+        char = split_characters.pop(0)
+        for interval_or_list, split_text_partial in _split_text_in_intervals_partial(
+                text, split_intervals, split_char=char
+        ):
+            if isinstance(interval_or_list, tuple):
+                split_text.append(split_text_partial)
+            else:
+                split_text.extend(_split_text_in_intervals(split_text_partial, interval_or_list, split_characters))
+    else:
+        length_full = split_intervals[-1][1] - split_intervals[0][0]
+        end_intervals_fraction = [
+            float(interval[1] - split_intervals[0][0]) / length_full for interval in split_intervals[:-1]
+        ]
+        split_pos = [frac*len(text) for frac in end_intervals_fraction]
+        text_split_in_middle = _split_text(text, split_pos)
+        for idx, t in enumerate(text_split_in_middle):
+            if idx < len(text_split_in_middle)-1:
+                split_text.append(t + '-')
+            else:
+                split_text.append(t)
+    return split_text
+
+
+def _split_text_in_intervals_partial(text, split_intervals, split_char='\n'):
+    text = text.strip()
+    length_full = split_intervals[-1][1]-split_intervals[0][0]
+    # we ignore last interval as its end will always be at a fraction=1
+    end_intervals_fraction = [float(interval[1]-split_intervals[0][0])/length_full for interval in split_intervals[:-1]]
+    char_positions = [m.start() for m in finditer(split_char, text)]
+    char_positions_fraction = [pos/len(text) for pos in char_positions]
+    if len(char_positions) == len(end_intervals_fraction):
+        return zip(split_intervals, _split_text(text, char_positions))
+    elif len(char_positions) > len(end_intervals_fraction):
+        index_split_char_kept = _get_index_closest_fractions(char_positions_fraction, end_intervals_fraction)
+        char_positions_kept = [char_positions[idx] for idx in index_split_char_kept]
+        return zip(split_intervals, _split_text(text, char_positions_kept))
+    else:  # not enough split_char
+        split_text = _split_text(text, char_positions)
+        indices_interval_split = _get_index_closest_fractions(end_intervals_fraction, char_positions_fraction)
+        index_current_interval = 0
+        index_current_split_text = 0
+        returned_intervals_and_text = []
+        for index_interval_split in indices_interval_split:
+            if index_current_interval == index_interval_split:
+                returned_intervals_and_text.append(
+                    (split_intervals[index_current_interval], split_text[index_current_split_text])
+                )
+            else:
+                intervals_current_split_text = []
+                while index_current_interval <= index_interval_split:
+                    intervals_current_split_text.append(split_intervals[index_current_interval])
+                    index_current_interval += 1
+                returned_intervals_and_text.append((intervals_current_split_text, split_text[index_current_split_text]))
+            index_current_interval += 1
+            index_current_split_text += 1
+        if index_current_interval == len(split_intervals) - 1:
+            returned_intervals_and_text.append(
+                (split_intervals[index_current_interval], split_text[index_current_split_text])
+            )
+        else:
+            intervals_current_split_text = []
+            while index_current_interval <= len(split_intervals) - 1:
+                intervals_current_split_text.append(split_intervals[index_current_interval])
+                index_current_interval += 1
+            returned_intervals_and_text.append((intervals_current_split_text, split_text[index_current_split_text]))
+        return returned_intervals_and_text
+
+
+def _split_text(text, split_positions):
+    if not split_positions:
+        return [text]
+    text_split = []
+    for idx, pos in enumerate(split_positions):
+        if idx == 0:
+            text_split.append(text[:pos].strip())
+        else:
+            text_split.append(text[split_positions[idx-1]:pos].strip())
+    text_split.append(text[split_positions[-1]:].strip())
+    return text_split
+
+
+def _get_index_closest_fractions(source_fractions, target_fractions):
+    """
+    Return the index of the fractions inside source fraction which are the closest to target fraction.
+    The length of source_fractions must be larger or equal to the length of target fractions.
+    The returned list is the same size as target fraction.
+    """
+
+    def _get_difference(sources: list, targets: list, skip_source: list):
+        sources_with_skip = sources.copy()
+        for idx in reversed(skip_source):
+            sources_with_skip.pop(idx)
+        assert len(sources_with_skip) == len(targets)
+        return sum([abs(s_f - t_f) for s_f, t_f in zip(sources_with_skip, targets)])
+
+    def _get_possible_skips(length_source, num_skip, start=0):
+        if num_skip == 1:
+            return [(idx,) for idx in range(start, length_source)]
+        possible_skips = []
+        for first_skip in range(start, length_source-num_skip+1):
+            for possible_skips_given_first_skip in _get_possible_skips(length_source, num_skip-1, start=first_skip+1):
+                possible_skips.append((first_skip,) + possible_skips_given_first_skip)
+        return possible_skips
+
+    n_skip = len(source_fractions) - len(target_fractions)
+    assert n_skip >= 0
+    if n_skip == 0:
+        return list(range(len(source_fractions)))
+    min_difference = None
+    skips_with_min_difference = None
+    for skips in _get_possible_skips(len(source_fractions), n_skip):
+        difference = _get_difference(source_fractions, target_fractions, skips)
+        if min_difference is None or difference < min_difference:
+            min_difference = difference
+            skips_with_min_difference = skips
+    return [idx for idx in range(len(source_fractions)) if idx not in skips_with_min_difference]
+
+
+def _harmonize_segments_interval(precision_s=0.5, **kwargs):
+    harmonized_segments_start = []
+    harmonized_segments_end = []
+    for lang, segments in kwargs.items():
+        harmonized_segment_idx = 0
+        for seg_idx in range(len(segments)):
+            seg = segments[seg_idx]
+            if harmonized_segment_idx > len(harmonized_segments_start) - 1:
+                harmonized_segments_start.append(seg['start'])
+                harmonized_segments_end.append(seg['end'])
+                harmonized_segment_idx += 1
+            else:
+                if not -precision_s < harmonized_segments_start[harmonized_segment_idx] - seg['start'] < precision_s:
+                    raise ValueError(f'start time of {lang} segment {seg_idx} do not match other languages')
+                if -precision_s < harmonized_segments_end[harmonized_segment_idx] - seg['end'] < precision_s:
+                    harmonized_segment_idx += 1
+                else:
+                    # the harmonized segment is larger than the new one
+                    if harmonized_segments_end[harmonized_segment_idx] > seg['end']:
+                        harmonized_segments_end.insert(harmonized_segment_idx, seg['end'])
+                        harmonized_segments_start.insert(harmonized_segment_idx + 1, segments[seg_idx + 1]['start'])
+                        harmonized_segment_idx += 1
+                    else:  # the harmonized segment is smaller than the new one
+                        found_matching_end = False
+                        while harmonized_segments_end[harmonized_segment_idx] <= seg['end'] + precision_s:
+                            harmonized_segment_idx += 1
+                            if -precision_s < harmonized_segments_end[harmonized_segment_idx]-seg['end'] < precision_s:
+                                found_matching_end = True
+                                break
+                        if not found_matching_end:
+                            raise ValueError(f'end time of {lang} segment {seg_idx} do not match other languages')
+    return harmonized_segments_start, harmonized_segments_end
 
 
 def add_initial_disclaimer(segments, disclaimer_per_language=None, restrict_lang=None):
