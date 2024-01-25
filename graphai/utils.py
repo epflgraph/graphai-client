@@ -195,16 +195,8 @@ def combine_language_segments(text_key='text', precision_s=0.5, **kwargs):
     n_segments = len(kwargs[languages[0]])
     for lang in languages[1:]:
         if len(kwargs[lang]) != n_segments:
-            for precision in (0.5, 1, 2):
-                try:
-                    segments_combined = harmonize_segments(text_key='text', precision_s=precision, **kwargs)
-                    return segments_combined
-                except ValueError as e:
-                    status_msg(
-                        f'failed to harmonize segments with a precision of {precision}s: {str(e)}', color='yellow',
-                        sections=['KALTURA', 'COMBINE SEGMENTS', 'WARNING']
-                    )
-            raise ValueError(f'failed to harmonize segments')
+            segments_combined = harmonize_segments(text_key='text', precision_s=precision_s, **kwargs)
+            return segments_combined
     for lang, segments_lang in kwargs.items():
         for seg_idx, segment in enumerate(segments_lang):
             if len(segments_combined) <= seg_idx:
@@ -225,40 +217,31 @@ def combine_language_segments(text_key='text', precision_s=0.5, **kwargs):
 
 
 def harmonize_segments(precision_s=0.5, text_key='text', **kwargs):
-    harmonized_segments_start, harmonized_segments_end = _harmonize_segments_interval(precision_s=precision_s, **kwargs)
+    harmonized_segments_interval, link_to_harmonized_segments = _harmonize_segments_interval(precision_s=precision_s, **kwargs)
     harmonized_segments = [
         {'id': idx, 'start': start, 'end': end, }
-        for idx, (start, end) in enumerate(zip(harmonized_segments_start, harmonized_segments_end))
+        for idx, (start, end) in enumerate(harmonized_segments_interval)
     ]
     for lang, segments_lang in kwargs.items():
         harm_seg_idx = 0
-        while harm_seg_idx < len(harmonized_segments):
-            for seg_lang in segments_lang:
-                if -precision_s < seg_lang['start'] - harmonized_segments[harm_seg_idx]['start'] < precision_s:
-                    if -precision_s < seg_lang['end'] - harmonized_segments[harm_seg_idx]['end'] < precision_s:
-                        harmonized_segments[harm_seg_idx][lang] = seg_lang[text_key]
-                        harm_seg_idx += 1
-                    else:
-                        harm_seg_end_idx = harm_seg_idx + 1
-                        while harmonized_segments[harm_seg_end_idx]['end'] <= seg_lang['end'] + precision_s:
-                            if -precision_s < seg_lang['end'] - harmonized_segments[harm_seg_end_idx]['end'] < precision_s:
-                                break
-                            harm_seg_end_idx += 1
-                        if -precision_s < seg_lang['end'] - harmonized_segments[harm_seg_end_idx]['end'] < precision_s:
-                            intervals = [
-                                (harmonized_segments_start[idx], harmonized_segments_end[idx])
-                                for idx in range(harm_seg_idx, harm_seg_end_idx + 1)
-                            ]
-                            split_text = _split_text_in_intervals(seg_lang[text_key], intervals)
-                            for text_interval in split_text:
-                                harmonized_segments[harm_seg_idx][lang] = text_interval
-                                harm_seg_idx += 1
-                        else:
-                            ValueError(f"end of {lang} segment ({seg_lang['end']}) does not match "
-                                       f"the harmonized one ({harmonized_segments[harm_seg_end_idx]['end']})")
-                else:
-                    raise ValueError(f"start of {lang} segment ({seg_lang['start']}) does not match "
-                                     f"the harmonized one ({harmonized_segments[harm_seg_idx]['start']})")
+        for lang_seg_idx, segment in enumerate(segments_lang):
+            harmonized_segments_linked = []
+            while harm_seg_idx < len(harmonized_segments) and link_to_harmonized_segments[harm_seg_idx][lang] == lang_seg_idx:
+                harmonized_segments_linked.append(harm_seg_idx)
+                harm_seg_idx += 1
+            num_linked_segments = len(harmonized_segments_linked)
+            if num_linked_segments == 0:
+                pass
+            elif num_linked_segments == 1:
+                harmonized_segments[harmonized_segments_linked[0]][lang] = segment[text_key]
+            else:
+                intervals = [
+                    (harmonized_segments_interval[s_idx][0], harmonized_segments_interval[s_idx][1])
+                    for s_idx in harmonized_segments_linked
+                ]
+                split_text = _split_text_in_intervals(segment[text_key], intervals)
+                for harm_seg_linked, text in zip(harmonized_segments_linked, split_text):
+                    harmonized_segments[harm_seg_linked][lang] = text
     return harmonized_segments
 
 
@@ -385,37 +368,79 @@ def _get_index_closest_fractions(source_fractions, target_fractions):
 
 
 def _harmonize_segments_interval(precision_s=0.5, **kwargs):
-    harmonized_segments_start = []
-    harmonized_segments_end = []
+    harmonized_segments = []
+    link_to_language_segments = []
     for lang, segments in kwargs.items():
         harmonized_segment_idx = 0
         for seg_idx in range(len(segments)):
             seg = segments[seg_idx]
-            if harmonized_segment_idx > len(harmonized_segments_start) - 1:
-                harmonized_segments_start.append(seg['start'])
-                harmonized_segments_end.append(seg['end'])
+            if harmonized_segment_idx > len(harmonized_segments) - 1:
+                harmonized_segments.append((seg['start'], seg['end']))
+                link_to_language_segments.append({lang: seg_idx})
                 harmonized_segment_idx += 1
             else:
-                if not -precision_s < harmonized_segments_start[harmonized_segment_idx] - seg['start'] < precision_s:
-                    raise ValueError(f'start time of {lang} segment {seg_idx} do not match other languages')
-                if -precision_s < harmonized_segments_end[harmonized_segment_idx] - seg['end'] < precision_s:
+                if not -precision_s < harmonized_segments[harmonized_segment_idx][0] - seg['start'] < precision_s:
+                    status_msg(
+                        f"start of {lang} segment {seg_idx} ({seg['start']}) did not match the harmonized segment "
+                        f"{harmonized_segment_idx} ({harmonized_segments[harmonized_segment_idx][0]})",
+                        color='yellow', sections=['KALTURA', 'HARMONIZE SEGMENTS', 'WARNING']
+                    )
+                    harmonized_segments[harmonized_segment_idx] = (
+                        min(seg['start'], harmonized_segments[harmonized_segment_idx][0]),
+                        harmonized_segments[harmonized_segment_idx][1]
+                    )
+                if -precision_s < harmonized_segments[harmonized_segment_idx][1] - seg['end'] < precision_s:
+                    link_to_language_segments[harmonized_segment_idx][lang] = seg_idx
                     harmonized_segment_idx += 1
                 else:
                     # the harmonized segment is larger than the new one
-                    if harmonized_segments_end[harmonized_segment_idx] > seg['end']:
-                        harmonized_segments_end.insert(harmonized_segment_idx, seg['end'])
-                        harmonized_segments_start.insert(harmonized_segment_idx + 1, segments[seg_idx + 1]['start'])
+                    if harmonized_segments[harmonized_segment_idx][1] > seg['end']:
+                        # the next segment start before the current harmonized segment end
+                        if seg_idx + 1 < len(segments) and \
+                                segments[seg_idx+1]['start'] < harmonized_segments[harmonized_segment_idx][1]:
+                            current_harm_seg_end = harmonized_segments[harmonized_segment_idx][1]
+                            harmonized_segments[harmonized_segment_idx] = (
+                                harmonized_segments[harmonized_segment_idx][0], seg['end']
+                            )
+                            harmonized_segments.insert(
+                                harmonized_segment_idx + 1, (segments[seg_idx + 1]['start'], current_harm_seg_end)
+                            )
+                            link_to_language_segments.insert(
+                                harmonized_segment_idx + 1, link_to_language_segments[harmonized_segment_idx].copy()
+                            )
+                        else:
+                            if not -precision_s < harmonized_segments[harmonized_segment_idx][1]-seg['end'] < precision_s:
+                                status_msg(
+                                    f'end time of {lang} segment {seg_idx} do not match the harmonized segment '
+                                    f"{harmonized_segment_idx} ({harmonized_segments[harmonized_segment_idx][1]})",
+                                    color='yellow', sections=['KALTURA', 'HARMONIZE SEGMENTS', 'WARNING']
+                                )
+                        link_to_language_segments[harmonized_segment_idx][lang] = seg_idx
                         harmonized_segment_idx += 1
                     else:  # the harmonized segment is smaller than the new one
                         found_matching_end = False
-                        while harmonized_segments_end[harmonized_segment_idx] <= seg['end'] + precision_s:
+                        while harmonized_segment_idx+1 < len(harmonized_segments) and (
+                                seg_idx + 1 >= len(segments) or
+                                harmonized_segments[harmonized_segment_idx+1][1] <= segments[seg_idx+1]['start']
+                            ):
+                            link_to_language_segments[harmonized_segment_idx][lang] = seg_idx
                             harmonized_segment_idx += 1
-                            if -precision_s < harmonized_segments_end[harmonized_segment_idx]-seg['end'] < precision_s:
+                            if -precision_s < harmonized_segments[harmonized_segment_idx][1]-seg['end'] < precision_s:
                                 found_matching_end = True
                                 break
                         if not found_matching_end:
-                            raise ValueError(f'end time of {lang} segment {seg_idx} do not match other languages')
-    return harmonized_segments_start, harmonized_segments_end
+                            status_msg(
+                                f'end time of {lang} segment {seg_idx} do not match the harmonized segment '
+                                f"{harmonized_segment_idx} ({harmonized_segments[harmonized_segment_idx][1]})",
+                                color='yellow', sections=['KALTURA', 'HARMONIZE SEGMENTS', 'WARNING']
+                            )
+                            harmonized_segments[harmonized_segment_idx] = (
+                                harmonized_segments[harmonized_segment_idx][0],
+                                max(seg['end'], harmonized_segments[harmonized_segment_idx][1])
+                            )
+                        link_to_language_segments[harmonized_segment_idx][lang] = seg_idx
+                        harmonized_segment_idx += 1
+    return harmonized_segments, link_to_language_segments
 
 
 def add_initial_disclaimer(segments, disclaimer_per_language=None, restrict_lang=None):

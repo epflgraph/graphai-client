@@ -89,12 +89,13 @@ class Captions(unittest.TestCase):
     def test_harmonize_segment_interval(self):
         from graphai.utils import _harmonize_segments_interval
 
-        starts, ends = _harmonize_segments_interval(
-            precision_s=0.01, fr=[{'start': 0, 'end': 10}],
-            en=[{'start': 0, 'end': 5}, {'start': 6, 'end': 8}, {'start': 8, 'end': 10}]
+        interval, links = _harmonize_segments_interval(
+            precision_s=0.01,
+            fr=[{'start': 0, 'end': 10}],
+            en=[{'start': 0, 'end': 5}, {'start': 6, 'end': 8}, {'start': 8, 'end': 10}],
         )
-        self.assertListEqual(starts, [0, 6, 8])
-        self.assertListEqual(ends, [5, 8, 10])
+        self.assertListEqual(interval, [(0, 5), (6, 8), (8, 10)])
+        self.assertListEqual(links, [{'fr': 0, 'en': 0}, {'fr': 0, 'en': 1}, {'fr': 0, 'en': 2}])
 
     def test_split_text_in_intervals(self):
         from graphai.utils import _split_text_in_intervals
@@ -120,15 +121,19 @@ class Captions(unittest.TestCase):
     def test_harmonize_segments(self):
         from graphai.utils import convert_subtitle_into_segments, harmonize_segments
 
-        with open(join(test_files_dir, '0_vvgduz0b_en.srt')) as fid:
-            data_en = fid.read()
-        with open(join(test_files_dir, '0_vvgduz0b_fr.srt')) as fid:
-            data_fr = fid.read()
+        segments_to_test = [
+            {'en': '0_iz3wgt1s_en.srt', 'fr': '0_iz3wgt1s_fr.srt'},
+            {'en': '0_vvgduz0b_en.srt', 'fr': '0_vvgduz0b_fr.srt'},
+        ]
+        for test_dict in segments_to_test:
+            segments_per_languages = {}
+            for lang, filename in test_dict.items():
+                with open(join(test_files_dir, filename)) as fid:
+                    subtitles = fid.read()
+                segments_per_languages[lang] = convert_subtitle_into_segments(subtitles, file_ext='srt')
 
-        seg_fr = convert_subtitle_into_segments(data_fr, file_ext='srt')
-        seg_en = convert_subtitle_into_segments(data_en, file_ext='srt')
-        segments = harmonize_segments(fr=seg_fr, en=seg_en, precision_s=2)
-        self.assertIsNotNone(segments)
+            segments = harmonize_segments(**segments_per_languages, precision_s=2)
+            self.assertIsNotNone(segments)
 
 
 if __name__ == '__main__':
