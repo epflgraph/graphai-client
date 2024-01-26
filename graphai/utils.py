@@ -137,7 +137,7 @@ def convert_subtitle_into_segments(caption_data, file_ext='srt', text_key='text'
     caption_lines = caption_data.encode('utf8').decode('utf-8-sig', errors='ignore').split('\n')
     time1_regexp = r'(:?(:?(?P<h1>[\d]{1,2}):)?(?P<m1>[\d]{1,2}):)?(?P<s1>[\d]{1,2})(:?[.,](?P<subs1>[\d]{0,6}))?'
     time2_regexp = r'(:?(:?(?P<h2>[\d]{1,2}):)?(?P<m2>[\d]{1,2}):)?(?P<s2>[\d]{1,2})(:?[.,](?P<subs2>[\d]{0,6}))?'
-    time_regexp = compile(r'[\s]*' + time1_regexp + r'[\s]+-->[\s]+' + time2_regexp + r'[\s]*')
+    time_regexp = compile(r'[\s]*' + time1_regexp + r'[\s]*-->[\s]*' + time2_regexp + r'[\s]*')
     if file_ext == 'srt':
         current_line_type = 'id'
     elif file_ext == 'vtt':
