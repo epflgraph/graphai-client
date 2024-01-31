@@ -440,7 +440,7 @@ def get_subtitles_from_kaltura(
                 )
                 continue
             segments = convert_subtitle_into_segments(caption_data, file_ext=file_ext)
-            if segments and len(segments) == 1 and segments[0]['text'] == default_missing_transcript[lang]:
+            if segments and len(segments) == 1 and segments[0]['text'] == default_missing_transcript.get(lang, None):
                 continue
             subtitles_in_kaltura[lang] = segments
     if not subtitles_in_kaltura:
