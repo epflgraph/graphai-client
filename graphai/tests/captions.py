@@ -27,6 +27,10 @@ class Captions(unittest.TestCase):
         subtitles_from_files = self.test_convert_and_combine()
         self.assertListEqual(subtitles_from_kaltura, subtitles_from_files)
 
+        # video with a caption "No transcripts available for this video"
+        subtitles_from_kaltura = get_subtitles_from_kaltura('0_4swj44wd', piper_mysql_json_file=piper_mysql_json_file)
+        self.assertEqual(subtitles_from_kaltura, None)
+
     def test_initial_disclaimer_new_segment(self):
         from graphai.utils import add_initial_disclaimer, default_disclaimer
 

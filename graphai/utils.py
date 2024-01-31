@@ -14,6 +14,11 @@ default_disclaimer = {
     'it': 'Questi sottotitoli sono stati generati automaticamente'
 }
 
+default_missing_transcript = {
+    'en': 'No transcripts available for this video',
+    'fr': 'Pas de sous-titres disponibles pour cette video'
+}
+
 
 def status_msg(msg, color=None, sections=(), print_flag=True):
     """
