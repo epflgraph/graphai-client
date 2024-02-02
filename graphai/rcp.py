@@ -1,13 +1,15 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from mysql.connector import connect as mysql_connect
 from json import load as load_json
 from os.path import dirname, join
 from re import match, fullmatch
+from requests import Session
 from graphai.utils import (
     status_msg, get_video_link_and_size, strfdelta, insert_line_into_table_with_types, convert_subtitle_into_segments,
     combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript
 )
 from graphai.client import process_video, translate_extracted_text, translate_subtitles
+from graphai.client_api.text import extract_concepts_from_text
 
 language_to_short = {
     'french': 'fr',
@@ -219,52 +221,58 @@ def process_videos_on_rcp(
                         color='yellow', sections=['KALTURA', 'VIDEO', 'WARNING']
                     )
                     continue
+                audio_transcription_time = None
+                slides_detection_time = None
                 switchtube_video_id = kaltura_to_switch_id.get(kaltura_video_id, None)
                 if switchtube_video_id is not None \
                         and switchtube_video_id in switch_ids_to_channel_with_text_from_slides:
-                    # switch video already processed, we can skip slide extraction and OCR
-                    status_msg(
-                        f'The video {kaltura_video_id} has been found on switchtube as {switchtube_video_id}, '
-                        'skipping slides detection', color='grey', sections=['KALTURA', 'VIDEO', 'PROCESSING']
-                    )
-                    switch_channel = switch_ids_to_channel_with_text_from_slides[switchtube_video_id]
-                    # get slide text (in english in gen_switchtube.Slide_Text) from analyzed switchtube video
-                    slides_text = []
-                    piper_cursor.execute(f'''
-                        SELECT 
-                            SlideID,
-                            SUBSTRING(SlideID,LENGTH(SwitchChannelID) + LENGTH(SwitchVideoID) + 3), 
-                            SlideText 
-                        FROM gen_switchtube.Slide_Text 
-                        WHERE SwitchChannelID='{switch_channel}' AND SwitchVideoID='{switchtube_video_id}' 
-                        ORDER BY SlideNumber;
-                    ''')
-                    for slide_id, timestamp, slide_text in piper_cursor:
-                        slides_text.append({
-                            'en': slide_text,
-                            'timestamp': int(timestamp)
-                        })
-                    # translate slide text
-                    status_msg(
-                        f'translate text from {len(slides_text)} slides in en',
-                        color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
-                    )
-                    slides_detected_language = None
-                    slides_text = translate_extracted_text(
-                        slides_text, source_language='en',
-                        destination_languages=destination_languages, force=force,
-                        graph_ai_server=graph_ai_server, debug=debug
-                    )
-                    slides = []
-                    for slide_idx, slide_text in enumerate(slides_text):
-                        slide = {
-                            'token': None,  # as we did not do slide detection we do not know the token
-                            'timestamp': int(slide_text['timestamp']),
-                        }
-                        for k, v in slide_text.items():
-                            if k != 'timestamp':
-                                slide[k] = v
-                        slides.append(slide)
+                    if analyze_slides:
+                        # switch video already processed, we can skip slide extraction and OCR
+                        status_msg(
+                            f'The video {kaltura_video_id} has been found on switchtube as {switchtube_video_id}, '
+                            'skipping slides detection', color='grey', sections=['KALTURA', 'VIDEO', 'PROCESSING']
+                        )
+                        switch_channel = switch_ids_to_channel_with_text_from_slides[switchtube_video_id]
+                        # get slide text (in english in gen_switchtube.Slide_Text) from analyzed switchtube video
+                        slides_text = []
+                        piper_cursor.execute(f'''
+                            SELECT 
+                                SlideID,
+                                SUBSTRING(SlideID,LENGTH(SwitchChannelID) + LENGTH(SwitchVideoID) + 3), 
+                                SlideText 
+                            FROM gen_switchtube.Slide_Text 
+                            WHERE SwitchChannelID='{switch_channel}' AND SwitchVideoID='{switchtube_video_id}' 
+                            ORDER BY SlideNumber;
+                        ''')
+                        for slide_id, timestamp, slide_text in piper_cursor:
+                            slides_text.append({
+                                'en': slide_text,
+                                'timestamp': int(timestamp)
+                            })
+                        # translate slide text
+                        status_msg(
+                            f'translate text from {len(slides_text)} slides in en',
+                            color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
+                        )
+                        slides_detected_language = None
+                        slides_text = translate_extracted_text(
+                            slides_text, source_language='en',
+                            destination_languages=destination_languages, force=force,
+                            graph_ai_server=graph_ai_server, debug=debug
+                        )
+                        slides = []
+                        for slide_idx, slide_text in enumerate(slides_text):
+                            slide = {
+                                'token': None,  # as we did not do slide detection we do not know the token
+                                'timestamp': int(slide_text['timestamp']),
+                            }
+                            for k, v in slide_text.items():
+                                if k != 'timestamp':
+                                    slide[k] = v
+                            slides.append(slide)
+                        slides_detection_time = str(datetime.now())
+                    else:
+                        slides = None
                     if analyze_audio:
                         subtitles = get_subtitles_from_kaltura(
                             kaltura_video_id, piper_cursor=piper_cursor, force=force,
@@ -285,6 +293,7 @@ def process_videos_on_rcp(
                             )
                             audio_detected_language = video_information['audio_language']
                             subtitles = video_information['subtitles']
+                            audio_transcription_time = str(datetime.now())
                     else:
                         audio_detected_language = None
                         subtitles = None
@@ -299,12 +308,19 @@ def process_videos_on_rcp(
                             detect_audio_language=True, audio_language=None,
                             destination_languages=destination_languages, graph_ai_server=graph_ai_server, debug=debug
                         )
+                        audio_transcription_time = str(datetime.now())
+                        if analyze_slides:
+                            slides_detection_time = str(datetime.now())
                     else:
                         video_information = process_video(
                             kaltura_url, analyze_audio=analyze_audio, analyze_slides=analyze_slides, force=force,
                             destination_languages=destination_languages, graph_ai_server=graph_ai_server, debug=debug
                         )
                         subtitles = video_information['subtitles']
+                        if analyze_audio:
+                            audio_transcription_time = str(datetime.now())
+                        if analyze_slides:
+                            slides_detection_time = str(datetime.now())
                     slides_detected_language = video_information['slides_language']
                     audio_detected_language = video_information['audio_language']
                     slides = video_information['slides']
@@ -366,19 +382,22 @@ def process_videos_on_rcp(
                         'kalturaVideoId', 'kalturaUrl', 'thumbnailUrl', 'kalturaCreationTime', 'kalturaUpdateTime',
                         'title', 'description', 'kalturaOwner', 'kalturaCreator', 'tags', 'categories',
                         'kalturaEntitledEditors', 'msDuration', 'octetSize',
-                        'slidesDetectedLanguage', 'audioDetectedLanguage', 'switchVideoId'
+                        'slidesDetectedLanguage', 'audioDetectedLanguage', 'switchVideoId',
+                        'slidesDetectionTime', 'audioTranscriptionTime'
                     ),
                     (
                         kaltura_video_id, kaltura_url, thumbnail_url, kaltura_creation_time, kaltura_update_time,
                         title, description, kaltura_owner, kaltura_creator, tags, categories,
                         kaltura_entitled_editor, ms_duration, octet_size,
-                        slides_detected_language, audio_detected_language, switchtube_video_id
+                        slides_detected_language, audio_detected_language, switchtube_video_id,
+                        slides_detection_time, audio_transcription_time
                     ),
                     (
                         'str', 'str', 'str', 'str', 'str',
                         'str', 'str', 'str', 'str', 'str', 'str',
                         'str', 'int', 'int',
-                        'str', 'str', 'str'
+                        'str', 'str', 'str',
+                        'str', 'str'
                     )
                 )
                 piper_connection.commit()
@@ -388,22 +407,30 @@ def process_videos_on_rcp(
                 )
 
 
-def get_subtitles_from_kaltura(
-        kaltura_video_id, piper_cursor=None, piper_mysql_json_file=None, force=False,
-        destination_languages=('en', 'fr'), graph_ai_server='http://127.0.0.1:28800',
-        ignore_autogenerated=True, debug=False
-):
-    piper_connection = None
-    if piper_cursor is None:
+def get_piper_cursor(piper_connection=None, piper_mysql_json_file=None, piper_cursor=None, ):
+    if piper_connection is None and piper_cursor is None:
         if piper_mysql_json_file is None:
             piper_mysql_json_file = join(dirname(__file__), 'config', 'piper_db.json')
         with open(piper_mysql_json_file) as fp:
             piper_con_info = load_json(fp)
         piper_connection = mysql_connect(
-                host=piper_con_info['host'], port=piper_con_info['port'], user=piper_con_info['user'],
-                password=piper_con_info['password']
+            host=piper_con_info['host'], port=piper_con_info['port'], user=piper_con_info['user'],
+            password=piper_con_info['password']
         )
+    if piper_cursor is None:
         piper_cursor = piper_connection.cursor()
+    return piper_connection, piper_cursor
+
+
+def get_subtitles_from_kaltura(
+        kaltura_video_id, piper_cursor=None, piper_mysql_json_file=None, force=False,
+        destination_languages=('en', 'fr'), graph_ai_server='http://127.0.0.1:28800',
+        ignore_autogenerated=True, debug=False
+):
+    close_cursor = piper_cursor is None
+    piper_connection, piper_cursor = get_piper_cursor(
+        piper_mysql_json_file=piper_mysql_json_file, piper_cursor=piper_cursor
+    )
     subtitle_query = f'''
         SELECT captionData, fileExt, language 
         FROM ca_kaltura.Captions WHERE kalturaVideoId='{kaltura_video_id}'
@@ -483,7 +510,154 @@ def get_subtitles_from_kaltura(
                 graph_ai_server=graph_ai_server, debug=debug
             )
             subtitles = add_initial_disclaimer(subtitles, restrict_lang=missing_destination_language)
-    if piper_connection:
+    if close_cursor:
         piper_cursor.close()
         piper_connection.close()
     return subtitles
+
+
+def detect_concept_on_rcp(
+        kaltura_ids: list, analyze_subtitles=False, analyze_slides=True, graph_ai_server='http://127.0.0.1:28800',
+        piper_mysql_json_file=None, debug=False, piper_connection=None
+):
+    close_connection = piper_connection is None
+    piper_connection, piper_cursor = get_piper_cursor(
+        piper_connection=piper_connection, piper_mysql_json_file=piper_mysql_json_file
+    )
+    session = Session()
+    for video_id in kaltura_ids:
+        status_msg(
+            f'Processing kaltura video {video_id}',
+            color='grey', sections=['KALTURA', 'CONCEPT DETECTION', 'PROCESSING']
+        )
+        if analyze_subtitles:
+            piper_cursor.execute(f'''
+                SELECT 
+                    segmentId,
+                    textEn
+                FROM gen_kaltura.Subtitles WHERE kalturaVideoId="{video_id}";
+            ''')
+            segments_info = list(piper_cursor)
+            status_msg(
+                f'Extracting concepts from {len(segments_info)} subtitles of video {video_id}',
+                color='grey', sections=['KALTURA', 'CONCEPT DETECTION', 'SUBTITLES', 'PROCESSING']
+            )
+            piper_cursor.execute(
+                f'DELETE FROM `gen_kaltura`.`Subtitle_Concepts` WHERE kalturaVideoId="{video_id}";'
+            )
+            segments_processed
+            for segment_id, segment_text in segments_info:
+                if not segment_text:
+                    continue
+                segment_scores = extract_concepts_from_text(
+                    segment_text, graph_ai_server=graph_ai_server,
+                    sections=['KALTURA', 'CONCEPT DETECTION', 'SUBTITLES'], session=session
+                )
+                segments_processed += 1
+                if segment_scores is None:
+                    continue
+                for scores in segment_scores:
+                    insert_line_into_table_with_types(
+                        piper_cursor, 'gen_kaltura', 'Subtitle_Concepts',
+                        columns=(
+                            'kalturaVideoId', 'segmentId', 'PageId', 'PageTitle', 'SearchScore',
+                            'LevenshteinScore', 'GraphScore', 'OntologyLocalScore',
+                            'OntologyGlobalScore', 'KeywordsScore', 'MixedScore'
+                        ),
+                        values=(
+                            video_id, segment_id, scores['PageID'], scores['PageTitle'], scores['SearchScore'],
+                            scores['LevenshteinScore'], scores['GraphScore'], scores['OntologyLocalScore'],
+                            scores['OntologyGlobalScore'], scores['KeywordsScore'], scores['MixedScore']
+                        ),
+                        types=(
+                            'str', 'int', 'int', 'str', 'float',
+                            'float', 'float', 'float',
+                            'float', 'float', 'float'
+                        )
+                    )
+            now = str(datetime.now())
+            if segments_processed>0:
+                piper_cursor.execute(
+                    f'''UPDATE `gen_kaltura`.`Videos` 
+                    SET `subtitleConceptExtractionTime`="{now}" 
+                    WHERE kalturaVideoId="{video_id}"'''
+                )
+                piper_connection.commit()
+                status_msg(
+                    f'Concepts have been extracted from {segments_processed}/{len(segments_info)} subtitles of {video_id}',
+                    color='green', sections=['KALTURA', 'CONCEPT DETECTION', 'SUBTITLES', 'SUCCESS']
+                )
+            else:
+                status_msg(
+                    f'No usuable sutitles found for video {video_id}',
+                    color='yellow', sections=['KALTURA', 'CONCEPT DETECTION', 'SUBTITLES', 'WARNING']
+                )
+        if analyze_slides:
+            piper_cursor.execute(f'''
+                SELECT 
+                    slideNumber,
+                    textEn
+                FROM gen_kaltura.Slides WHERE kalturaVideoId="{video_id}";
+            ''')
+            slides_info = list(piper_cursor)
+            status_msg(
+                f'Extracting concepts from {len(slides_info)} slides ofvideo  {video_id}',
+                color='grey', sections=['KALTURA', 'CONCEPT DETECTION', 'SLIDES', 'PROCESSING']
+            )
+            piper_cursor.execute(
+                f'DELETE FROM `gen_kaltura`.`Slide_Concepts` WHERE kalturaVideoId="{video_id}";'
+            )
+            slides_processed = 0
+            for slide_number, slide_text in slides_info:
+                if not slide_text:
+                    continue
+                slide_scores = extract_concepts_from_text(
+                    slide_text, graph_ai_server=graph_ai_server, sections=['KALTURA', 'CONCEPT DETECTION', 'SLIDES']
+                )
+                slides_processed += 1
+                if slide_scores is None:
+                    continue
+                for scores in slide_scores:
+                    insert_line_into_table_with_types(
+                        piper_cursor, 'gen_kaltura', 'Slide_Concepts',
+                        columns=(
+                            'kalturaVideoId', 'slideNumber', 'PageId', 'PageTitle', 'SearchScore',
+                            'LevenshteinScore', 'GraphScore', 'OntologyLocalScore',
+                            'OntologyGlobalScore', 'KeywordsScore', 'MixedScore'
+                        ),
+                        values=(
+                            video_id, slide_number, scores['PageID'], scores['PageTitle'], scores['SearchScore'],
+                            scores['LevenshteinScore'], scores['GraphScore'], scores['OntologyLocalScore'],
+                            scores['OntologyGlobalScore'], scores['KeywordsScore'], scores['MixedScore']
+                        ),
+                        types=(
+                            'str', 'int', 'int', 'str', 'float',
+                            'float', 'float', 'float',
+                            'float', 'float', 'float'
+                        )
+                    )
+            if slides_processed > 0:
+                now = str(datetime.now())
+                piper_cursor.execute(
+                    f'''UPDATE `gen_kaltura`.`Videos` 
+                    SET `slidesConceptExtractionTime`="{now}" 
+                    WHERE kalturaVideoId="{video_id}"'''
+                )
+                piper_connection.commit()
+                status_msg(
+                    f'Concepts have been extracted from {slides_processed}/{len(slides_info)} slides of {video_id}',
+                    color='green', sections=['KALTURA', 'CONCEPT DETECTION', 'SLIDES', 'SUCCESS']
+                )
+            else:
+                status_msg(
+                    f'No usable slides found for video {video_id}',
+                    color='yellow', sections=['KALTURA', 'CONCEPT DETECTION', 'SLIDES', 'WARNING']
+                )
+        status_msg(
+            f'The video {video_id} has been processed',
+            color='green', sections=['KALTURA', 'CONCEPT DETECTION', 'SUCCESS']
+        )
+    piper_cursor.close()
+    if close_connection:
+        piper_connection.close()
+
