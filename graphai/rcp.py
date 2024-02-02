@@ -545,7 +545,7 @@ def detect_concept_on_rcp(
             piper_cursor.execute(
                 f'DELETE FROM `gen_kaltura`.`Subtitle_Concepts` WHERE kalturaVideoId="{video_id}";'
             )
-            segments_processed
+            segments_processed = 0
             for segment_id, segment_text in segments_info:
                 if not segment_text:
                     continue
@@ -601,7 +601,7 @@ def detect_concept_on_rcp(
             ''')
             slides_info = list(piper_cursor)
             status_msg(
-                f'Extracting concepts from {len(slides_info)} slides ofvideo  {video_id}',
+                f'Extracting concepts from {len(slides_info)} slides of video {video_id}',
                 color='grey', sections=['KALTURA', 'CONCEPT DETECTION', 'SLIDES', 'PROCESSING']
             )
             piper_cursor.execute(
@@ -660,4 +660,3 @@ def detect_concept_on_rcp(
     piper_cursor.close()
     if close_connection:
         piper_connection.close()
-
