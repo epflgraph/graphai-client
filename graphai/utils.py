@@ -136,25 +136,11 @@ def insert_line_into_table_with_types(cursor, schema, table_name, columns, value
 def execute_query(cursor: MySQLCursor, sql_query, retry=5):
     try:
         cursor.execute(sql_query)
-    except (OperationalError, InterfaceError, ProgrammingError, IntegrityError, DataError) as e:
-        e_msg = e.args[1]
-        if isinstance(e, OperationalError) and (
-                e_msg.startswith('Lost connection') or 'gone away' in e_msg or 'timeout' in e_msg
-        ):
-            msg = "Got operational error:\n" + str(e)
-            retry = True
-        elif isinstance(e, InterfaceError):
-            msg = "Got interface error:\n" + str(e)
-            retry = True
-        else:
-            msg = f'Error while inserting data in `{schema}`.`{table_name}`:\n'
-            msg += f'the query was:\n {sql_query}'
-            msg += 'the exception received was: ' + str(e)
-            raise RuntimeError(msg)
-        status_msg(msg, sections=['MYSQL INSERT', 'WARNING'], color='yellow')
+    except Exceptiom as e:
+        msg = 'Received exception: ' + str(e)
         if retry > 0:
-            msg += f"Try to reconnect and resend the query:\n" + sql_query
-            status_msg(msg, sections=['MYSQL INSERT', 'PROCESSING'], color='grey')
+            msg += f"Trying to reconnect and resend the query ({retry}x at most)"
+            status_msg(msg, sections=['MYSQL INSERT', 'WARNING'], color='grey')
             cursor._connection.ping(reconnect=True)
             execute_query(cursor, sql_query, retry=retry-1)
         else:
