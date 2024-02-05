@@ -7,6 +7,7 @@ from numpy import isnan, isinf
 from re import compile, finditer
 from typing import Literal
 from mysql.connector.cursor import MySQLCursor
+from mysql.connector.cursor_cext import CMySQLCursor
 
 default_disclaimer = {
     'en': 'These subtitles have been generated automatically',
@@ -141,11 +142,21 @@ def execute_query(cursor: MySQLCursor, sql_query, retry=5):
         if retry > 0:
             msg += f"Trying to reconnect and resend the query ({retry}x at most)"
             status_msg(msg, sections=['MYSQL INSERT', 'WARNING'], color='grey')
-            cursor._connection.ping(reconnect=True)
+            cursor.get_connection().ping(reconnect=True)
             execute_query(cursor, sql_query, retry=retry-1)
         else:
             msg += f"No more tries left to execute the query:\n" + sql_query
             status_msg(msg, sections=['MYSQL INSERT', 'ERROR'], color='red')
+
+
+def get_connection(cursor):
+    if isinstance(cursor, MySQLCursor):
+        return cursor._connection
+    elif isinstance(cursor, MySQLCursor):
+        return cursor._cnx
+    else:
+        raise NotImplementedError(f'cannot get connection from cursor of type {type(cursor)}')
+
 
 
 def convert_subtitle_into_segments(caption_data, file_ext='srt', text_key='text'):
