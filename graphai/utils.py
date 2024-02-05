@@ -136,7 +136,7 @@ def insert_line_into_table_with_types(cursor, schema, table_name, columns, value
 def execute_query(cursor: MySQLCursor, sql_query, retry=5):
     try:
         cursor.execute(sql_query)
-    except Exceptiom as e:
+    except Exception as e:
         msg = 'Received exception: ' + str(e)
         if retry > 0:
             msg += f"Trying to reconnect and resend the query ({retry}x at most)"
