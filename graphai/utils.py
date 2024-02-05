@@ -6,7 +6,7 @@ from string import Formatter
 from numpy import isnan, isinf
 from re import compile, finditer
 from typing import Literal
-from mysql.connector import MySQLCursor
+from mysql.connector.cursor import MySQLCursor
 
 default_disclaimer = {
     'en': 'These subtitles have been generated automatically',
