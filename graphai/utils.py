@@ -6,6 +6,7 @@ from string import Formatter
 from numpy import isnan, isinf
 from re import compile, finditer
 from typing import Literal
+from mysql.connector import MySQLCursor
 
 default_disclaimer = {
     'en': 'These subtitles have been generated automatically',
@@ -123,19 +124,42 @@ def prepare_values_mysql_with_types(values, types: list[Literal["str", "int", "f
     return values_str
 
 
-def insert_line_into_table_with_types(cursor, schema, table_name, columns, values, types, encoding='utf8'):
+def insert_line_into_table_with_types(cursor, schema, table_name, columns, values, types, encoding='utf8', retry=5):
     values_str = prepare_values_mysql_with_types(values, types, encoding=encoding)
     sql_query = f"""
                 INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
                 VALUES ({', '.join(values_str)});
             """
+    execute_query(cursor, sql_query, retry=retry)
+
+
+def execute_query(cursor: MySQLCursor, sql_query, retry=5):
     try:
         cursor.execute(sql_query)
-    except Exception as e:
-        msg = f'Error while inserting data in `{schema}`.`{table_name}`:\n'
-        msg += f'the query was:\n {sql_query}'
-        msg += 'the exception received was: ' + str(e)
-        raise RuntimeError(msg)
+    except (OperationalError, InterfaceError, ProgrammingError, IntegrityError, DataError) as e:
+        e_msg = e.args[1]
+        if isinstance(e, OperationalError) and (
+                e_msg.startswith('Lost connection') or 'gone away' in e_msg or 'timeout' in e_msg
+        ):
+            msg = "Got operational error:\n" + str(e)
+            retry = True
+        elif isinstance(e, InterfaceError):
+            msg = "Got interface error:\n" + str(e)
+            retry = True
+        else:
+            msg = f'Error while inserting data in `{schema}`.`{table_name}`:\n'
+            msg += f'the query was:\n {sql_query}'
+            msg += 'the exception received was: ' + str(e)
+            raise RuntimeError(msg)
+        status_msg(msg, sections=['MYSQL INSERT', 'WARNING'], color='yellow')
+        if retry > 0:
+            msg += f"Try to reconnect and resend the query:\n" + sql_query
+            status_msg(msg, sections=['MYSQL INSERT', 'PROCESSING'], color='grey')
+            cursor._connection.ping(reconnect=True)
+            execute_query(cursor, sql_query, retry=retry-1)
+        else:
+            msg += f"No more tries left to execute the query:\n" + sql_query
+            status_msg(msg, sections=['MYSQL INSERT', 'ERROR'], color='red')
 
 
 def convert_subtitle_into_segments(caption_data, file_ext='srt', text_key='text'):

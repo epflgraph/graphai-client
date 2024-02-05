@@ -579,7 +579,7 @@ def detect_concept_on_rcp(
             if segments_processed>0:
                 piper_cursor.execute(
                     f'''UPDATE `gen_kaltura`.`Videos` 
-                    SET `subtitleConceptExtractionTime`="{now}" 
+                    SET `subtitlesConceptExtractionTime`="{now}" 
                     WHERE kalturaVideoId="{video_id}"'''
                 )
                 piper_connection.commit()
