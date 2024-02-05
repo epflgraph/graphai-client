@@ -142,7 +142,7 @@ def execute_query(cursor: MySQLCursor, sql_query, retry=5):
         if retry > 0:
             msg += f"Trying to reconnect and resend the query ({retry}x at most)"
             status_msg(msg, sections=['MYSQL INSERT', 'WARNING'], color='grey')
-            cursor.get_connection().ping(reconnect=True)
+            get_connection(cursor).ping(reconnect=True)
             execute_query(cursor, sql_query, retry=retry-1)
         else:
             msg += f"No more tries left to execute the query:\n" + sql_query
