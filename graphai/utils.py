@@ -157,7 +157,7 @@ def execute_query(cursor: MySQLCursor, sql_query, retry=5, multi=False):
     try:
         cursor.execute(sql_query,multi=multi)
     except Exception as e:
-        msg = 'Received exception: ' + str(e) + '\m'
+        msg = 'Received exception: ' + str(e) + '\n'
         if retry > 0:
             msg += f"Trying to reconnect and resend the query ({retry}x at most)"
             status_msg(msg, sections=['MYSQL INSERT', 'WARNING'], color='grey')
@@ -173,7 +173,7 @@ def execute_many(cursor: MySQLCursor, sql_query, data_str, retry=5):
     try:
         cursor.executemany(sql_query, data_str)
     except Exception as e:
-        msg = 'Received exception: ' + str(e) + '\m'
+        msg = 'Received exception: ' + str(e) + '\n'
         if retry > 0:
             msg += f"Trying to reconnect and resend the query ({retry}x at most)"
             status_msg(msg, sections=['MYSQL INSERT', 'WARNING'], color='grey')
