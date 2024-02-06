@@ -6,7 +6,8 @@ from re import match, fullmatch
 from requests import Session
 from graphai.utils import (
     status_msg, get_video_link_and_size, strfdelta, insert_line_into_table_with_types, convert_subtitle_into_segments,
-    combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript
+    combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript,
+    insert_data_into_table_with_type
 )
 from graphai.client import process_video, translate_extracted_text, translate_subtitles
 from graphai.client_api.text import extract_concepts_from_text
@@ -546,6 +547,7 @@ def detect_concept_on_rcp(
                 f'DELETE FROM `gen_kaltura`.`Subtitle_Concepts` WHERE kalturaVideoId="{video_id}";'
             )
             segments_processed = 0
+            concepts_segments_data = []
             for segment_id, segment_text in segments_info:
                 if not segment_text:
                     continue
@@ -556,25 +558,27 @@ def detect_concept_on_rcp(
                 segments_processed += 1
                 if segment_scores is None:
                     continue
-                for scores in segment_scores:
-                    insert_line_into_table_with_types(
-                        piper_cursor, 'gen_kaltura', 'Subtitle_Concepts',
-                        columns=(
-                            'kalturaVideoId', 'segmentId', 'PageId', 'PageTitle', 'SearchScore',
-                            'LevenshteinScore', 'GraphScore', 'OntologyLocalScore',
-                            'OntologyGlobalScore', 'KeywordsScore', 'MixedScore'
-                        ),
-                        values=(
-                            video_id, segment_id, scores['PageID'], scores['PageTitle'], scores['SearchScore'],
-                            scores['LevenshteinScore'], scores['GraphScore'], scores['OntologyLocalScore'],
-                            scores['OntologyGlobalScore'], scores['KeywordsScore'], scores['MixedScore']
-                        ),
-                        types=(
-                            'str', 'int', 'int', 'str', 'float',
-                            'float', 'float', 'float',
-                            'float', 'float', 'float'
-                        )
-                    )
+                concepts_segments_data.extend([
+                    (
+                        video_id, segment_id, scores['PageID'], scores['PageTitle'], scores['SearchScore'],
+                        scores['LevenshteinScore'], scores['GraphScore'], scores['OntologyLocalScore'],
+                        scores['OntologyGlobalScore'], scores['KeywordsScore'], scores['MixedScore']
+                    ) for scores in segment_scores
+                ])
+            insert_data_into_table_with_type(
+                piper_cursor, schema='gen_kaltura', table_name='Subtitle_Concepts',
+                columns=(
+                    'kalturaVideoId', 'segmentId', 'PageId', 'PageTitle', 'SearchScore',
+                    'LevenshteinScore', 'GraphScore', 'OntologyLocalScore',
+                    'OntologyGlobalScore', 'KeywordsScore', 'MixedScore'
+                ),
+                data=concepts_segments_data,
+                types=(
+                    'str', 'int', 'int', 'str', 'float',
+                    'float', 'float', 'float',
+                    'float', 'float', 'float'
+                )
+            )
             now = str(datetime.now())
             if segments_processed>0:
                 piper_cursor.execute(
@@ -608,6 +612,7 @@ def detect_concept_on_rcp(
                 f'DELETE FROM `gen_kaltura`.`Slide_Concepts` WHERE kalturaVideoId="{video_id}";'
             )
             slides_processed = 0
+            concepts_slides_data = []
             for slide_number, slide_text in slides_info:
                 if not slide_text:
                     continue
@@ -617,25 +622,27 @@ def detect_concept_on_rcp(
                 slides_processed += 1
                 if slide_scores is None:
                     continue
-                for scores in slide_scores:
-                    insert_line_into_table_with_types(
-                        piper_cursor, 'gen_kaltura', 'Slide_Concepts',
-                        columns=(
-                            'kalturaVideoId', 'slideNumber', 'PageId', 'PageTitle', 'SearchScore',
-                            'LevenshteinScore', 'GraphScore', 'OntologyLocalScore',
-                            'OntologyGlobalScore', 'KeywordsScore', 'MixedScore'
-                        ),
-                        values=(
-                            video_id, slide_number, scores['PageID'], scores['PageTitle'], scores['SearchScore'],
-                            scores['LevenshteinScore'], scores['GraphScore'], scores['OntologyLocalScore'],
-                            scores['OntologyGlobalScore'], scores['KeywordsScore'], scores['MixedScore']
-                        ),
-                        types=(
-                            'str', 'int', 'int', 'str', 'float',
-                            'float', 'float', 'float',
-                            'float', 'float', 'float'
-                        )
-                    )
+                concepts_slides_data.extend([
+                    (
+                        video_id, slide_number, scores['PageID'], scores['PageTitle'], scores['SearchScore'],
+                        scores['LevenshteinScore'], scores['GraphScore'], scores['OntologyLocalScore'],
+                        scores['OntologyGlobalScore'], scores['KeywordsScore'], scores['MixedScore']
+                    ) for scores in slide_scores
+                ])
+            insert_data_into_table_with_type(
+                piper_cursor, schema='gen_kaltura', table_name='Slide_Concepts',
+                columns=(
+                    'kalturaVideoId', 'slideNumber', 'PageId', 'PageTitle', 'SearchScore',
+                    'LevenshteinScore', 'GraphScore', 'OntologyLocalScore',
+                    'OntologyGlobalScore', 'KeywordsScore', 'MixedScore'
+                ),
+                data=concepts_slides_data,
+                types=(
+                    'str', 'int', 'int', 'str', 'float',
+                    'float', 'float', 'float',
+                    'float', 'float', 'float'
+                )
+            )
             if slides_processed > 0:
                 now = str(datetime.now())
                 piper_cursor.execute(

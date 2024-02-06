@@ -103,7 +103,7 @@ def strfdelta(time_delta: timedelta, fmt='{H:02}:{M:02}:{S:02},{m:03}'):
     return f.format(fmt, **values)
 
 
-def prepare_values_mysql_with_types(values, types: list[Literal["str", "int", "float"]], encoding='utf8'):
+def prepare_values_for_mysql(values: list, types: list[Literal["str", "int", "float"]], encoding='utf8'):
     values_str = []
     assert len(values) == len(types)
     for val, val_type in zip(values, types):
@@ -125,18 +125,37 @@ def prepare_values_mysql_with_types(values, types: list[Literal["str", "int", "f
     return values_str
 
 
-def insert_line_into_table_with_types(cursor, schema, table_name, columns, values, types, encoding='utf8', retry=5):
-    values_str = prepare_values_mysql_with_types(values, types, encoding=encoding)
+def prepare_list_of_values_for_mysql(
+        list_of_values: list[list], types: list[Literal["str", "int", "float"]], encoding='utf8'
+):
+    list_of_values_str = []
+    return [prepare_values_for_mysql(values, types=types, encoding=encoding) for values in list_of_values]
+
+
+def insert_line_into_table_with_types(
+        cursor, schema, table_name, columns, values, types: list[Literal["str", "int", "float"]],
+        encoding='utf8', retry=5
+):
+    values_str = prepare_values_for_mysql(values, types, encoding=encoding)
     sql_query = f"""
-                INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
-                VALUES ({', '.join(values_str)});
-            """
+        INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
+        VALUES ({', '.join(values_str)});
+    """
     execute_query(cursor, sql_query, retry=retry)
 
 
-def execute_query(cursor: MySQLCursor, sql_query, retry=5):
+def insert_data_into_table_with_type(cursor, schema, table_name, columns, data, types, encoding='utf8', retry=5):
+    format_values = ', '.join(['%s' for t in types])
+    sql_query = f"""
+        INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
+        VALUES ({format_values});
+    """
+    execute_many(cursor, sql_query, data, retry=retry)
+
+
+def execute_query(cursor: MySQLCursor, sql_query, retry=5, multi=False):
     try:
-        cursor.execute(sql_query)
+        cursor.execute(sql_query,multi=multi)
     except Exception as e:
         msg = 'Received exception: ' + str(e) + '\m'
         if retry > 0:
@@ -145,8 +164,25 @@ def execute_query(cursor: MySQLCursor, sql_query, retry=5):
             get_connection(cursor).ping(reconnect=True)
             execute_query(cursor, sql_query, retry=retry-1)
         else:
-            msg += f"No more tries left to execute the query:\n" + sql_query
-            status_msg(msg, sections=['MYSQL INSERT', 'ERROR'], color='red')
+            msg += f"No more tries left to execute the query:\n\t" + sql_query
+            status_msg(msg, sections=['EXECUTE QUERY', 'ERROR'], color='red')
+            raise e
+
+
+def execute_many(cursor: MySQLCursor, sql_query, data_str, retry=5):
+    try:
+        cursor.executemany(sql_query, data_str)
+    except Exception as e:
+        msg = 'Received exception: ' + str(e) + '\m'
+        if retry > 0:
+            msg += f"Trying to reconnect and resend the query ({retry}x at most)"
+            status_msg(msg, sections=['MYSQL INSERT', 'WARNING'], color='grey')
+            get_connection(cursor).ping(reconnect=True)
+            execute_query(cursor, sql_query, retry=retry-1)
+        else:
+            msg += f"No more tries left to execute the query:\n\t" + sql_query
+            msg += f"with data:\n" + '\n\t'.join(data_str)
+            status_msg(msg, sections=['EXECUTE MANY', 'ERROR'], color='red')
             raise e
 
 
