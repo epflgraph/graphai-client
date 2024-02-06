@@ -580,7 +580,7 @@ def detect_concept_on_rcp(
                 )
             )
             now = str(datetime.now())
-            if segments_processed>0:
+            if segments_processed > 0:
                 piper_cursor.execute(
                     f'''UPDATE `gen_kaltura`.`Videos` 
                     SET `subtitlesConceptExtractionTime`="{now}" 
