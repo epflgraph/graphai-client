@@ -138,7 +138,7 @@ def execute_query(cursor: MySQLCursor, sql_query, retry=5):
     try:
         cursor.execute(sql_query)
     except Exception as e:
-        msg = 'Received exception: ' + str(e)
+        msg = 'Received exception: ' + str(e) + '\m'
         if retry > 0:
             msg += f"Trying to reconnect and resend the query ({retry}x at most)"
             status_msg(msg, sections=['MYSQL INSERT', 'WARNING'], color='grey')
@@ -147,12 +147,13 @@ def execute_query(cursor: MySQLCursor, sql_query, retry=5):
         else:
             msg += f"No more tries left to execute the query:\n" + sql_query
             status_msg(msg, sections=['MYSQL INSERT', 'ERROR'], color='red')
+            raise e
 
 
 def get_connection(cursor):
     if isinstance(cursor, MySQLCursor):
         return cursor._connection
-    elif isinstance(cursor, MySQLCursor):
+    elif isinstance(cursor, CMySQLCursor):
         return cursor._cnx
     else:
         raise NotImplementedError(f'cannot get connection from cursor of type {type(cursor)}')
