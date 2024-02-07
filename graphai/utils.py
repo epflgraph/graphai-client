@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from string import Formatter
 from numpy import isnan, isinf
 from re import compile, finditer
-from typing import Literal
+from typing import Literal, Union
 from mysql.connector.cursor import MySQLCursor
 from mysql.connector.cursor_cext import CMySQLCursor
 
@@ -107,29 +107,26 @@ def prepare_values_for_mysql(values: list, types: list[Literal["str", "int", "fl
     values_str = []
     assert len(values) == len(types)
     for val, val_type in zip(values, types):
-        if val is None:
-            values_str.append("NULL")
-        elif val_type == "str":
-            val_str = str(val).encode(encoding, errors='ignore').decode(encoding)
-            values_str.append(f"'" + val_str.replace("\\", "\\\\").replace("'", "\\'").replace(";", "\\;") + "'")
-        elif val_type == "int":
-            values_str.append(str(int(val)))
-        elif val_type == "float":
-            val_float = float(val)
-            if isnan(val_float) or isinf(val_float):
-                values_str.append("NULL")
-            else:
-                values_str.append(str(float(val)))
-        else:
-            raise ValueError('types must be a list of either "str", "int" or "float".')
+        values_str.append(prepare_value_for_mysql(val, val_type, encoding=encoding))
     return values_str
 
 
-def prepare_list_of_values_for_mysql(
-        list_of_values: list[list], types: list[Literal["str", "int", "float"]], encoding='utf8'
-):
-    list_of_values_str = []
-    return [prepare_values_for_mysql(values, types=types, encoding=encoding) for values in list_of_values]
+def prepare_value_for_mysql(value: Union[str, int, float], value_type: Literal["str", "int", "float"], encoding='utf8'):
+    if value is None:
+        return "NULL"
+    elif value_type == "str":
+        val_str = str(value).encode(encoding, errors='ignore').decode(encoding)
+        return f"'" + val_str.replace("\\", "\\\\").replace("'", "\\'").replace(";", "\\;") + "'"
+    elif value_type == "int":
+        return str(int(value))
+    elif value_type == "float":
+        val_float = float(value)
+        if isnan(val_float) or isinf(val_float):
+            return "NULL"
+        else:
+            return str(float(value))
+    else:
+        raise ValueError('types must be a list of either "str", "int" or "float".')
 
 
 def insert_line_into_table_with_types(
@@ -144,7 +141,7 @@ def insert_line_into_table_with_types(
     execute_query(cursor, sql_query, retry=retry)
 
 
-def insert_data_into_table_with_type(cursor, schema, table_name, columns, data, types, encoding='utf8', retry=5):
+def insert_data_into_table_with_type(cursor, schema, table_name, columns, data, types, retry=5):
     format_values = ', '.join(['%s' for t in types])
     sql_query = f"""
         INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
@@ -153,9 +150,9 @@ def insert_data_into_table_with_type(cursor, schema, table_name, columns, data, 
     execute_many(cursor, sql_query, data, retry=retry)
 
 
-def execute_query(cursor: MySQLCursor, sql_query, retry=5, multi=False):
+def execute_query(cursor: MySQLCursor, sql_query, retry=5, multiple_statements=False):
     try:
-        cursor.execute(sql_query,multi=multi)
+        cursor.execute(sql_query, multi=multiple_statements)
     except Exception as e:
         msg = 'Received exception: ' + str(e) + '\n'
         if retry > 0:
@@ -193,7 +190,6 @@ def get_connection(cursor):
         return cursor._cnx
     else:
         raise NotImplementedError(f'cannot get connection from cursor of type {type(cursor)}')
-
 
 
 def convert_subtitle_into_segments(caption_data, file_ext='srt', text_key='text'):

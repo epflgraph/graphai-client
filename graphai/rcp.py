@@ -7,10 +7,11 @@ from requests import Session
 from graphai.utils import (
     status_msg, get_video_link_and_size, strfdelta, insert_line_into_table_with_types, convert_subtitle_into_segments,
     combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript,
-    insert_data_into_table_with_type
+    insert_data_into_table_with_type, execute_query, prepare_value_for_mysql
 )
 from graphai.client import process_video, translate_extracted_text, translate_subtitles
 from graphai.client_api.text import extract_concepts_from_text
+from graphai.client_api.translation import translate_text
 
 language_to_short = {
     'french': 'fr',
@@ -519,7 +520,7 @@ def get_subtitles_from_kaltura(
 
 def detect_concept_on_rcp(
         kaltura_ids: list, analyze_subtitles=False, analyze_slides=True, graph_ai_server='http://127.0.0.1:28800',
-        piper_mysql_json_file=None, debug=False, piper_connection=None
+        piper_mysql_json_file=None, piper_connection=None
 ):
     close_connection = piper_connection is None
     piper_connection, piper_cursor = get_piper_cursor(
@@ -663,6 +664,85 @@ def detect_concept_on_rcp(
         status_msg(
             f'The video {video_id} has been processed',
             color='green', sections=['KALTURA', 'CONCEPT DETECTION', 'SUCCESS']
+        )
+    piper_cursor.close()
+    if close_connection:
+        piper_connection.close()
+
+
+def fix_subtitle_translation_on_rcp(
+        kaltura_ids: list, graph_ai_server='http://127.0.0.1:28800', piper_mysql_json_file=None, piper_connection=None,
+        source_language='fr', target_language='en'
+):
+    close_connection = piper_connection is None
+    piper_connection, piper_cursor = get_piper_cursor(
+        piper_connection=piper_connection, piper_mysql_json_file=piper_mysql_json_file
+    )
+    assert source_language != target_language
+    if source_language == 'en':
+        index_text_source = 1
+    elif source_language == 'fr':
+        index_text_source = 0
+    else:
+        raise NotImplementedError('supported source languages are "en" and "fr"')
+    if target_language == 'en':
+        column_target = 'textEn'
+    elif target_language == 'fr':
+        column_target = 'textFr'
+    else:
+        raise NotImplementedError('supported target languages are "en" and "fr"')
+    for video_id in kaltura_ids:
+        piper_cursor.execute(f'''
+            SELECT 
+                segmentId,
+                textFr,
+                textEn
+            FROM gen_kaltura.Subtitles WHERE kalturaVideoId="{video_id}" ORDER BY segmentId;
+        ''')
+        segments_info = list(piper_cursor)
+        status_msg(
+            f'Translating {len(segments_info)} subtitles '
+            f'from {source_language} to {target_language} for kaltura video {video_id}',
+            color='grey', sections=['KALTURA', 'FIX TRANSLATION', 'PROCESSING']
+        )
+        segments_ids = []
+        source_text = []
+        is_auto_translated = False
+        for segments_id, *text in segments_info:
+            if segments_id == 0:
+                if text[index_text_source] and text[index_text_source].startswith(default_disclaimer[source_language]):
+                    is_auto_translated = True
+                    if text[index_text_source] == default_disclaimer[source_language]:
+                        continue
+                    text[index_text_source] = '\n'.join(text[index_text_source].split('\n')[1:])
+            segments_ids.append(segments_id)
+            source_text.append(text[index_text_source])
+        translated_text = translate_text(
+            source_text, source_language=source_language, target_language=target_language,
+            graph_ai_server=graph_ai_server, sections=('KALTURA', 'FIX TRANSLATION', 'TRANSLATE'), force=True
+        )
+        if is_auto_translated:
+            if segments_info[0][1+index_text_source] == default_disclaimer[source_language]:
+                segments_ids.insert(0, 0)
+                translated_text.insert(0, default_disclaimer[target_language])
+            else:
+                translated_text[0] = default_disclaimer[target_language] + '\n' + translated_text[0]
+        n_fix = 0
+        for segment_id, translated_segment in zip(segments_ids, translated_text):
+            if translated_segment is None:
+                continue
+            translated_segment_str = prepare_value_for_mysql(translated_segment.strip(), 'str')
+            execute_query(piper_cursor, f'''
+                UPDATE gen_kaltura.Subtitles 
+                SET {column_target}={translated_segment_str} 
+                WHERE kalturaVideoId="{video_id}" AND segmentId={segment_id};
+            ''')
+            n_fix += 1
+        piper_connection.commit()
+        status_msg(
+            f'{n_fix}/{len(segments_info)} subtitles has been translated from '
+            f'{source_language} to {target_language} for video {video_id}',
+            color='green', sections=['KALTURA', 'FIX TRANSLATION', 'SUCCESS']
         )
     piper_cursor.close()
     if close_connection:
