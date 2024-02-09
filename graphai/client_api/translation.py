@@ -40,7 +40,7 @@ def translate_text(
         )
     # split in smaller lists if the text is too large
     if isinstance(text, list):
-        lengths_text = [len(t) for t in text]
+        lengths_text = [len(t) if t is not None else 0 for t in text]
         if sum(lengths_text) > max_text_list_length:
             idx_start = 0
             sum_length = 0
