@@ -7,7 +7,7 @@ from graphai.client_api.utils import get_response, task_result_is_ok, split_text
 
 def translate_text(
         text: Union[str, list], source_language, target_language, graph_ai_server='http://127.0.0.1:28800',
-        sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=50000
+        sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000
 ):
     if source_language == target_language:
         return text
