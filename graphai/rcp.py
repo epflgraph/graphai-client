@@ -580,14 +580,7 @@ def detect_concept_on_rcp(
                     'float', 'float', 'float'
                 )
             )
-            now = str(datetime.now())
             if segments_processed > 0:
-                piper_cursor.execute(
-                    f'''UPDATE `gen_kaltura`.`Videos` 
-                    SET `subtitlesConceptExtractionTime`="{now}" 
-                    WHERE kalturaVideoId="{video_id}"'''
-                )
-                piper_connection.commit()
                 status_msg(
                     f'Concepts have been extracted from {segments_processed}/{len(segments_info)} subtitles of {video_id}',
                     color='green', sections=['KALTURA', 'CONCEPT DETECTION', 'SUBTITLES', 'SUCCESS']
@@ -597,6 +590,13 @@ def detect_concept_on_rcp(
                     f'No usuable sutitles found for video {video_id}',
                     color='yellow', sections=['KALTURA', 'CONCEPT DETECTION', 'SUBTITLES', 'WARNING']
                 )
+            now = str(datetime.now())
+            piper_cursor.execute(
+                f'''UPDATE `gen_kaltura`.`Videos` 
+                SET `subtitlesConceptExtractionTime`="{now}" 
+                WHERE kalturaVideoId="{video_id}"'''
+            )
+            piper_connection.commit()
         if analyze_slides:
             piper_cursor.execute(f'''
                 SELECT 
@@ -645,13 +645,6 @@ def detect_concept_on_rcp(
                 )
             )
             if slides_processed > 0:
-                now = str(datetime.now())
-                piper_cursor.execute(
-                    f'''UPDATE `gen_kaltura`.`Videos` 
-                    SET `slidesConceptExtractionTime`="{now}" 
-                    WHERE kalturaVideoId="{video_id}"'''
-                )
-                piper_connection.commit()
                 status_msg(
                     f'Concepts have been extracted from {slides_processed}/{len(slides_info)} slides of {video_id}',
                     color='green', sections=['KALTURA', 'CONCEPT DETECTION', 'SLIDES', 'SUCCESS']
@@ -661,6 +654,13 @@ def detect_concept_on_rcp(
                     f'No usable slides found for video {video_id}',
                     color='yellow', sections=['KALTURA', 'CONCEPT DETECTION', 'SLIDES', 'WARNING']
                 )
+            now = str(datetime.now())
+            piper_cursor.execute(
+                f'''UPDATE `gen_kaltura`.`Videos` 
+                    SET `slidesConceptExtractionTime`="{now}" 
+                    WHERE kalturaVideoId="{video_id}"'''
+            )
+            piper_connection.commit()
         status_msg(
             f'The video {video_id} has been processed',
             color='green', sections=['KALTURA', 'CONCEPT DETECTION', 'SUCCESS']
