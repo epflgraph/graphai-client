@@ -166,16 +166,17 @@ def execute_query(cursor: MySQLCursor, sql_query, retry=5, multiple_statements=F
             raise e
 
 
-def execute_many(cursor: MySQLCursor, sql_query, data_str, retry=5):
+def execute_many(cursor: MySQLCursor, sql_query, data_str, retry=5, delay_s=30):
     try:
         cursor.executemany(sql_query, data_str)
     except Exception as e:
         msg = 'Received exception: ' + str(e) + '\n'
         if retry > 0:
-            msg += f"Trying to reconnect and resend the query ({retry}x at most)"
+            msg += f"Sleep {delay_s}, then try to reconnect and resend the query ({retry}x at most)"
+            sleep(delay_s)
             status_msg(msg, sections=['MYSQL INSERT', 'WARNING'], color='grey')
             get_connection(cursor).ping(reconnect=True)
-            execute_many(cursor, sql_query, data_str, retry=retry-1)
+            execute_many(cursor, sql_query, data_str, retry=retry-1, delay_s=2*delay_s)
         else:
             msg += f"No more tries left to execute the query:\n\t" + sql_query
             msg += f"with data:\n" + '\n\t'.join([str(d) for d in data_str])
