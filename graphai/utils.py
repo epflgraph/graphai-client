@@ -178,7 +178,7 @@ def execute_many(cursor: MySQLCursor, sql_query, data_str, retry=5):
             execute_many(cursor, sql_query, data_str, retry=retry-1)
         else:
             msg += f"No more tries left to execute the query:\n\t" + sql_query
-            msg += f"with data:\n" + '\n\t'.join(str(data_str))
+            msg += f"with data:\n" + '\n\t'.join([str(d) for d in data_str])
             status_msg(msg, sections=['EXECUTE MANY', 'ERROR'], color='red')
             raise e
 
