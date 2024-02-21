@@ -1,15 +1,17 @@
-from requests import post, Session
+from requests import Session
 from urllib.parse import urlencode
-from typing import List
+from graphai.client_api import login
 from graphai.client_api.utils import status_msg
 
 
 def extract_concepts_from_text(
-        text: str, restrict_to_ontology=False, graph_score_smoothing=True, ontology_score_smoothing=True,
-        keywords_score_smoothing=True, normalisation_coefficient=0.5, filtering_threshold=0.1, filtering_min_votes=5,
-        refresh_scores=True, graph_ai_server='http://127.0.0.1:28800', sections=('GRAPHAI', 'CONCEPT DETECTION'),
+        text: str, login_info: dict, restrict_to_ontology=False, graph_score_smoothing=True,
+        ontology_score_smoothing=True, keywords_score_smoothing=True, normalisation_coefficient=0.5,
+        filtering_threshold=0.1, filtering_min_votes=5, refresh_scores=True, sections=('GRAPHAI', 'CONCEPT DETECTION'),
         debug=False, n_trials=5, session: Session = None
 ):
+    if 'token' not in login_info:
+        login_info = login(login_info['graph_api_json'])
     close_session = False
     if session is None:
         session = Session()
@@ -24,7 +26,7 @@ def extract_concepts_from_text(
         filtering_min_votes=filtering_min_votes,
         refresh_scores=refresh_scores
     )
-    url = graph_ai_server + '/text/wikify?' + urlencode(url_params)
+    url = login_info['host'] + '/text/wikify?' + urlencode(url_params)
     json = {'raw_text': text}
     status_code = None
     trials = 0
@@ -36,16 +38,22 @@ def extract_concepts_from_text(
                 msg += f' with json data "{json}"'
             print(msg)
         try:
-            response = session.post(url, json=json)
+            response = session.post(url, json=json, headers={"Authorization": f"Bearer {login_info['token']}"})
+            status_code = response.status_code
             if debug:
                 print(f'Got response with code{response.status_code}: {response.text}')
             if response.ok:
                 if close_session:
                     session.close()
                 return response.json()
+            elif status_code == '401':
+                status_msg(
+                    f'Error {status_code}: {response.reason}, trying to reconnect...',
+                    color='yellow', sections=list(sections) + ['WARNING']
+                )
+                login_info = login(login_info['graph_api_json'])
             else:
-                status_code = response.status_code
-                msg =  f'Error {status_code}: {response.reason} while doing POST on {url}'
+                msg = f'Error {status_code}: {response.reason} while doing POST on {url}'
                 if json is not None:
                     msg += f' with json data "{json}"'
                 status_msg(msg, color='yellow', sections=list(sections) + ['WARNING'])

@@ -1,5 +1,7 @@
 import unittest
+from graphai.client_api import login
 
+login_info = login()
 kaltura_url_template = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/{}' + \
                            '/format/download/protocol/https/flavorParamIds/0'
 
@@ -25,7 +27,7 @@ class NoVoice(unittest.TestCase):
 
         for kaltura_id in kaltura_ids:
             url = kaltura_url_template.format(kaltura_id)
-            video_info = process_video(url, force=True, graph_ai_server='http://127.0.0.1:28800', analyze_slides=False)
+            video_info = process_video(url, force=True, analyze_slides=False)
             self.assertIsNone(video_info['audio_language'])
             self.assertListEqual(video_info['subtitles'], [])
 
@@ -35,8 +37,7 @@ class NoVoice(unittest.TestCase):
         for kaltura_id in kaltura_ids:
             url = kaltura_url_template.format(kaltura_id)
             video_info = process_video(
-                url, force=True, graph_ai_server='http://127.0.0.1:28800', analyze_slides=False,
-                analyze_audio=False, detect_audio_language=True
+                url, force=True, analyze_slides=False, analyze_audio=False, detect_audio_language=True
             )
             self.assertIsNone(video_info['audio_language'])
             self.assertListEqual(video_info['subtitles'], [])
@@ -55,8 +56,7 @@ class Voice(unittest.TestCase):
             for kaltura_id in kaltura_ids:
                 url = kaltura_url_template.format(kaltura_id)
                 video_info = process_video(
-                    url, force=True, graph_ai_server='http://127.0.0.1:28800', analyze_slides=False,
-                    analyze_audio=False, detect_audio_language=True
+                    url, force=True, analyze_slides=False, analyze_audio=False, detect_audio_language=True
                 )
                 self.assertEqual(video_info['audio_language'], lang)
 

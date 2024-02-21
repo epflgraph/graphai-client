@@ -1,8 +1,9 @@
 import unittest
 from os.path import join, dirname
+from graphai.client_api import login
 
 test_files_dir = join(dirname(__file__), 'test_files')
-piper_mysql_json_file = join(dirname(dirname(__file__)), 'config', 'piper_db.json')
+login_info = login()
 
 
 class Captions(unittest.TestCase):
@@ -23,12 +24,12 @@ class Captions(unittest.TestCase):
     def test_get_caption_from_kaltura(self):
         from graphai.rcp import get_subtitles_from_kaltura
 
-        subtitles_from_kaltura = get_subtitles_from_kaltura('0_00w4rf3f', piper_mysql_json_file=piper_mysql_json_file)
+        subtitles_from_kaltura = get_subtitles_from_kaltura('0_00w4rf3f', login_info)
         subtitles_from_files = self.test_convert_and_combine()
         self.assertListEqual(subtitles_from_kaltura, subtitles_from_files)
 
         # video with a caption "No transcripts available for this video"
-        subtitles_from_kaltura = get_subtitles_from_kaltura('0_4swj44wd', piper_mysql_json_file=piper_mysql_json_file)
+        subtitles_from_kaltura = get_subtitles_from_kaltura('0_4swj44wd', login_info)
         self.assertEqual(subtitles_from_kaltura, None)
 
     def test_initial_disclaimer_new_segment(self):
@@ -47,9 +48,7 @@ class Captions(unittest.TestCase):
         from graphai.utils import add_initial_disclaimer, default_disclaimer
         from graphai.rcp import get_subtitles_from_kaltura
 
-        subtitles_from_kaltura = get_subtitles_from_kaltura(
-            '0_bgyh2jg1', piper_mysql_json_file=piper_mysql_json_file, destination_languages=None
-        )
+        subtitles_from_kaltura = get_subtitles_from_kaltura('0_bgyh2jg1', login_info, destination_languages=None)
         subtitles_with_disclaimer = add_initial_disclaimer(subtitles_from_kaltura)
 
         self.assertEqual(subtitles_with_disclaimer[0]['id'], 0)
@@ -64,9 +63,7 @@ class Captions(unittest.TestCase):
         disclaimer_per_language = {
             'en': 'These subtitles have been generated automatically'
         }
-        subtitles_from_kaltura = get_subtitles_from_kaltura(
-            '0_oo8itzlf', piper_mysql_json_file=piper_mysql_json_file, destination_languages=None
-        )
+        subtitles_from_kaltura = get_subtitles_from_kaltura('0_oo8itzlf', login_info, destination_languages=None)
         subtitles_with_disclaimer = add_initial_disclaimer(subtitles_from_kaltura, disclaimer_per_language)
 
         self.assertEqual(subtitles_with_disclaimer[0]['id'], 0)

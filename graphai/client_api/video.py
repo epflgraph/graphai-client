@@ -4,12 +4,13 @@ from requests import get, post
 
 
 def get_video_token(
-        url_video, playlist=False, graph_ai_server='http://127.0.0.1:28800', sections=('GRAPHAI', 'DOWNLOAD VIDEO'),
+        url_video: str, login_info: dict, playlist=False, sections=('GRAPHAI', 'DOWNLOAD VIDEO'),
         debug=False, force=False
 ):
     # retrieval of the video on graph-ai
     response_retrieve = get_response(
-        url=graph_ai_server + '/video/retrieve_url',
+        url='/video/retrieve_url',
+        login_info=login_info,
         request_func=post,
         headers={'Content-Type': 'application/json'},
         json={"url": url_video, "playlist": playlist, "force": force},
@@ -24,7 +25,8 @@ def get_video_token(
     while tries_retrieve_status < 6000:
         tries_retrieve_status += 1
         response_retrieve_status = get_response(
-            url=graph_ai_server + f'/video/retrieve_url/status/{task_id}',
+            url=f'/video/retrieve_url/status/{task_id}',
+            login_info=login_info,
             request_func=get,
             headers={'Content-Type': 'application/json'},
             sections=sections,
@@ -49,11 +51,11 @@ def get_video_token(
 
 
 def fingerprint_video(
-        video_token, force=False, graph_ai_server='http://127.0.0.1:28800', sections=('GRAPHAI', 'FINGERPRINT VIDEO'),
-        debug=False
+        video_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'FINGERPRINT VIDEO'), debug=False
 ):
     response_fingerprint = get_response(
-        url=graph_ai_server + '/video/calculate_fingerprint',
+        url='/video/calculate_fingerprint',
+        login_info=login_info,
         request_func=post,
         headers={'Content-Type': 'application/json'},
         json={"token": video_token, "force": force},
@@ -68,7 +70,8 @@ def fingerprint_video(
     while tries_fingerprint_status < 6000:
         tries_fingerprint_status += 1
         response_fingerprint_status = get_response(
-            url=graph_ai_server + f'/video/calculate_fingerprint/status/{task_id}',
+            url=f'/video/calculate_fingerprint/status/{task_id}',
+            login_info=login_info,
             request_func=get,
             headers={'Content-Type': 'application/json'},
             sections=sections,
@@ -94,11 +97,11 @@ def fingerprint_video(
 
 
 def extract_audio(
-        video_token, force=False, graph_ai_server='http://127.0.0.1:28800', sections=('GRAPHAI', 'EXTRACT AUDIO'),
-        debug=False
+        video_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'EXTRACT AUDIO'), debug=False
 ):
     response_extraction = get_response(
-        url=graph_ai_server + '/video/extract_audio',
+        url='/video/extract_audio',
+        login_info=login_info,
         request_func=post,
         headers={'Content-Type': 'application/json'},
         json={"token": video_token, "force_non_self": True, "force": force},
@@ -113,7 +116,8 @@ def extract_audio(
     while tries_extraction_status < 300:
         tries_extraction_status += 1
         response_extraction_status = get_response(
-            url=graph_ai_server + f'/video/extract_audio/status/{task_id}',
+            url=f'/video/extract_audio/status/{task_id}',
+            login_info=login_info,
             request_func=get,
             headers={'Content-Type': 'application/json'},
             sections=sections,
@@ -139,11 +143,14 @@ def extract_audio(
 
 
 def extract_slides(
-        video_token, force=False, graph_ai_server='http://127.0.0.1:28800', sections=('GRAPHAI', 'EXTRACT SLIDES'),
-        debug=False
-):
+        video_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'EXTRACT SLIDES'), debug=False
+) -> dict:
+    """
+    :return: dictionary with slide number as string for keys and a dictionary with slide token and timestamp as values.
+    """
     response_slides = get_response(
-        url=graph_ai_server + '/video/detect_slides',
+        url='/video/detect_slides',
+        login_info=login_info,
         request_func=post,
         headers={'Content-Type': 'application/json'},
         json={"token": video_token, "force_non_self": False, "force": force},
@@ -158,7 +165,8 @@ def extract_slides(
     while tries_slides_status < 6000:
         tries_slides_status += 1
         response_slides_status = get_response(
-            url=graph_ai_server + f'/video/detect_slides/status/{task_id}',
+            url=f'/video/detect_slides/status/{task_id}',
+            login_info=login_info,
             request_func=get,
             headers={'Content-Type': 'application/json'},
             sections=sections,

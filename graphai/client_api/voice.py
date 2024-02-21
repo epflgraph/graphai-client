@@ -5,14 +5,15 @@ from graphai.utils import status_msg
 
 
 def transcribe_audio(
-        audio_token, force=False, force_lang=None, graph_ai_server='http://127.0.0.1:28800',
-        sections=('GRAPHAI', 'TRANSCRIBE'), debug=False, strict=False
+        audio_token: str, login_info: dict, force=False, force_lang=None, sections=('GRAPHAI', 'TRANSCRIBE'),
+        debug=False, strict=False
 ):
     json_data = {"token": audio_token, "force": force, "strict": strict}
     if force_lang is not None:
         json_data["force_lang"] = force_lang
     response_transcribe = get_response(
-        url=graph_ai_server + '/voice/transcribe',
+        url='/voice/transcribe',
+        login_info=login_info,
         request_func=post,
         headers={'Content-Type': 'application/json'},
         json=json_data,
@@ -27,7 +28,8 @@ def transcribe_audio(
     while tries_transcribe_status < 6000:
         tries_transcribe_status += 1
         response_transcribe_status = get_response(
-            url=graph_ai_server + f'/voice/transcribe/status/{task_id}',
+            url=f'/voice/transcribe/status/{task_id}',
+            login_info=login_info,
             request_func=get,
             headers={'Content-Type': 'application/json'},
             sections=sections,
@@ -73,12 +75,12 @@ def transcribe_audio(
 
 
 def detect_language(
-        audio_token, force=False, graph_ai_server='http://127.0.0.1:28800',
-        sections=('GRAPHAI', 'AUDIO LANGUAGE'), debug=False
+        audio_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'AUDIO LANGUAGE'), debug=False
 ):
     json_data = {"token": audio_token, "force": force}
     response_language = get_response(
-        url=graph_ai_server + '/voice/detect_language',
+        url='/voice/detect_language',
+        login_info=login_info,
         request_func=post,
         headers={'Content-Type': 'application/json'},
         json=json_data,
@@ -93,7 +95,8 @@ def detect_language(
     while tries_language_status < 6000:
         tries_language_status += 1
         response_language_status = get_response(
-            url=graph_ai_server + f'/voice/detect_language/status/{task_id}',
+            url=f'/voice/detect_language/status/{task_id}',
+            login_info=login_info,
             request_func=get,
             headers={'Content-Type': 'application/json'},
             sections=sections,

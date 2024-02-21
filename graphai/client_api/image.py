@@ -5,11 +5,12 @@ from graphai.utils import status_msg
 
 
 def extract_text_from_slide(
-        slide_token, force=False, graph_ai_server='http://127.0.0.1:28800', sections=('GRAPHAI', 'OCR'), debug=False
+        slide_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'OCR'), debug=False
 ):
     # extract text (using google OCR) from a single slide
     response_text = get_response(
-        url=graph_ai_server + '/image/extract_text',
+        url='/image/extract_text',
+        login_info=login_info,
         request_func=post,
         headers={'Content-Type': 'application/json'},
         json={"token": slide_token, "method": "google", "force": force},
@@ -24,7 +25,8 @@ def extract_text_from_slide(
     while tries_text_status < 600:
         tries_text_status += 1
         response_text_status = get_response(
-            url=graph_ai_server + f'/image/extract_text/status/{task_id}',
+            url=f'/image/extract_text/status/{task_id}',
+            login_info=login_info,
             request_func=get,
             headers={'Content-Type': 'application/json'},
             sections=sections,

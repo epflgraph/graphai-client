@@ -10,6 +10,7 @@ from graphai.utils import (
     insert_data_into_table_with_type, execute_query, prepare_value_for_mysql
 )
 from graphai.client import process_video, translate_extracted_text, translate_subtitles
+from graphai.client_api import login
 from graphai.client_api.text import extract_concepts_from_text
 from graphai.client_api.translation import translate_text
 
@@ -22,140 +23,12 @@ language_to_short = {
 short_to_language = {v: k for k, v in language_to_short.items()}
 
 
-def process_video_urls_on_rcp(
-        videos_urls: list, analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'), force=False,
-        graph_ai_server='http://127.0.0.1:28800', debug=False, piper_mysql_json_file=None
-):
-    if piper_mysql_json_file is None:
-        piper_mysql_json_file = join(dirname(__file__), 'config', 'piper_db.json')
-    with open(piper_mysql_json_file) as fp:
-        piper_con_info = load_json(fp)
-    with mysql_connect(
-        host=piper_con_info['host'], port=piper_con_info['port'], user=piper_con_info['user'],
-        password=piper_con_info['password']
-    ) as piper_connection:
-        with piper_connection.cursor() as piper_cursor:
-            kaltura_videos_id = []
-            for video_url in videos_urls:
-                video_url_redirect, octet_size = get_video_link_and_size(video_url)
-                if video_url_redirect is None:
-                    status_msg(
-                        f'The video at {video_url} is not accessible',
-                        color='yellow', sections=['VIDEO', 'WARNING']
-                    )
-                    continue
-                kaltura_id = get_kaltura_id_from_url(video_url)
-                if kaltura_id:
-                    kaltura_videos_id.append(kaltura_id)
-                    continue
-                video_information = process_video(
-                    video_url, analyze_audio=analyze_audio, analyze_slides=analyze_slides, force=force,
-                    destination_languages=destination_languages, graph_ai_server=graph_ai_server, debug=debug
-                )
-                slides_detected_language = video_information['slides_language']
-                audio_detected_language = video_information['audio_language']
-                subtitles = video_information['subtitles']
-                slides = video_information['slides']
-                # update gen_kaltura with processed info
-                if slides is not None:
-                    piper_cursor.execute(
-                        f'DELETE FROM `gen_video`.`Slides` WHERE VideoUrl="{video_url}"'
-                    )
-                    for slide_number, slide in enumerate(slides):
-                        slide_time = strfdelta(timedelta(seconds=slide['timestamp']), '{H:02}:{M:02}:{S:02}')
-                        insert_line_into_table_with_types(
-                            piper_cursor, 'gen_kaltura', 'Slides',
-                            (
-                                'VideoUrl', 'slideNumber',
-                                'timestamp', 'slideTime',
-                                'textFr', 'textEn'
-                            ),
-                            (
-                                video_url, slide_number,
-                                slide['timestamp'], slide_time,
-                                slide.get('fr', None), slide.get('en', None)
-                            ),
-                            (
-                                'str', 'int',
-                                'int', 'str',
-                                'str', 'str'
-                            )
-                        )
-                if subtitles is not None:
-                    piper_cursor.execute(
-                        f'DELETE FROM `gen_video`.`Subtitles` WHERE VideoUrl="{video_url}"'
-                    )
-                    for idx, segment in enumerate(subtitles):
-                        insert_line_into_table_with_types(
-                            piper_cursor, 'gen_kaltura', 'Subtitles',
-                            (
-                                'VideoUrl', 'segmentId', 'startMilliseconds', 'endMilliseconds',
-                                'startTime', 'endTime',
-                                'textFr', 'textEn'
-                            ),
-                            (
-                                video_url, idx, int(segment['start']*1000), int(segment['end']*1000),
-                                strfdelta(timedelta(seconds=segment['start']), '{H:02}:{M:02}:{S:02}.{m:03}'),
-                                strfdelta(timedelta(seconds=segment['end']), '{H:02}:{M:02}:{S:02}.{m:03}'),
-                                segment.get('fr', None), segment.get('en', None)
-                            ),
-                            (
-                                'str', 'int', 'int', 'int',
-                                'str', 'str',
-                                'str', 'str'
-                            )
-                        )
-                piper_cursor.execute(
-                    f'DELETE FROM `gen_video`.`Videos` WHERE VideoUrl="{video_url}"'
-                )
-                insert_line_into_table_with_types(
-                    piper_cursor, 'gen_kaltura', 'Videos',
-                    (
-                        'VideoUrl', 'kalturaUrl', 'thumbnailUrl', 'kalturaCreationTime', 'kalturaUpdateTime',
-                        'title', 'description', 'kalturaOwner', 'kalturaCreator', 'tags', 'categories',
-                        'kalturaEntitledEditors', 'msDuration', 'octetSize',
-                        'slidesDetectedLanguage', 'audioDetectedLanguage', 'switchVideoId'
-                    ),
-                    (
-                        video_url, octet_size, slides_detected_language, audio_detected_language
-                    ),
-                    (
-                        'str', 'str', 'str', 'str', 'str',
-                        'str', 'str', 'str', 'str', 'str', 'str',
-                        'str', 'int', 'int',
-                        'str', 'str', 'str'
-                    )
-                )
-                piper_connection.commit()
-                status_msg(
-                    f'The video {video_url} has been processed',
-                    color='green', sections=['KALTURA', 'VIDEO', 'SUCCESS']
-                )
-    if len(kaltura_videos_id) > 0:
-        process_videos_on_rcp(
-            kaltura_videos_id, analyze_audio=analyze_audio, analyze_slides=analyze_slides,
-            destination_languages=destination_languages, force=force,graph_ai_server=graph_ai_server, debug=debug,
-            piper_mysql_json_file=piper_mysql_json_file
-        )
-
-
-def get_kaltura_id_from_url(url):
-    m = match(r'(?:https?://)?api.cast.switch.ch/.*/entryId/(0_[\w]{8})', url)
-    if m:
-        return m.group(1)
-    m = match(r'(?:https?://)?mediaspace.epfl.ch/media/(0_[\w]{8})', url)
-    if m:
-        return m.group(1)
-    m = match(r'(?:https?://)?mediaspace.epfl.ch/media/[^/]*/(0_[\w]{8})', url)
-    if m:
-        return m.group(1)
-    return None
-
-
 def process_videos_on_rcp(
         kaltura_ids: list, analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'), force=False,
-        graph_ai_server='http://127.0.0.1:28800', debug=False, piper_mysql_json_file=None
+        graph_api_json=None, login_info=None, debug=False, piper_mysql_json_file=None
 ):
+    if login_info is None or 'token' not in login_info:
+        login_info = login(graph_api_json)
     if piper_mysql_json_file is None:
         piper_mysql_json_file = join(dirname(__file__), 'config', 'piper_db.json')
     with open(piper_mysql_json_file) as fp:
@@ -258,9 +131,8 @@ def process_videos_on_rcp(
                         )
                         slides_detected_language = None
                         slides_text = translate_extracted_text(
-                            slides_text, source_language='en',
-                            destination_languages=destination_languages, force=force,
-                            graph_ai_server=graph_ai_server, debug=debug
+                            slides_text, login_info, source_language='en',
+                            destination_languages=destination_languages, force=force, debug=debug
                         )
                         slides = []
                         for slide_idx, slide_text in enumerate(slides_text):
@@ -277,21 +149,21 @@ def process_videos_on_rcp(
                         slides = None
                     if analyze_audio:
                         subtitles = get_subtitles_from_kaltura(
-                            kaltura_video_id, piper_cursor=piper_cursor, force=force,
-                            destination_languages=destination_languages, graph_ai_server=graph_ai_server, debug=debug
+                            kaltura_video_id, login_info, piper_cursor=piper_cursor, force=force,
+                            destination_languages=destination_languages, debug=debug
                         )
                         if subtitles:
                             video_information = process_video(
                                 kaltura_url, analyze_audio=False, analyze_slides=False, force=force,
                                 detect_audio_language=True, audio_language=None,
-                                graph_ai_server=graph_ai_server, debug=debug
+                                login_info=login_info, debug=debug
                             )
                             audio_detected_language = video_information['audio_language']
                         else:
                             video_information = process_video(
                                 kaltura_url, analyze_audio=True, analyze_slides=False, force=force,
                                 destination_languages=destination_languages, audio_language=None,
-                                graph_ai_server=graph_ai_server, debug=debug
+                                login_info=login_info, debug=debug
                             )
                             audio_detected_language = video_information['audio_language']
                             subtitles = video_information['subtitles']
@@ -301,14 +173,14 @@ def process_videos_on_rcp(
                         subtitles = None
                 else:  # full processing of the video
                     subtitles = get_subtitles_from_kaltura(
-                        kaltura_video_id, piper_cursor=piper_cursor, force=force,
-                        destination_languages=destination_languages, graph_ai_server=graph_ai_server, debug=debug
+                        kaltura_video_id, login_info, piper_cursor=piper_cursor, force=force,
+                        destination_languages=destination_languages, debug=debug
                     )
                     if subtitles:
                         video_information = process_video(
                             kaltura_url, analyze_audio=False, analyze_slides=analyze_slides, force=force,
                             detect_audio_language=True, audio_language=None,
-                            destination_languages=destination_languages, graph_ai_server=graph_ai_server, debug=debug
+                            destination_languages=destination_languages, login_info=login_info, debug=debug
                         )
                         audio_transcription_time = str(datetime.now())
                         if analyze_slides:
@@ -316,7 +188,7 @@ def process_videos_on_rcp(
                     else:
                         video_information = process_video(
                             kaltura_url, analyze_audio=analyze_audio, analyze_slides=analyze_slides, force=force,
-                            destination_languages=destination_languages, graph_ai_server=graph_ai_server, debug=debug
+                            destination_languages=destination_languages, login_info=login_info, debug=debug
                         )
                         subtitles = video_information['subtitles']
                         if analyze_audio:
@@ -425,9 +297,8 @@ def get_piper_cursor(piper_connection=None, piper_mysql_json_file=None, piper_cu
 
 
 def get_subtitles_from_kaltura(
-        kaltura_video_id, piper_cursor=None, piper_mysql_json_file=None, force=False,
-        destination_languages=('en', 'fr'), graph_ai_server='http://127.0.0.1:28800',
-        ignore_autogenerated=True, debug=False
+        kaltura_video_id, login_info, piper_cursor=None, piper_mysql_json_file=None, force=False,
+        destination_languages=('en', 'fr'), ignore_autogenerated=True, debug=False
 ):
     close_cursor = piper_cursor is None
     piper_connection, piper_cursor = get_piper_cursor(
@@ -507,9 +378,8 @@ def get_subtitles_from_kaltura(
                 color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
             )
             subtitles = translate_subtitles(
-                subtitles, force=force, source_language=translate_from,
-                destination_languages=missing_destination_language,
-                graph_ai_server=graph_ai_server, debug=debug
+                subtitles, login_info, force=force, source_language=translate_from,
+                destination_languages=missing_destination_language, debug=debug
             )
             subtitles = add_initial_disclaimer(subtitles, restrict_lang=missing_destination_language)
     if close_cursor:
@@ -519,9 +389,11 @@ def get_subtitles_from_kaltura(
 
 
 def detect_concept_on_rcp(
-        kaltura_ids: list, analyze_subtitles=False, analyze_slides=True, graph_ai_server='http://127.0.0.1:28800',
+        kaltura_ids: list, analyze_subtitles=False, analyze_slides=True, graph_api_json=None, login_info=None,
         piper_mysql_json_file=None, piper_connection=None
 ):
+    if login_info is None or 'token'not in login_info:
+        login_info = login(graph_api_json)
     close_connection = piper_connection is None
     piper_connection, piper_cursor = get_piper_cursor(
         piper_connection=piper_connection, piper_mysql_json_file=piper_mysql_json_file
@@ -553,8 +425,7 @@ def detect_concept_on_rcp(
                 if not segment_text:
                     continue
                 segment_scores = extract_concepts_from_text(
-                    segment_text, graph_ai_server=graph_ai_server,
-                    sections=['KALTURA', 'CONCEPT DETECTION', 'SUBTITLES'], session=session
+                    segment_text, login_info, sections=['KALTURA', 'CONCEPT DETECTION', 'SUBTITLES'], session=session
                 )
                 segments_processed += 1
                 if segment_scores is None:
@@ -618,7 +489,7 @@ def detect_concept_on_rcp(
                 if not slide_text:
                     continue
                 slide_scores = extract_concepts_from_text(
-                    slide_text, graph_ai_server=graph_ai_server, sections=['KALTURA', 'CONCEPT DETECTION', 'SLIDES']
+                    slide_text, login_info, sections=['KALTURA', 'CONCEPT DETECTION', 'SLIDES']
                 )
                 slides_processed += 1
                 if slide_scores is None:
@@ -671,9 +542,11 @@ def detect_concept_on_rcp(
 
 
 def fix_subtitles_translation_on_rcp(
-        kaltura_ids: list, graph_ai_server='http://127.0.0.1:28800', piper_mysql_json_file=None, piper_connection=None,
+        kaltura_ids: list, graph_api_json=None, login_info=None, piper_mysql_json_file=None, piper_connection=None,
         source_language='fr', target_language='en'
 ):
+    if login_info is None or 'token'not in login_info:
+        login_info = login(graph_api_json)
     close_connection = piper_connection is None
     piper_connection, piper_cursor = get_piper_cursor(
         piper_connection=piper_connection, piper_mysql_json_file=piper_mysql_json_file
@@ -718,7 +591,7 @@ def fix_subtitles_translation_on_rcp(
             source_text.append(text)
         translated_text = translate_text(
             source_text, source_language=source_language, target_language=target_language,
-            graph_ai_server=graph_ai_server, sections=('KALTURA', 'FIX TRANSLATION', 'TRANSLATE'), force=True
+            login_info=login_info, sections=('KALTURA', 'FIX TRANSLATION', 'TRANSLATE'), force=True
         )
         if is_auto_translated:
             if segments_info[0][1] == default_disclaimer[source_language]:
@@ -749,9 +622,11 @@ def fix_subtitles_translation_on_rcp(
 
 
 def fix_slides_translation_on_rcp(
-        kaltura_ids: list, graph_ai_server='http://127.0.0.1:28800', piper_mysql_json_file=None, piper_connection=None,
+        kaltura_ids: list, graph_api_json=None, login_info=None, piper_mysql_json_file=None, piper_connection=None,
         source_language='fr', target_language='en'
 ):
+    if login_info is None or 'token'not in login_info:
+        login_info = login(graph_api_json)
     close_connection = piper_connection is None
     piper_connection, piper_cursor = get_piper_cursor(
         piper_connection=piper_connection, piper_mysql_json_file=piper_mysql_json_file
@@ -789,7 +664,7 @@ def fix_slides_translation_on_rcp(
             source_text.append(text)
         translated_text = translate_text(
             source_text, source_language=source_language, target_language=target_language,
-            graph_ai_server=graph_ai_server, sections=('KALTURA', 'FIX TRANSLATION', 'TRANSLATE'), force=True
+            login_info=login_info, sections=('KALTURA', 'FIX TRANSLATION', 'TRANSLATE'), force=True
         )
         n_fix = 0
         for slide_id, translated_slide in zip(slides_id, translated_text):

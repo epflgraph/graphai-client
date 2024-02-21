@@ -2,10 +2,22 @@ from time import sleep
 from requests import get
 from typing import Union
 from graphai.utils import status_msg
+from graphai.client_api import login
 
 
-def get_response(url, request_func=get, headers=None, json=None, n_trials=5, sections=tuple(), debug=False):
+def get_response(
+        url: str, login_info: dict, request_func=get, headers=None, json=None, n_trials=5, sections=tuple(), debug=False
+):
     trials = 0
+    status_code = None
+    if 'token' not in login_info:
+        login_info = login(login_info['graph_api_json'])
+    if not url.startswith('http'):
+        url = login_info['host'] + url
+    if headers is None:
+        headers = {"Authorization": f"Bearer {login_info['token']}"}
+    else:
+        headers["Authorization"] = f"Bearer {login_info['token']}"
     while trials < n_trials:
         trials += 1
         if debug:
@@ -16,16 +28,23 @@ def get_response(url, request_func=get, headers=None, json=None, n_trials=5, sec
                 msg += f' with json data "{json}"'
             print(msg)
         response = request_func(url, headers=headers, json=json)
+        status_code = response.status_code
         if debug:
-            print(f'Got response with code{response.status_code}: {response.text}')
+            print(f'Got response with code{status_code}: {response.text}')
         if response.ok:
             return response
-        else:
+        elif status_code == '401':
             status_msg(
-                f'Error {response.status_code}: {response.reason} while doing {request_func.__name__.upper()} on {url}',
+                f'Error {status_code}: {response.reason}, trying to reconnect...',
                 color='yellow', sections=list(sections) + ['WARNING']
             )
-            if response.status_code == 422:
+            login_info = login(login_info['graph_api_json'])
+        else:
+            status_msg(
+                f'Error {status_code}: {response.reason} while doing {request_func.__name__.upper()} on {url}',
+                color='yellow', sections=list(sections) + ['WARNING']
+            )
+            if status_code == 422:
                 response_json = response.json()
                 if 'detail' in response_json:
                     if isinstance(response_json['detail'], list):
@@ -33,7 +52,7 @@ def get_response(url, request_func=get, headers=None, json=None, n_trials=5, sec
                             status_msg(str(detail), color='yellow', sections=list(sections) + ['WARNING'])
                     status_msg(str(response_json['detail']), color='yellow', sections=list(sections) + ['WARNING'])
             sleep(1)
-    if response.status_code == 500:
+    if status_code == 500:
         msg = f'Could not get response for {request_func.__name__.upper()} on "{url}"'
         if headers is not None:
             msg += f' with headers "{headers}"'

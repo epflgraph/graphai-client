@@ -1,14 +1,14 @@
 from graphai.utils import status_msg, add_initial_disclaimer
+from graphai.client_api import login
 from graphai.client_api.image import extract_text_from_slide
-from graphai.client_api.translation import translate_text
 from graphai.client_api.video import extract_slides, extract_audio, get_video_token
 from graphai.client_api.voice import transcribe_audio, detect_language
 
 
 def process_video(
-        video_url, force=False, audio_language=None, slides_language=None,
-        detect_audio_language=False, analyze_audio=True, analyze_slides=True,
-        destination_languages=('fr', 'en'), graph_ai_server='http://127.0.0.1:28800', debug=False
+        video_url, force=False, audio_language=None, slides_language=None, detect_audio_language=False,
+        analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'),
+        graph_api_json=None, login_info=None, debug=False
 ):
     """
     Process the video whose URL is given as argument.
@@ -23,7 +23,10 @@ def process_video(
     :param analyze_audio: should the audio be extracted, transcription done and then translation if needed.
     :param analyze_slides: should slides be extracted, then OCR performed and then translation if needed.
     :param destination_languages: tuple of target languages. Perform translations if needed.
-    :param graph_ai_server: address of the graphAI server (including protocol and port, f.e. "http://127.0.0.1:28800").
+    :param graph_api_json: path to a json file with login info: host (incl. protocol and port), user and password).
+        Defaults to graphai/config/graphai-api.json
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json)
+        If not set, a login will be performed to populate it using the info from graph_api_json.
     :param debug: if True debug output is enabled.
     :return: a dictionary containing the results ot the processing.
     """
@@ -31,26 +34,27 @@ def process_video(
         f'processing the video {video_url}',
         color='grey', sections=['GRAPHAI', 'DOWNLOAD VIDEO', 'PROCESSING']
     )
-    video_token = get_video_token(video_url, graph_ai_server=graph_ai_server, debug=debug, force=force)
+    if login_info is None or 'token'not in login_info:
+        login_info = login(graph_api_json)
+    video_token = get_video_token(video_url, login_info, debug=debug, force=force)
     if video_token is None:
         return None
     if analyze_slides:
         slides_language, slides = process_slides(
-            video_token, force=force, slides_language=slides_language, destination_languages=destination_languages,
-            graph_ai_server=graph_ai_server, debug=debug
+            video_token, login_info, force=force, slides_language=slides_language,
+            destination_languages=destination_languages, debug=debug
         )
     else:
         slides_language = None
         slides = None
     if analyze_audio:
         audio_language, segments = process_audio(
-            video_token, force=force, audio_language=audio_language, destination_languages=destination_languages,
-            graph_ai_server=graph_ai_server, debug=debug
+            video_token, login_info, force=force, audio_language=audio_language,
+            destination_languages=destination_languages, debug=debug
         )
     elif detect_audio_language:
         audio_language, segments = process_audio(
-            video_token, force=force, audio_language=audio_language, only_detect_language=True,
-            graph_ai_server=graph_ai_server, debug=debug
+            video_token, login_info, force=force, audio_language=audio_language, only_detect_language=True, debug=debug
         )
     else:
         audio_language = None
@@ -70,17 +74,16 @@ def process_video(
 
 
 def process_slides(
-        video_token, force=False, slides_language=None, destination_languages=('fr', 'en'),
-        graph_ai_server='http://127.0.0.1:28800', debug=False
+        video_token, login_info, force=False, slides_language=None, destination_languages=('fr', 'en'), debug=False
 ):
     """
     Extract slides from a video, perform OCR and translate the text.
     :param video_token: token associated with a video, typically the result of a call to get_video_token()
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json)
     :param force: if True, the cache is ignored and all operations are performed.
     :param slides_language: if not None, language detection is skipped and the OCR is performed in the specified
         language.
     :param destination_languages: tuple of target languages. Perform translations if needed.
-    :param graph_ai_server: address of the graphAI server (including protocol and port, f.e. "http://127.0.0.1:28800").
     :param debug: if True debug output is enabled.
     :return: a 2-tuple containing first the language detected by the OCR (or forced by slides_language) and
         second a dictionary containing the result of the processing.
@@ -89,7 +92,7 @@ def process_slides(
         f'extracting slides',
         color='grey', sections=['GRAPHAI', 'EXTRACT SLIDES', 'PROCESSING']
     )
-    slide_tokens = extract_slides(video_token, force=force, graph_ai_server=graph_ai_server, debug=debug)
+    slide_tokens = extract_slides(video_token, login_info, force=force, debug=debug)
     if slide_tokens is None:
         slides = None
     else:
@@ -98,7 +101,7 @@ def process_slides(
             color='grey', sections=['GRAPHAI', 'EXTRACT TEXT FROM SLIDES', 'PROCESSING']
         )
         slides_text = extract_text_from_slides(
-            slide_tokens, force=force, slides_language=slides_language, graph_ai_server=graph_ai_server, debug=debug
+            slide_tokens, login_info, force=force, slides_language=slides_language, debug=debug
         )
         if slides_language is None and len(slides_text) > 0:
             # single language statistically determined in extract_text_from_slides(), so we can just get the 1st result
@@ -116,7 +119,7 @@ def process_slides(
                 color='yellow', sections=['GRAPHAI', 'EXTRACT TEXT FROM SLIDES', 'WARNING']
             )
             slides_text = extract_text_from_slides(
-                slide_tokens, force=force, slides_language='en', graph_ai_server=graph_ai_server, debug=debug
+                slide_tokens, login_info, force=force, slides_language='en', debug=debug
             )
             slides_language = 'en'
         status_msg(
@@ -124,8 +127,8 @@ def process_slides(
             color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
         )
         slides_text = translate_extracted_text(
-            slides_text, force=force, source_language=slides_language, destination_languages=destination_languages,
-            graph_ai_server=graph_ai_server, debug=debug
+            slides_text, login_info, force=force, source_language=slides_language,
+            destination_languages=destination_languages, debug=debug
         )
         slides = []
         for slide_idx_str in sorted(slide_tokens.keys(), key=int):
@@ -141,18 +144,18 @@ def process_slides(
 
 
 def process_audio(
-        video_token, force=False, only_detect_language=False, audio_language=None, destination_languages=('fr', 'en'),
-        graph_ai_server='http://127.0.0.1:28800', debug=False
+        video_token, login_info, force=False, only_detect_language=False, audio_language=None,
+        destination_languages=('fr', 'en'), debug=False
 ):
     """
     Extract audio from a video, perform transcription and translate the text.
     :param video_token: token associated with a video, typically the result of a call to get_video_token()
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json)
     :param force: if True, the cache is ignored and all operations are performed.
     :param only_detect_language: perform only language detection on the audio (skip transcription and translation).
     :param audio_language: if not None, language detection is skipped and the transcription is performed in the
         specified language.
     :param destination_languages: tuple of target languages. Perform translations if needed.
-    :param graph_ai_server: address of the graphAI server (including protocol and port, f.e. "http://127.0.0.1:28800").
     :param debug: if True debug output is enabled.
     :return: a 2-tuple containing first the language detected for the audio (or forced by audio_language) and
         second a dictionary containing the result of the processing (None if only_detect_language is True).
@@ -161,21 +164,20 @@ def process_audio(
         f'extracting audio',
         color='grey', sections=['GRAPHAI', 'EXTRACT AUDIO', 'PROCESSING']
     )
-    audio_token = extract_audio(video_token, force=force, graph_ai_server=graph_ai_server, debug=debug)
+    audio_token = extract_audio(video_token, login_info, force=force, debug=debug)
     if audio_token is None:
         segments = None
     else:
         if only_detect_language:
             if not audio_language:
-                audio_language = detect_language(audio_token, force=force, graph_ai_server=graph_ai_server, debug=debug)
+                audio_language = detect_language(audio_token, login_info, force=force, debug=debug)
             return audio_language, None
         status_msg(
             f'transcribe audio',
             color='grey', sections=['GRAPHAI', 'TRANSCRIBE', 'PROCESSING']
         )
         audio_language, segments = transcribe_audio(
-            audio_token, force=force, force_lang=audio_language, graph_ai_server=graph_ai_server, debug=debug,
-            strict=True
+            audio_token, login_info, force=force, force_lang=audio_language, debug=debug, strict=True
         )
         if audio_language not in ['en', 'fr', 'de', 'it']:
             status_msg(
@@ -190,7 +192,7 @@ def process_audio(
                 color='yellow', sections=['GRAPHAI', 'TRANSCRIBE', 'WARNING']
             )
             audio_language, segments = transcribe_audio(
-                audio_token, force=force, force_lang='en', graph_ai_server=graph_ai_server, debug=debug, strict=True
+                audio_token, login_info, force=force, force_lang='en', debug=debug, strict=True
             )
             if not segments:
                 audio_language = None
@@ -201,7 +203,7 @@ def process_audio(
                 color='yellow', sections=['GRAPHAI', 'TRANSCRIBE', 'WARNING']
             )
             audio_language, segments = transcribe_audio(
-                audio_token, force=force, force_lang='fr', graph_ai_server=graph_ai_server, debug=debug, strict=True
+                audio_token, login_info, force=force, force_lang='fr', debug=debug, strict=True
             )
             if not segments:
                 audio_language = None
@@ -211,8 +213,8 @@ def process_audio(
                 color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
             )
             segments = translate_subtitles(
-                segments, force=force, source_language=audio_language, destination_languages=destination_languages,
-                graph_ai_server=graph_ai_server, debug=debug
+                segments, login_info, force=force, source_language=audio_language,
+                destination_languages=destination_languages, debug=debug
             )
             segments = add_initial_disclaimer(segments)
         else:
@@ -220,13 +222,23 @@ def process_audio(
     return audio_language, segments
 
 
-def extract_text_from_slides(
-        slide_tokens, force=False, slides_language=None, graph_ai_server='http://127.0.0.1:28800', debug=False
-):
+def extract_text_from_slides(slide_tokens: dict, login_info: dict, force=False, slides_language=None, debug=False):
+    """
+    Extract text (using google OCR) from the slides extracted with extract_slides().
+    The main language of the slides is statistically determined.
+    :param slide_tokens: typically the output from extract_slides().
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json)
+    :param force: if True, the cache is ignored and all operations are performed.
+    :param slides_language: if not None, the statistical determination of the main language is skipped and the given
+        value is used instead.
+    :param debug: if True debug output is enabled.
+    :return: a list of dictionaries with the timestamp and text of the slides. The detected language is used as key
+        for the extracted text in each dictionary.
+    """
     n_slide = len(slide_tokens)
     if n_slide == 0:
         return []
-    # extract text (using google OCR) from the slides extracted with extract_slides()
+    #
     slides_text = []
     slides_timestamp = []
     for slide_index_str in sorted(slide_tokens.keys(), key=int):
@@ -234,8 +246,8 @@ def extract_text_from_slides(
         slide_token = slide_token_dict['token']
         slide_timestamp = slide_token_dict['timestamp']
         slide_text = extract_text_from_slide(
-            slide_token, force=force, graph_ai_server=graph_ai_server,
-            sections=('GRAPHAI', 'OCR', f'SLIDE {slide_index_str}/{n_slide}'), debug=debug
+            slide_token, login_info, force=force, sections=('GRAPHAI', 'OCR', f'SLIDE {slide_index_str}/{n_slide}'),
+            debug=debug
         )
         slides_text.append(slide_text)
         slides_timestamp.append(slide_timestamp)
@@ -266,9 +278,18 @@ def extract_text_from_slides(
 
 
 def translate_extracted_text(
-        slides_text, source_language=None, destination_languages=('fr', 'en'), force=False,
-        graph_ai_server='http://127.0.0.1:28800', debug=False
+        slides_text, login_info, source_language=None, destination_languages=('fr', 'en'), force=False, debug=False
 ):
+    """
+    translate text extracted from slides
+    :param slides_text: typically the output from extract_text_from_slides().
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
+    :param source_language: source language of the text extracted from the slides.
+    :param destination_languages: target languages to translate the test to.
+    :param force: if True, the cache is ignored and all operations are performed.
+    :param debug: if True debug output is enabled.
+    :return:
+    """
     n_slide = len(slides_text)
     sections = ('GRAPHAI', 'TRANSLATE', f'{n_slide} SLIDES')
     if source_language is None:
@@ -288,8 +309,7 @@ def translate_extracted_text(
     for lang in destination_languages:
         if source_language != lang:
             translated_text = translate_text(
-                text_to_translate, source_language, lang, graph_ai_server=graph_ai_server,
-                sections=sections, force=force, debug=debug
+                text_to_translate, source_language, lang, login_info, sections=sections, force=force, debug=debug
             )
             if translated_text is None:
                 status_msg(
@@ -312,8 +332,8 @@ def translate_extracted_text(
 
 
 def translate_subtitles(
-        segments, source_language=None, destination_languages=('fr', 'en'), force=False,
-        graph_ai_server='http://127.0.0.1:28800', debug=False
+        segments: list, login_info: dict, source_language=None, destination_languages=('fr', 'en'),
+        force=False, debug=False
 ):
     n_segment = len(segments)
     sections = ('GRAPHAI', 'TRANSLATE', f'{n_segment} SUBTITLES')
@@ -335,8 +355,7 @@ def translate_subtitles(
     for lang in destination_languages:
         if source_language != lang:
             translated_text = translate_text(
-                text_to_translate, source_language, lang, graph_ai_server=graph_ai_server,
-                sections=sections, force=force, debug=debug
+                text_to_translate, source_language, lang, login_info, sections=sections, force=force, debug=debug
             )
             if translated_text is None:
                 status_msg(
@@ -358,38 +377,4 @@ def translate_subtitles(
                     else:
                         segments[idx][lang] = translated_segment.strip()
     return segments
-
-
-if __name__ == '__main__':
-    import json
-
-    # --------------------
-    # few kaltura videos
-    # --------------------
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_003ipc0i/format/download/protocol/https/flavorParamIds/0'
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_003zuhve/format/download/protocol/https/flavorParamIds/0'
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_005blefe/format/download/protocol/https/flavorParamIds/0'
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_005gbz9k/format/download/protocol/https/flavorParamIds/0'
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_009hu1fy/format/download/protocol/https/flavorParamIds/0'
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_009io2ie/format/download/protocol/https/flavorParamIds/0' # audio_language='fr'
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00bqm9i3/format/download/protocol/https/flavorParamIds/0' # 20min processing / 30min video
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00h8gj93/format/download/protocol/https/flavorParamIds/0'
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00ie24lu/format/download/protocol/https/flavorParamIds/0' # (10min slide extr/ 3min OCR/ 27min translate ocr/ 31min transcribe/ 18+min translate audio) 100 min video
-
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00gdquzv/format/download/protocol/https/flavorParamIds/0'  # 40s video FAST!
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_00fajklv/format/download/protocol/https/flavorParamIds/0' # 48min video
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_0gn6xnrf/format/download/protocol/https/flavorParamIds/0'  # german
-
-    # video with no voice:
-    #url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_191runee/format/download/protocol/https/flavorParamIds/0'  # music
-    # url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_i8zqj20g/format/download/protocol/https/flavorParamIds/0'  # silence
-    # url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_xuvg6ca5/format/download/protocol/https/flavorParamIds/0'  # off voice + music
-    # url = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/0_u1offnl2/format/download/protocol/https/flavorParamIds/0'  # music
-
-    #url = "https://api.cast.switch.ch/p/113/sp/11300/serveFlavor/entryId/0_vgsq7l1z/v/2/flavorId/0_lm3u67lv/fileName/Result_of_trial15_C001H001S0001_(Source).avi/forceproxy/true/name/a.avi"  # no slide/no sound
-    #video_info = process_video(url, force=True, graph_ai_server='http://127.0.0.1:28800', analyze_slides=False, debug=True)
-    #print(video_info)
-    from graphai.rcp import process_videos_on_rcp
-
-    process_videos_on_rcp(['0_sltslw7z'], force=True, debug=True)
 

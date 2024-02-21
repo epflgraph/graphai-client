@@ -6,7 +6,7 @@ from graphai.client_api.utils import get_response, task_result_is_ok, split_text
 
 
 def translate_text(
-        text: Union[str, list], source_language, target_language, graph_ai_server='http://127.0.0.1:28800',
+        text: Union[str, list], source_language, target_language, login_info,
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000
 ):
     if source_language == target_language:
@@ -25,7 +25,7 @@ def translate_text(
     # use english as an intermediary if needed
     if source_language not in ('en', 'fr') and target_language != 'en':
         translated_text_en = translate_text(
-            text, source_language, 'en', graph_ai_server=graph_ai_server, sections=sections, force=force, debug=debug,
+            text, source_language, 'en', login_info, sections=sections, force=force, debug=debug,
             max_text_length=max_text_length, max_text_list_length=max_text_list_length
         )
         if translated_text_en is None:
@@ -35,7 +35,7 @@ def translate_text(
             )
             return None
         return translate_text(
-            translated_text_en, 'en', target_language, graph_ai_server=graph_ai_server, sections=sections, force=force,
+            translated_text_en, 'en', target_language, login_info, sections=sections, force=force,
             debug=debug, max_text_length=max_text_length, max_text_list_length=max_text_list_length
         )
     # split in smaller lists if the text is too large
@@ -55,7 +55,7 @@ def translate_text(
                         color='grey', sections=list(sections) + ['PROCESSING']
                     )
                     translated_text_full[idx_start:] = translate_text(
-                        text[idx_start:], source_language, target_language, graph_ai_server=graph_ai_server,
+                        text[idx_start:], source_language, target_language, login_info,
                         sections=sections, force=force, debug=debug, max_text_length=max_text_length,
                         max_text_list_length=max_text_list_length
                     )
@@ -66,7 +66,7 @@ def translate_text(
                         color='grey', sections=list(sections) + ['PROCESSING']
                     )
                     translated_text_full[idx_start] = translate_text(
-                        text[idx_start], source_language, target_language, graph_ai_server=graph_ai_server,
+                        text[idx_start], source_language, target_language, login_info,
                         sections=sections, force=force, debug=debug, max_text_length=max_text_length,
                         max_text_list_length=max_text_list_length
                     )
@@ -79,7 +79,7 @@ def translate_text(
                         color='grey', sections=list(sections) + ['PROCESSING']
                     )
                     translated_text_full[idx_start:idx_end+1] = translate_text(
-                        text[idx_start:idx_end+1], source_language, target_language, graph_ai_server=graph_ai_server,
+                        text[idx_start:idx_end+1], source_language, target_language, login_info,
                         sections=sections, force=force, debug=debug, max_text_length=max_text_length,
                         max_text_list_length=max_text_list_length
                     )
@@ -112,7 +112,8 @@ def translate_text(
             text_to_translate = text
             translated_line_to_original_mapping = None
     response_translate = get_response(
-        url=graph_ai_server + '/translation/translate',
+        url='/translation/translate',
+        login_info=login_info,
         request_func=post,
         headers={'Content-Type': 'application/json'},
         json={"text": text_to_translate, "source": source_language, "target": target_language, "force": force},
@@ -128,7 +129,8 @@ def translate_text(
         tries_translate_status += 1
         try:
             response_translate_status = get_response(
-                url=graph_ai_server + f'/translation/translate/status/{task_id}',
+                url=f'/translation/translate/status/{task_id}',
+                login_info=login_info,
                 request_func=get,
                 headers={'Content-Type': 'application/json'},
                 sections=sections,
@@ -165,13 +167,13 @@ def translate_text(
                 )
                 if max_text_length:
                     return translate_text(
-                        text, source_language, target_language, graph_ai_server=graph_ai_server, sections=sections,
+                        text, source_language, target_language, login_info, sections=sections,
                         force=force, debug=debug, max_text_length=max_text_length-200,
                         max_text_list_length=max_text_list_length
                     )
                 else:
                     return translate_text(
-                        text, source_language, target_language, graph_ai_server=graph_ai_server,
+                        text, source_language, target_language, login_info,
                         sections=sections, force=force, debug=debug, max_text_length=2000,
                         max_text_list_length=max_text_list_length
                     )
