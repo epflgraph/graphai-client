@@ -1,12 +1,12 @@
 import unittest
-from graphai.client_api import login
+from graphai_client.client_api import login
 
 login_info = login()
 
 
 class ConceptExtractionTests(unittest.TestCase):
     def test_extract_concepts_from_text(self):
-        from graphai.client_api.text import extract_concepts_from_text
+        from graphai_client.client_api.text import extract_concepts_from_text
 
         concepts_and_scores = extract_concepts_from_text(
             'a demonstration of a theorem must contain a proof', login_info

@@ -1,8 +1,8 @@
-from graphai.utils import status_msg, add_initial_disclaimer
-from graphai.client_api import login
-from graphai.client_api.image import extract_text_from_slide
-from graphai.client_api.video import extract_slides, extract_audio, get_video_token
-from graphai.client_api.voice import transcribe_audio, detect_language
+from graphai_client.utils import status_msg, add_initial_disclaimer
+from graphai_client.client_api import login
+from graphai_client.client_api.image import extract_text_from_slide
+from graphai_client.client_api.video import extract_slides, extract_audio, get_video_token
+from graphai_client.client_api.voice import transcribe_audio, detect_language
 
 
 def process_video(
@@ -377,4 +377,3 @@ def translate_subtitles(
                     else:
                         segments[idx][lang] = translated_segment.strip()
     return segments
-

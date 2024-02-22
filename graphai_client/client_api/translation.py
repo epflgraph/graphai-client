@@ -1,8 +1,8 @@
 from time import sleep
 from requests import get, post
 from typing import Union
-from graphai.utils import status_msg
-from graphai.client_api.utils import get_response, task_result_is_ok, split_text
+from graphai_client.utils import status_msg
+from graphai_client.client_api.utils import get_response, task_result_is_ok, split_text
 
 
 def translate_text(

@@ -1,7 +1,7 @@
-from graphai.client_api.utils import get_response
+from graphai_client.client_api.utils import get_response
 from time import sleep
 from requests import get, post
-from graphai.utils import status_msg
+from graphai_client.utils import status_msg
 
 
 def transcribe_audio(

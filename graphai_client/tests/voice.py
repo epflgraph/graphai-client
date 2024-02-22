@@ -1,5 +1,5 @@
 import unittest
-from graphai.client_api import login
+from graphai_client.client_api import login
 
 login_info = login()
 kaltura_url_template = 'https://api.cast.switch.ch/p/113/sp/11300/playManifest/entryId/{}' + \
@@ -23,7 +23,7 @@ class NoVoice(unittest.TestCase):
         self._test_language_detection_no_output(self.ids_with_music_only)
 
     def _test_transcription_no_output(self, kaltura_ids):
-        from graphai.client import process_video
+        from graphai_client.client import process_video
 
         for kaltura_id in kaltura_ids:
             url = kaltura_url_template.format(kaltura_id)
@@ -32,7 +32,7 @@ class NoVoice(unittest.TestCase):
             self.assertListEqual(video_info['subtitles'], [])
 
     def _test_language_detection_no_output(self, kaltura_ids):
-        from graphai.client import process_video
+        from graphai_client.client import process_video
 
         for kaltura_id in kaltura_ids:
             url = kaltura_url_template.format(kaltura_id)
@@ -50,7 +50,7 @@ class Voice(unittest.TestCase):
     }
 
     def test_language_detection(self):
-        from graphai.client import process_video
+        from graphai_client.client import process_video
 
         for lang, kaltura_ids in self.ids_for_lang.items():
             for kaltura_id in kaltura_ids:

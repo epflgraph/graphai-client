@@ -1,7 +1,7 @@
-from graphai.client_api.utils import get_response, task_result_is_ok
+from graphai_client.client_api.utils import get_response, task_result_is_ok
 from time import sleep
 from requests import get, post
-from graphai.utils import status_msg
+from graphai_client.utils import status_msg
 
 
 def extract_text_from_slide(

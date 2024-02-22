@@ -1,4 +1,4 @@
-from graphai.client_api.utils import get_response, task_result_is_ok
+from graphai_client.client_api.utils import get_response, task_result_is_ok
 from time import sleep
 from requests import get, post
 

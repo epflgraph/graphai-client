@@ -1,6 +1,6 @@
 import unittest
 from os.path import join, dirname
-from graphai.client_api import login
+from graphai_client.client_api import login
 
 test_files_dir = join(dirname(__file__), 'test_files')
 login_info = login()
@@ -8,7 +8,7 @@ login_info = login()
 
 class Captions(unittest.TestCase):
     def test_convert_and_combine(self):
-        from graphai.utils import convert_subtitle_into_segments, combine_language_segments
+        from graphai_client.utils import convert_subtitle_into_segments, combine_language_segments
 
         with open(join(test_files_dir, '0_00w4rf3f_en.srt')) as fid:
             data_en = fid.read()
@@ -22,7 +22,7 @@ class Captions(unittest.TestCase):
         return captions
 
     def test_get_caption_from_kaltura(self):
-        from graphai.rcp import get_subtitles_from_kaltura
+        from graphai_client.rcp import get_subtitles_from_kaltura
 
         subtitles_from_kaltura = get_subtitles_from_kaltura('0_00w4rf3f', login_info)
         subtitles_from_files = self.test_convert_and_combine()
@@ -33,7 +33,7 @@ class Captions(unittest.TestCase):
         self.assertEqual(subtitles_from_kaltura, None)
 
     def test_initial_disclaimer_new_segment(self):
-        from graphai.utils import add_initial_disclaimer, default_disclaimer
+        from graphai_client.utils import add_initial_disclaimer, default_disclaimer
 
         subtitles_from_files = self.test_convert_and_combine()
         subtitles_with_disclaimer = add_initial_disclaimer(subtitles_from_files, default_disclaimer)
@@ -45,8 +45,8 @@ class Captions(unittest.TestCase):
             self.assertEqual(subtitles_with_disclaimer[1][lang], subtitles_from_files[0][lang])
 
     def test_initial_disclaimer_first_segment_starting_at_0(self):
-        from graphai.utils import add_initial_disclaimer, default_disclaimer
-        from graphai.rcp import get_subtitles_from_kaltura
+        from graphai_client.utils import add_initial_disclaimer, default_disclaimer
+        from graphai_client.rcp import get_subtitles_from_kaltura
 
         subtitles_from_kaltura = get_subtitles_from_kaltura('0_bgyh2jg1', login_info, destination_languages=None)
         subtitles_with_disclaimer = add_initial_disclaimer(subtitles_from_kaltura)
@@ -57,8 +57,8 @@ class Captions(unittest.TestCase):
         self.assertEqual(subtitles_with_disclaimer[0]['en'].split('\n')[0], default_disclaimer['en'])
 
     def test_initial_disclaimer_first_segment_starting_at_less_than_2s(self):
-        from graphai.utils import add_initial_disclaimer, default_disclaimer
-        from graphai.rcp import get_subtitles_from_kaltura
+        from graphai_client.utils import add_initial_disclaimer, default_disclaimer
+        from graphai_client.rcp import get_subtitles_from_kaltura
 
         disclaimer_per_language = {
             'en': 'These subtitles have been generated automatically'
@@ -72,7 +72,7 @@ class Captions(unittest.TestCase):
         self.assertEqual(subtitles_with_disclaimer[0]['en'].split('\n')[0], default_disclaimer['en'])
 
     def test_initial_disclaimer_with_empty_lang(self):
-        from graphai.utils import add_initial_disclaimer, default_disclaimer
+        from graphai_client.utils import add_initial_disclaimer, default_disclaimer
 
         test_subtitles = [
             {'id': 0, 'start': 0, 'end': 2, 'fr': None, 'en': None, 'it': 'test'},
@@ -88,7 +88,7 @@ class Captions(unittest.TestCase):
         self.assertEqual(subtitles_with_disclaimer[0]['it'].split('\n')[0], default_disclaimer['it'])
 
     def test_harmonize_segment_interval(self):
-        from graphai.utils import _harmonize_segments_interval
+        from graphai_client.utils import _harmonize_segments_interval
 
         interval, links = _harmonize_segments_interval(
             precision_s=0.01,
@@ -99,7 +99,7 @@ class Captions(unittest.TestCase):
         self.assertListEqual(links, [{'fr': 0, 'en': 0}, {'fr': 0, 'en': 1}, {'fr': 0, 'en': 2}])
 
     def test_split_text_in_intervals(self):
-        from graphai.utils import _split_text_in_intervals
+        from graphai_client.utils import _split_text_in_intervals
 
         segments_newlines = _split_text_in_intervals('abcde\nfgh\ni', [(0, 3), (3, 6), (6, 9)])
         self.assertListEqual(segments_newlines, ['abcde', 'fgh', 'i'])
@@ -113,14 +113,14 @@ class Captions(unittest.TestCase):
         self.assertListEqual(segments_no_space, ['abc', 'def', 'ghi'])
 
     def test_get_closest_fractions(self):
-        from graphai.utils import _get_index_closest_fractions
+        from graphai_client.utils import _get_index_closest_fractions
 
         self.assertListEqual(_get_index_closest_fractions([0.1, 0.4, 0.9], [0.3, 0.6, 0.9]), [0, 1, 2])
         self.assertListEqual(_get_index_closest_fractions([0.1, 0.4, 0.7, 0.9], [0.3, 0.6, 0.9]), [1, 2, 3])
         self.assertListEqual(_get_index_closest_fractions([0.1, 0.33, 0.4, 0.55, 0.7, 0.9], [0.3, 0.6, 0.9]), [1, 3, 5])
 
     def test_harmonize_segments(self):
-        from graphai.utils import convert_subtitle_into_segments, harmonize_segments
+        from graphai_client.utils import convert_subtitle_into_segments, harmonize_segments
 
         segments_to_test = [
             {'en': '0_iz3wgt1s_en.srt', 'fr': '0_iz3wgt1s_fr.srt'},

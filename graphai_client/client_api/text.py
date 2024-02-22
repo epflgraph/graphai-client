@@ -1,7 +1,7 @@
 from requests import Session
 from urllib.parse import urlencode
-from graphai.client_api import login
-from graphai.client_api.utils import status_msg
+from graphai_client.client_api import login
+from graphai_client.client_api.utils import status_msg
 
 
 def extract_concepts_from_text(

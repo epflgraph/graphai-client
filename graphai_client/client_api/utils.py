@@ -1,8 +1,8 @@
 from time import sleep
 from requests import get
 from typing import Union
-from graphai.utils import status_msg
-from graphai.client_api import login
+from graphai_client.utils import status_msg
+from graphai_client.client_api import login
 
 
 def get_response(

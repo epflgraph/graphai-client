@@ -4,15 +4,15 @@ from json import load as load_json
 from os.path import dirname, join
 from re import match, fullmatch
 from requests import Session
-from graphai.utils import (
+from graphai_client.utils import (
     status_msg, get_video_link_and_size, strfdelta, insert_line_into_table_with_types, convert_subtitle_into_segments,
     combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript,
     insert_data_into_table_with_type, execute_query, prepare_value_for_mysql
 )
-from graphai.client import process_video, translate_extracted_text, translate_subtitles
-from graphai.client_api import login
-from graphai.client_api.text import extract_concepts_from_text
-from graphai.client_api.translation import translate_text
+from graphai_client.client import process_video, translate_extracted_text, translate_subtitles
+from graphai_client.client_api import login
+from graphai_client.client_api.text import extract_concepts_from_text
+from graphai_client.client_api.translation import translate_text
 
 language_to_short = {
     'french': 'fr',
