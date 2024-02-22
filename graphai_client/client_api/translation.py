@@ -9,6 +9,25 @@ def translate_text(
         text: Union[str, list], source_language, target_language, login_info,
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000
 ):
+    """
+    Translate the input text from the source language to the target language.
+
+    :param text: text to translate. Can be a string or a list of string.
+    :param source_language: language of `text`
+    :param target_language: language of the output translated text
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json)
+    :param sections: sections to display in logs
+    :param force: Should the cache be bypassed and the translation forced.
+    :param debug: if True additional information about each connection to the API is displayed.
+    :param max_text_length: if not None, the text will be split in chunks smaller than max_text_length before being
+        translated, it is glued together after translation. This happens automatically in case the API send a
+        `text too long error`.
+    :param max_text_list_length: if not None and the input is a list, the list will be translated in chunks where the
+        total number of characters do not exceed that value. The list is then reformed after translation
+    :return: the translated text.
+        If the input text was a string the output is a string too.
+        If the input was a list, the output is a list with the same number of elements than the input.
+    """
     if source_language == target_language:
         return text
     # check for empty text

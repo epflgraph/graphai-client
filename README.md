@@ -44,16 +44,37 @@ login_info = login(graph_api_json='config/graphai-api.json')
 translated_text = translate_text(text='example', source_language='en', target_language='fr', login_info=login_info)
 ```
 
-Basic API functionalities
+Direct API functionalities
 =========================
 
-Functions to access most basic API functionalities are available in `graphai_client.client_api`
-
+Functions to access most of the API functionalities are available in `graphai_client.client_api`.
+It includes:
+- for text:
+    - translation (`graphai_client.client_api.translation.translate_text)()`)
+    - concept extraction (`graphai_client.client_api.text.extract_concepts_from_text()`)
+- for videos:
+    - video downloading (`graphai_client.client_api.video.get_video_token()`), 
+    - video fingerprinting(`graphai_client.client_api.video.fingerprint_video()`)
+    - audio extraction(`graphai_client.client_api.video.extract_audio()`)
+    - slide extraction(`graphai_client.client_api.video.extract_slides()`)
+- for audio extracted from videos:
+    - transcription (`graphai_client.client_api.voice.transcribe_audio()`)
+    - language detection (`graphai_client.client_api.voice.detect_language()`)
+- OCR for slides (`graphai_client.client_api.image.extract_text_from_slide()`)
+    
 
 Integrated video processing
 ===========================
 
-Functions to process videos are also available
+A function to directly process videos are available as `graphai_client.client.process_video()`:
+Below are the steps it implements:
+- downloads the video
+- if `detect_audio_language` or `analyze_audio` is True, it extracts audio
+- if `analyze_audio` is True it transcribes the audio and then translate the transcription 
+  or if `detect_audio_language` is True the language of the audio is detected.
+- if `analyze_slides` is True, slides are extracted from the video, OCR is performed on them, and the text from the 
+  slides is translated.
+  
 
 example usage:
 ```python

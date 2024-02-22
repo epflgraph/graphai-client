@@ -10,6 +10,24 @@ def extract_concepts_from_text(
         filtering_threshold=0.1, filtering_min_votes=5, refresh_scores=True, sections=('GRAPHAI', 'CONCEPT DETECTION'),
         debug=False, n_trials=5, session: Session = None
 ):
+    """
+    Detect concepts (wikipedia pages) with associated scores from a input text.
+    :param text: text to analyze
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json)
+    :param restrict_to_ontology: refer to the API documentation
+    :param graph_score_smoothing: refer to the API documentation
+    :param ontology_score_smoothing: refer to the API documentation
+    :param keywords_score_smoothing: refer to the API documentation
+    :param normalisation_coefficient: refer to the API documentation
+    :param filtering_threshold: refer to the API documentation
+    :param filtering_min_votes: refer to the API documentation
+    :param refresh_scores: refer to the API documentation
+    :param sections: sections to display in logs
+    :param debug: if True additional information about each connection to the API is displayed.
+    :param n_trials: number of trials to perform in case of errors before giving up
+    :param session: optional requests.Session object
+    :return: a list of dictionary containing the concept and the associated scores.
+    """
     if 'token' not in login_info:
         login_info = login(login_info['graph_api_json'])
     close_session = False

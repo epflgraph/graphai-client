@@ -3,6 +3,7 @@ from graphai_client.client_api import login
 from graphai_client.client_api.image import extract_text_from_slide
 from graphai_client.client_api.video import extract_slides, extract_audio, get_video_token
 from graphai_client.client_api.voice import transcribe_audio, detect_language
+from graphai_client.client_api.translation import translate_text
 
 
 def process_video(
@@ -27,7 +28,7 @@ def process_video(
         Defaults to graphai/config/graphai-api.json
     :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json)
         If not set, a login will be performed to populate it using the info from graph_api_json.
-    :param debug: if True debug output is enabled.
+    :param debug: if True additional information about each connection to the API is displayed.
     :return: a dictionary containing the results ot the processing.
     """
     status_msg(
