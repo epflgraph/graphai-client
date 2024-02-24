@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from string import Formatter
 from numpy import isnan, isinf
 from re import compile, finditer
-from typing import Literal, Union
+from typing import Literal, Union, List
 from mysql.connector.cursor import MySQLCursor
 from mysql.connector.cursor_cext import CMySQLCursor
 
@@ -103,7 +103,7 @@ def strfdelta(time_delta: timedelta, fmt='{H:02}:{M:02}:{S:02},{m:03}'):
     return f.format(fmt, **values)
 
 
-def prepare_values_for_mysql(values: list, types: list[Literal["str", "int", "float"]], encoding='utf8'):
+def prepare_values_for_mysql(values: list, types: List[Literal["str", "int", "float"]], encoding='utf8'):
     values_str = []
     assert len(values) == len(types)
     for val, val_type in zip(values, types):
@@ -130,7 +130,7 @@ def prepare_value_for_mysql(value: Union[str, int, float], value_type: Literal["
 
 
 def insert_line_into_table_with_types(
-        cursor, schema, table_name, columns, values, types: list[Literal["str", "int", "float"]],
+        cursor, schema, table_name, columns, values, types: List[Literal["str", "int", "float"]],
         encoding='utf8', retry=5
 ):
     values_str = prepare_values_for_mysql(values, types, encoding=encoding)
