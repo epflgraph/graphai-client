@@ -1,30 +1,31 @@
-from time import sleep
-from requests import get, post
-from typing import Union
+from typing import Optional, Union
 from graphai_client.utils import status_msg
-from graphai_client.client_api.utils import get_response, task_result_is_ok, split_text
+from graphai_client.client_api.utils import call_async_endpoint
 
 
 def translate_text(
         text: Union[str, list], source_language, target_language, login_info,
-        sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000
-):
+        sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000,
+        n_try=600, delay_retry=1
+) -> Optional[Union[str, list]]:
     """
     Translate the input text from the source language to the target language.
 
     :param text: text to translate. Can be a string or a list of string.
-    :param source_language: language of `text`
-    :param target_language: language of the output translated text
-    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json)
-    :param sections: sections to display in logs
+    :param source_language: language of `text`.
+    :param target_language: language of the output translated text.
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
+    :param sections: sections to use in the status messages.
     :param force: Should the cache be bypassed and the translation forced.
     :param debug: if True additional information about each connection to the API is displayed.
     :param max_text_length: if not None, the text will be split in chunks smaller than max_text_length before being
         translated, it is glued together after translation. This happens automatically in case the API send a
         `text too long error`.
     :param max_text_list_length: if not None and the input is a list, the list will be translated in chunks where the
-        total number of characters do not exceed that value. The list is then reformed after translation
-    :return: the translated text.
+        total number of characters do not exceed that value. The list is then reformed after translation.
+    :param n_try: the number of tries before giving up.
+    :param delay_retry: the time to wait between tries.
+    :return: the translated text if successful, None otherwise.
         If the input text was a string the output is a string too.
         If the input was a list, the output is a list with the same number of elements than the input.
     """
@@ -120,6 +121,7 @@ def translate_text(
                     translated_line_to_original_mapping[len(text_to_translate)] = line_idx
                     text_to_translate.append(line)
     else:
+        # split text into a list of string if the input is a too long string
         if max_text_length and len(text) > max_text_length:
             translated_line_to_original_mapping = {}
             text_to_translate = []
@@ -130,100 +132,69 @@ def translate_text(
         else:
             text_to_translate = text
             translated_line_to_original_mapping = None
-    response_translate = get_response(
-        url='/translation/translate',
-        login_info=login_info,
-        request_func=post,
-        headers={'Content-Type': 'application/json'},
+    task_result = call_async_endpoint(
+        endpoint='/translation/translate',
         json={"text": text_to_translate, "source": source_language, "target": target_language, "force": force},
+        login_info=login_info,
+        token=source_language + ' text',
+        output_type='translation',
+        n_try=n_try,
+        delay_retry=delay_retry,
         sections=sections,
         debug=debug
     )
-    if response_translate is None:
+    if task_result is None:
         return None
-    task_id = response_translate.json()['task_id']
-    # wait for the translation to be completed
-    tries_translate_status = 0
-    while tries_translate_status < 3600:
-        tries_translate_status += 1
-        try:
-            response_translate_status = get_response(
-                url=f'/translation/translate/status/{task_id}',
-                login_info=login_info,
-                request_func=get,
-                headers={'Content-Type': 'application/json'},
-                sections=sections,
-                debug=debug
-            )
-        except RuntimeError as e:
-            status_msg(
-                f'Translation from {source_language} to {target_language} caused an exception, '
-                f'the text to translate was:\n{text_to_translate}',
-                color='red', sections=list(sections) + ['ERROR']
-            )
-            raise e
-        if response_translate_status is None:
-            return None
-        response_translate_status_json = response_translate_status.json()
-        translate_status = response_translate_status_json['task_status']
-        if translate_status in ['PENDING', 'STARTED']:
-            sleep(1)
-        elif translate_status == 'SUCCESS':
-            task_result = response_translate_status_json['task_result']
-            if not task_result_is_ok(
-                    task_result, token=source_language + ' text', input_type='translation', sections=sections
-            ):
-                status_msg(
-                    f'text was:\n{text_to_translate}',
-                    color='yellow', sections=list(sections) + ['WARNING']
-                )
-                sleep(1)
-                continue
-            if task_result['text_too_large']:
-                status_msg(
-                    f'text was too large to be translated, trying to split it up ...',
-                    color='yellow', sections=list(sections) + ['WARNING']
-                )
-                if max_text_length:
-                    return translate_text(
-                        text, source_language, target_language, login_info, sections=sections,
-                        force=force, debug=debug, max_text_length=max_text_length-200,
-                        max_text_list_length=max_text_list_length
-                    )
-                else:
-                    return translate_text(
-                        text, source_language, target_language, login_info,
-                        sections=sections, force=force, debug=debug, max_text_length=2000,
-                        max_text_list_length=max_text_list_length
-                    )
-            else:
-                status_msg(
-                    f'text has been translated',
-                    color='green', sections=list(sections) + ['SUCCESS']
-                )
-            # put back None in the output so the number of element is the same as in the input
-            if isinstance(text, list) and isinstance(task_result['result'], list):
-                translated_text_full = [None] * len(text)
-                for tr_line_idx, translated_line in enumerate(task_result['result']):
-                    original_line_idx = translated_line_to_original_mapping[tr_line_idx]
-                    if translated_text_full[original_line_idx] is None:
-                        translated_text_full[original_line_idx] = translated_line
-                    else:
-                        translated_text_full[original_line_idx] += translated_line
-                return translated_text_full
-            elif max_text_length and isinstance(text, str) and isinstance(task_result['result'], list):
-                return ''.join(task_result['result'])
-            else:
-                return task_result['result']
-        elif translate_status == 'FAILURE':
-            return None
+    # resubmit with a smaller value of max_text_length if we get a text_too_large error
+    if task_result['text_too_large']:
+        status_msg(
+            f'text was too large to be translated, trying to split it up ...',
+            color='yellow', sections=list(sections) + ['WARNING']
+        )
+        if max_text_length is None:
+            max_text_length = 2000
         else:
-            raise ValueError(
-                f'Unexpected status while requesting the status of translation for text: '
-                + translate_status
-            )
-    status_msg(
-        f'timeout while trying to translate the following text:\n{text_to_translate}',
-        color='yellow', sections=list(sections) + ['WARNING']
-    )
-    return None
+            max_text_length = max_text_length - 200
+        return translate_text(
+            text, source_language, target_language, login_info, sections=sections,
+            force=force, debug=debug, max_text_length=max_text_length,
+            max_text_list_length=max_text_list_length
+        )
+    else:
+        status_msg(
+            f'text has been translated',
+            color='green', sections=list(sections) + ['SUCCESS']
+        )
+    # put back None in the output so the number of element is the same as in the input
+    if isinstance(text, list) and isinstance(task_result['result'], list):
+        translated_text_full = [None] * len(text)
+        for tr_line_idx, translated_line in enumerate(task_result['result']):
+            original_line_idx = translated_line_to_original_mapping[tr_line_idx]
+            if translated_text_full[original_line_idx] is None:
+                translated_text_full[original_line_idx] = translated_line
+            else:
+                translated_text_full[original_line_idx] += translated_line
+        return translated_text_full
+    # in case the input was a too long string we split into a list, we recombine the output
+    elif max_text_length and isinstance(text, str) and isinstance(task_result['result'], list):
+        return ''.join(task_result['result'])
+    else:
+        return task_result['result']
+
+
+def split_text(text: str, max_length: int, split_characters=('\n', '.', ';', ',', ' ')):
+    result = []
+    assert max_length > 0
+    while len(text) > max_length:
+        for split_char in split_characters:
+            pos = text[:max_length].rfind(split_char)
+            if pos > 0:
+                result.append(text[:pos+1])
+                text = text[pos+1:]
+                break
+        if len(text) > max_length:
+            result.append(text[:max_length])
+            text = text[max_length:]
+    if len(text) > 0:
+        result.append(text)
+    return result

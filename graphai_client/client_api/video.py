@@ -1,192 +1,132 @@
-from graphai_client.client_api.utils import get_response, task_result_is_ok
-from time import sleep
-from requests import get, post
+from typing import Optional
+from graphai_client.client_api.utils import call_async_endpoint
 
 
 def get_video_token(
         url_video: str, login_info: dict, playlist=False, sections=('GRAPHAI', 'DOWNLOAD VIDEO'),
-        debug=False, force=False
-):
-    # retrieval of the video on graph-ai
-    response_retrieve = get_response(
-        url='/video/retrieve_url',
-        login_info=login_info,
-        request_func=post,
-        headers={'Content-Type': 'application/json'},
+        debug=False, force=False, n_try=6000, delay_retry=1
+) -> Optional[str]:
+    """
+    Download a video and get a token.
+
+    :param url_video: url of the video to download.
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
+    :param playlist: see the API documentation.
+    :param sections: sections to use in the status messages.
+    :param debug: if True additional information about each connection to the API is displayed.
+    :param force: Should the cache be bypassed and the download forced.
+    :param n_try: the number of tries before giving up.
+    :param delay_retry: the time to wait between tries.
+    :return: the video token if successful, None otherwise.
+    """
+    task_result = call_async_endpoint(
+        endpoint='/video/retrieve_url',
         json={"url": url_video, "playlist": playlist, "force": force},
+        login_info=login_info,
+        token=url_video,
+        output_type='file',
+        n_try=n_try,
+        delay_retry=delay_retry,
         sections=sections,
         debug=debug
     )
-    if response_retrieve is None:
+    if task_result is None:
         return None
-    task_id = response_retrieve.json()['task_id']
-    # wait for the retrieval to be completed
-    tries_retrieve_status = 0
-    while tries_retrieve_status < 6000:
-        tries_retrieve_status += 1
-        response_retrieve_status = get_response(
-            url=f'/video/retrieve_url/status/{task_id}',
-            login_info=login_info,
-            request_func=get,
-            headers={'Content-Type': 'application/json'},
-            sections=sections,
-            debug=debug
-        )
-        if response_retrieve_status is None:
-            return None
-        response_retrieve_status_json = response_retrieve_status.json()
-        retrieve_status = response_retrieve_status_json['task_status']
-        if retrieve_status in ['PENDING', 'STARTED']:
-            sleep(1)
-        elif retrieve_status == 'SUCCESS':
-            task_result = response_retrieve_status_json['task_result']
-            if not task_result_is_ok(task_result, token=url_video, input_type='file', sections=sections):
-                sleep(1)
-                continue
-            return task_result['token']
-        else:
-            raise ValueError(
-                f'Unexpected status while requesting the status of retrieve_url for {url_video}: ' + retrieve_status
-            )
+    return task_result['token']
 
 
 def fingerprint_video(
-        video_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'FINGERPRINT VIDEO'), debug=False
-):
-    response_fingerprint = get_response(
-        url='/video/calculate_fingerprint',
-        login_info=login_info,
-        request_func=post,
-        headers={'Content-Type': 'application/json'},
+        video_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'FINGERPRINT VIDEO'), debug=False,
+        n_try=6000, delay_retry=1
+) -> Optional[str]:
+    """
+    Get the fingerprint of a video.
+
+    :param video_token: video token, typically returned by get_video_token()
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
+    :param force: Should the cache be bypassed and the fingerprint forced.
+    :param sections: sections to use in the status messages.
+    :param debug: if True additional information about each connection to the API is displayed.
+    :param n_try: the number of tries before giving up.
+    :param delay_retry: the time to wait between tries.
+    :return: the fingerprint of the video if successful, None otherwise.
+    """
+    task_result = call_async_endpoint(
+        endpoint='/video/calculate_fingerprint',
         json={"token": video_token, "force": force},
+        login_info=login_info,
+        token=video_token,
+        output_type='fingerprint',
+        n_try=n_try,
+        delay_retry=delay_retry,
         sections=sections,
         debug=debug
     )
-    if response_fingerprint is None:
+    if task_result is None:
         return None
-    task_id = response_fingerprint.json()['task_id']
-    # wait for the fingerprinting to be completed
-    tries_fingerprint_status = 0
-    while tries_fingerprint_status < 6000:
-        tries_fingerprint_status += 1
-        response_fingerprint_status = get_response(
-            url=f'/video/calculate_fingerprint/status/{task_id}',
-            login_info=login_info,
-            request_func=get,
-            headers={'Content-Type': 'application/json'},
-            sections=sections,
-            debug=debug
-        )
-        if response_fingerprint_status is None:
-            return None
-        response_fingerprint_status_json = response_fingerprint_status.json()
-        fingerprint_status = response_fingerprint_status_json['task_status']
-        if fingerprint_status in ['PENDING', 'STARTED']:
-            sleep(1)
-        elif fingerprint_status == 'SUCCESS':
-            task_result = response_fingerprint_status_json['task_result']
-            if not task_result_is_ok(task_result, token=video_token, input_type='fingerprint', sections=sections):
-                sleep(1)
-                continue
-            return task_result['result']
-        else:
-            raise ValueError(
-                f'Unexpected status while requesting the status of fingerprinting for {video_token}: '
-                + fingerprint_status
-            )
+    return task_result['result']
 
 
 def extract_audio(
-        video_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'EXTRACT AUDIO'), debug=False
+        video_token: str, login_info: dict, force=False, force_non_self=True, sections=('GRAPHAI', 'EXTRACT AUDIO'),
+        debug=False, n_try=300, delay_retry=1
 ):
-    response_extraction = get_response(
-        url='/video/extract_audio',
+    """
+    extract the audio from a video and return the audio token.
+
+    :param video_token: video token, typically returned by get_video_token()
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
+    :param force: Should the cache be bypassed and the audio extraction forced.
+    :param force_non_self: see the API documentation.
+    :param sections: sections to use in the status messages.
+    :param debug: if True additional information about each connection to the API is displayed.
+    :param n_try: the number of tries before giving up.
+    :param delay_retry: the time to wait between tries.
+    :return: the audio token if successful, None otherwise.
+    """
+    task_result = call_async_endpoint(
+        endpoint='/video/extract_audio',
+        json={"token": video_token, "force_non_self": force_non_self, "force": force},
         login_info=login_info,
-        request_func=post,
-        headers={'Content-Type': 'application/json'},
-        json={"token": video_token, "force_non_self": True, "force": force},
+        token=video_token,
+        output_type='audio',
+        n_try=n_try,
+        delay_retry=delay_retry,
         sections=sections,
         debug=debug
     )
-    if response_extraction is None:
+    if task_result is None:
         return None
-    task_id = response_extraction.json()['task_id']
-    # wait for the extraction to be completed
-    tries_extraction_status = 0
-    while tries_extraction_status < 300:
-        tries_extraction_status += 1
-        response_extraction_status = get_response(
-            url=f'/video/extract_audio/status/{task_id}',
-            login_info=login_info,
-            request_func=get,
-            headers={'Content-Type': 'application/json'},
-            sections=sections,
-            debug=debug
-        )
-        if response_extraction_status is None:
-            return None
-        response_extraction_status_json = response_extraction_status.json()
-        extraction_status = response_extraction_status_json['task_status']
-        if extraction_status in ['PENDING', 'STARTED']:
-            sleep(1)
-        elif extraction_status == 'SUCCESS':
-            task_result = response_extraction_status_json['task_result']
-            if not task_result_is_ok(task_result, token=video_token, input_type='audio', sections=sections):
-                sleep(1)
-                continue
-            return task_result['token']
-        else:
-            raise ValueError(
-                f'Unexpected status while requesting the status of audio extraction for {video_token}: '
-                + extraction_status
-            )
+    return task_result['token']
 
 
 def extract_slides(
-        video_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'EXTRACT SLIDES'), debug=False
-) -> dict:
+        video_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'EXTRACT SLIDES'), debug=False,
+        n_try=6000, delay_retry=1
+) -> Optional[dict]:
     """
-    :return: dictionary with slide number as string for keys and a dictionary with slide token and timestamp as values.
+    Extract slides from a video. Slides are defined as a times in a video where there is a significant visual change.
+
+    :param video_token: video token, typically returned by get_video_token()
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
+    :param force: Should the cache be bypassed and the slides extraction forced.
+    :param sections: sections to use in the status messages.
+    :param debug: if True additional information about each connection to the API is displayed.
+    :param n_try: the number of tries before giving up.
+    :param delay_retry: the time to wait between tries.
+    :return: A dictionary with slide number as string for keys and a dictionary with slide token and timestamp as values
+        if successful, None otherwise.
     """
-    response_slides = get_response(
-        url='/video/detect_slides',
-        login_info=login_info,
-        request_func=post,
-        headers={'Content-Type': 'application/json'},
+    task_result = call_async_endpoint(
+        endpoint='/video/detect_slides',
         json={"token": video_token, "force_non_self": False, "force": force},
+        login_info=login_info,
+        token=video_token,
+        output_type='slide',
+        n_try=n_try,
+        delay_retry=delay_retry,
         sections=sections,
         debug=debug
     )
-    if response_slides is None:
+    if task_result is None:
         return None
-    task_id = response_slides.json()['task_id']
-    # wait for the detection of slides to be completed
-    tries_slides_status = 0
-    while tries_slides_status < 6000:
-        tries_slides_status += 1
-        response_slides_status = get_response(
-            url=f'/video/detect_slides/status/{task_id}',
-            login_info=login_info,
-            request_func=get,
-            headers={'Content-Type': 'application/json'},
-            sections=sections,
-            debug=debug
-        )
-        if response_slides_status is None:
-            return None
-        response_slides_status_json = response_slides_status.json()
-        slides_status = response_slides_status_json['task_status']
-        if slides_status in ['PENDING', 'STARTED']:
-            sleep(1)
-        elif slides_status == 'SUCCESS':
-            task_result = response_slides_status_json['task_result']
-            if not task_result_is_ok(task_result, token=video_token, input_type='slide', sections=sections):
-                sleep(1)
-                continue
-            return task_result['slide_tokens']
-        else:
-            raise ValueError(
-                f'Unexpected status while requesting the status of slide extraction for {video_token}: '
-                + slides_status
-            )
-

@@ -1,59 +1,44 @@
-from graphai_client.client_api.utils import get_response, task_result_is_ok
-from time import sleep
-from requests import get, post
+from typing import Optional, Literal
+from graphai_client.client_api.utils import call_async_endpoint
 from graphai_client.utils import status_msg
 
 
 def extract_text_from_slide(
-        slide_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'OCR'), debug=False
-):
-    # extract text (using google OCR) from a single slide
-    response_text = get_response(
-        url='/image/extract_text',
-        login_info=login_info,
-        request_func=post,
-        headers={'Content-Type': 'application/json'},
+        slide_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'OCR'), debug=False,
+        n_try=600, delay_retry=1
+) -> Optional[dict[str, str]]:
+    """
+    extract text (using google OCR) from a single slide
+
+    :param slide_token: slide token, typically obtained from graphai_client.client_api.video.extract_slides().
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
+    :param force: Should the cache be bypassed and the slide extraction forced.
+    :param sections: sections to use in the status messages.
+    :param debug: if True additional information about each connection to the API is displayed.
+    :param n_try: the number of tries before giving up.
+    :param delay_retry: the time to wait between tries.
+    :return: a dictionary with the text extracted as value of the 'text' key and the detected language as value of the
+        'language' key if successful, None otherwise.
+    """
+    task_result = call_async_endpoint(
+        endpoint='/image/extract_text',
         json={"token": slide_token, "method": "google", "force": force},
+        login_info=login_info,
+        token=slide_token,
+        output_type='text',
+        n_try=n_try,
+        delay_retry=delay_retry,
         sections=sections,
         debug=debug
     )
-    if response_text is None:
+    if task_result is None:
         return None
-    task_id = response_text.json()['task_id']
-    # wait for the detection of slides to be completed
-    tries_text_status = 0
-    while tries_text_status < 600:
-        tries_text_status += 1
-        response_text_status = get_response(
-            url=f'/image/extract_text/status/{task_id}',
-            login_info=login_info,
-            request_func=get,
-            headers={'Content-Type': 'application/json'},
-            sections=sections,
-            debug=debug
-        )
-        if response_text_status is None:
-            return None
-        response_text_status_json = response_text_status.json()
-        text_status = response_text_status_json['task_status']
-        if text_status in ['PENDING', 'STARTED']:
-            sleep(1)
-        elif text_status == 'SUCCESS':
-            task_result = response_text_status_json['task_result']
-            if not task_result_is_ok(task_result, token=slide_token, input_type='text', sections=sections):
-                sleep(1)
-                continue
-            for result in task_result['result']:
-                # we use document text detection which should perform better with coherent documents
-                if result['method'] == 'ocr_google_1_token' or result['method'] == 'ocr_google_1_results':
-                    return {'text': result['text'], 'language': task_result['language']}
-            status_msg(
-                f'document text detection result not found',
-                color='yellow', sections=list(sections) + ['WARNING']
-            )
-            return {'text': task_result['result'][0]['text'], 'language': task_result['language']}
-        else:
-            raise ValueError(
-                f'Unexpected status while requesting the status of text extraction for {slide_token}: '
-                + text_status
-            )
+    for result in task_result['result']:
+        # we use document text detection which should perform better with coherent documents
+        if result['method'] == 'ocr_google_1_token' or result['method'] == 'ocr_google_1_results':
+            return {'text': result['text'], 'language': task_result['language']}
+    status_msg(
+        f'document text detection result not found',
+        color='yellow', sections=list(sections) + ['WARNING']
+    )
+    return {'text': task_result['result'][0]['text'], 'language': task_result['language']}

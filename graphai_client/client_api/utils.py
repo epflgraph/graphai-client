@@ -1,11 +1,71 @@
 from time import sleep
-from requests import get
+from requests import get, post
 from typing import Union
 from graphai_client.utils import status_msg
 from graphai_client.client_api import login
 
 
-def get_response(
+def call_async_endpoint(
+        endpoint, json, login_info, token, output_type, try_count=0,
+        n_try=6000, delay_retry=1, sections=(), debug=False
+):
+    response_endpoint = _get_response(
+        url=endpoint,
+        login_info=login_info,
+        request_func=post,
+        headers={'Content-Type': 'application/json'},
+        json=json,
+        sections=sections,
+        debug=debug
+    )
+    if response_endpoint is None:
+        return None
+    # get task_id to poll for result
+    task_id = response_endpoint.json()['task_id']
+    # wait for the task to be completed
+    while try_count < n_try:
+        try_count += 1
+        response_status = _get_response(
+            url=f'{endpoint}/status/{task_id}',
+            login_info=login_info,
+            request_func=get,
+            headers={'Content-Type': 'application/json'},
+            sections=sections,
+            debug=debug
+        )
+        if response_status is None:
+            return None
+        response_status_json = response_status.json()
+        task_status = response_status_json['task_status']
+        if task_status in ['PENDING', 'STARTED']:
+            sleep(delay_retry)
+        elif task_status == 'SUCCESS':
+            task_result = response_status_json['task_result']
+            if not task_result_is_ok(task_result, token=token, output_type=output_type, sections=sections):
+                sleep(delay_retry)
+                continue
+            return task_result
+        elif task_status == 'FAILURE':
+            status_msg(
+                f'Calling {endpoint} caused a failure. The response was:\n{response_status_json}'
+                f'\nThe data was:\n{json}',
+                color='yellow', sections=list(sections) + ['WARNING']
+            )
+            print(response_status_json)
+            return None
+        else:
+            raise ValueError(
+                f'Unexpected status while requesting the status of {endpoint} for {token}: '
+                + task_status
+            )
+    status_msg(
+        f'Maximum trials reached for {endpoint} with the following json data: \n{json}',
+        color='yellow', sections=list(sections) + ['WARNING']
+    )
+    return None
+
+
+def _get_response(
         url: str, login_info: dict, request_func=get, headers=None, json=None, n_trials=5, sections=tuple(), debug=False
 ):
     trials = 0
@@ -63,45 +123,27 @@ def get_response(
         return None
 
 
-def task_result_is_ok(task_result: Union[dict, None], token: str, input_type='text', sections=('GRAPHAI', 'OCR')):
+def task_result_is_ok(task_result: Union[dict, None], token: str, output_type='text', sections=tuple()):
     if task_result is None:
         status_msg(
-            f'Bad task result while extracting {input_type} from {token}',
+            f'Bad task result while extracting {output_type} from {token}',
             color='yellow', sections=list(sections) + ['WARNING']
         )
         return False
-    if not task_result['successful']:
+    if not task_result.get('successful', True):
         status_msg(
-            f'extraction of the {input_type} from {token} failed',
+            f'extraction of the {output_type} from {token} failed',
             color='yellow', sections=list(sections) + ['WARNING']
         )
         return False
-    if not task_result['fresh']:
+    if not task_result.get('fresh', True):
         status_msg(
-            f'{input_type} from {token} has already been extracted in the past',
+            f'{output_type} from {token} has already been extracted in the past',
             color='yellow', sections=list(sections) + ['WARNING']
         )
     else:
         status_msg(
-            f'{input_type} has been extracted from {token}',
+            f'{output_type} has been extracted from {token}',
             color='green', sections=list(sections) + ['SUCCESS']
         )
     return True
-
-
-def split_text(text: str, max_length: int, split_characters=('\n', '.', ';', ',', ' ')):
-    result = []
-    assert max_length > 0
-    while len(text) > max_length:
-        for split_char in split_characters:
-            pos = text[:max_length].rfind(split_char)
-            if pos > 0:
-                result.append(text[:pos+1])
-                text = text[pos+1:]
-                break
-        if len(text) > max_length:
-            result.append(text[:max_length])
-            text = text[max_length:]
-    if len(text) > 0:
-        result.append(text)
-    return result

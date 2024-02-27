@@ -249,6 +249,26 @@ def convert_subtitle_into_segments(caption_data, file_ext='srt', text_key='text'
     return segments
 
 
+def create_srt_file_from_segments(
+        segments: List[dict], filename=None, text_key='text', time_fmt='{H:02}:{M:02}:{S:02},{m:03}', words_per_line=8
+):
+    result = ''
+    for segment in segments:
+        start = timedelta(seconds=segment['start'])
+        end = timedelta(seconds=segment['end'])
+        text = segment[text_key].strip()
+        words = text.split(' ')
+        if len(words) > words_per_line and '\n' not in text:
+            text = ' '.join(words[:words_per_line]) + '\n' + ' '.join(words[words_per_line:])
+        result += str(segment['id'] + 1) + '\n'
+        result += strfdelta(start, time_fmt) + ' --> ' + strfdelta(end, time_fmt) + '\n'
+        result += text + '\n\n'
+    if filename is not None:
+        with open(filename, 'wt') as fp:
+            fp.write(result)
+    return result
+
+
 def combine_language_segments(text_key='text', precision_s=0.5, **kwargs):
     segments_combined = []
     languages = list(kwargs.keys())

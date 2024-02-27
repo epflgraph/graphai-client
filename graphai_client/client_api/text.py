@@ -22,11 +22,11 @@ def extract_concepts_from_text(
     :param filtering_threshold: refer to the API documentation
     :param filtering_min_votes: refer to the API documentation
     :param refresh_scores: refer to the API documentation
-    :param sections: sections to display in logs
+    :param sections: sections to use in the status messages.
     :param debug: if True additional information about each connection to the API is displayed.
-    :param n_trials: number of trials to perform in case of errors before giving up
-    :param session: optional requests.Session object
-    :return: a list of dictionary containing the concept and the associated scores.
+    :param n_trials: number of trials to perform in case of errors before giving up.
+    :param session: optional requests.Session object.
+    :return: a list of dictionary containing the concept and the associated scores if successful, None otherwise.
     """
     if 'token' not in login_info:
         login_info = login(login_info['graph_api_json'])
