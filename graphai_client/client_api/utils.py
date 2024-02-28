@@ -87,13 +87,20 @@ def _get_response(
             if json is not None:
                 msg += f' with json data "{json}"'
             print(msg)
-        response = request_func(url, headers=headers, json=json)
+        try:
+            response = request_func(url, headers=headers, json=json)
+        except Exception as e:
+            msg = f'Caught exception "{str(e)}" while doing POST on {url}'
+            if json is not None:
+                msg += f' with json data "{json}"'
+            status_msg(msg, color='yellow', sections=list(sections) + ['WARNING'])
+            continue
         status_code = response.status_code
         if debug:
             print(f'Got response with code{status_code}: {response.text}')
         if response.ok:
             return response
-        elif status_code == '401':
+        elif status_code == 401:
             status_msg(
                 f'Error {status_code}: {response.reason}, trying to reconnect...',
                 color='yellow', sections=list(sections) + ['WARNING']

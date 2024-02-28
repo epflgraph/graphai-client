@@ -1,7 +1,7 @@
 from requests import Session
 from urllib.parse import urlencode
 from graphai_client.client_api import login
-from graphai_client.client_api.utils import status_msg
+from graphai_client.client_api.utils import _get_response
 
 
 def extract_concepts_from_text(
@@ -46,44 +46,11 @@ def extract_concepts_from_text(
     )
     url = login_info['host'] + '/text/wikify?' + urlencode(url_params)
     json = {'raw_text': text}
-    status_code = None
-    trials = 0
-    while trials < n_trials:
-        trials += 1
-        if debug:
-            msg = f'Sending post request to {url}'
-            if json is not None:
-                msg += f' with json data "{json}"'
-            print(msg)
-        try:
-            response = session.post(url, json=json, headers={"Authorization": f"Bearer {login_info['token']}"})
-            status_code = response.status_code
-            if debug:
-                print(f'Got response with code{response.status_code}: {response.text}')
-            if response.ok:
-                if close_session:
-                    session.close()
-                return response.json()
-            elif status_code == '401':
-                status_msg(
-                    f'Error {status_code}: {response.reason}, trying to reconnect...',
-                    color='yellow', sections=list(sections) + ['WARNING']
-                )
-                login_info = login(login_info['graph_api_json'])
-            else:
-                msg = f'Error {status_code}: {response.reason} while doing POST on {url}'
-                if json is not None:
-                    msg += f' with json data "{json}"'
-                status_msg(msg, color='yellow', sections=list(sections) + ['WARNING'])
-        except Exception as e:
-            msg = f'Caught exception "{str(e)}" while doing POST on {url}'
-            if json is not None:
-                msg += f' with json data "{json}"'
-            status_msg(msg, color='yellow', sections=list(sections) + ['WARNING'])
-    if status_code == 500:
-        msg = f'Could not get response for POST on "{url}"'
-        if json is not None:
-            msg += f' with json data "{json}"'
+    response = _get_response(
+        url, login_info, request_func=session.post, json=json, n_trials=n_trials, sections=sections, debug=debug
+    )
     if close_session:
         session.close()
-    return None
+    if response is None:
+        return None
+    return response.json()
