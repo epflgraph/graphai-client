@@ -30,6 +30,15 @@ class TranslationTests(unittest.TestCase):
         self.assertEqual(translated_text[0], None)
         self.assertEqual(translated_text[2], '')
 
+    def test_detect_language(self):
+        from graphai_client.client_api.translation import detect_language
+
+        self.assertEqual(detect_language('a demonstration of a theorem must contain a proof.', login_info), 'en')
+        self.assertEqual(
+            detect_language('une démonstration d\'un théorème doit contenir une preuve.', login_info),
+            'fr'
+        )
+
 
 class TestSplitText(unittest.TestCase):
     def test_split(self):

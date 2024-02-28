@@ -182,6 +182,36 @@ def translate_text(
         return task_result['result']
 
 
+def detect_language(
+        text: str, login_info, sections=('GRAPHAI', 'TRANSLATE'), debug=False, n_try=600, delay_retry=1
+) -> Optional[str]:
+    """
+    Detect the language of the given text.
+
+    :param text: text for which the language has to be detected.
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
+    :param sections: sections to use in the status messages.
+    :param debug: if True additional information about each connection to the API is displayed.
+    :param n_try: the number of tries before giving up.
+    :param delay_retry: the time to wait between tries.
+    :return: the detected language if successful, None otherwise.
+    """
+    task_result = call_async_endpoint(
+        endpoint='/translation/detect_language',
+        json={"text": text},
+        login_info=login_info,
+        token='text',
+        output_type='language',
+        n_try=n_try,
+        delay_retry=delay_retry,
+        sections=sections,
+        debug=debug
+    )
+    if task_result is None:
+        return None
+    return task_result['language']
+
+
 def split_text(text: str, max_length: int, split_characters=('\n', '.', ';', ',', ' ')):
     result = []
     assert max_length > 0
