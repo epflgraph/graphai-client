@@ -90,6 +90,8 @@ def _get_response(
         try:
             response = request_func(url, headers=headers, json=json)
         except Exception as e:
+            if trials == n_trials:
+                raise e
             msg = f'Caught exception "{str(e)}" while doing POST on {url}'
             if json is not None:
                 msg += f' with json data "{json}"'
