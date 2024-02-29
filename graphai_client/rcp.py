@@ -1,13 +1,10 @@
 from datetime import timedelta, datetime
-from mysql.connector import connect as mysql_connect
-from json import load as load_json
-from os.path import dirname, join
-from re import match, fullmatch
+from re import fullmatch
 from requests import Session
 from graphai_client.utils import (
     status_msg, get_video_link_and_size, strfdelta, insert_line_into_table_with_types, convert_subtitle_into_segments,
     combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript,
-    insert_data_into_table_with_type, execute_query, prepare_value_for_mysql
+    insert_data_into_table_with_type, execute_query, prepare_value_for_mysql, get_piper_connection
 )
 from graphai_client.client import process_video, translate_extracted_text, translate_subtitles
 from graphai_client.client_api import login
@@ -29,14 +26,7 @@ def process_videos_on_rcp(
 ):
     if login_info is None or 'token' not in login_info:
         login_info = login(graph_api_json)
-    if piper_mysql_json_file is None:
-        piper_mysql_json_file = join(dirname(__file__), 'config', 'piper_db.json')
-    with open(piper_mysql_json_file) as fp:
-        piper_con_info = load_json(fp)
-    with mysql_connect(
-        host=piper_con_info['host'], port=piper_con_info['port'], user=piper_con_info['user'],
-        password=piper_con_info['password']
-    ) as piper_connection:
+    with get_piper_connection(piper_mysql_json_file) as piper_connection:
         with piper_connection.cursor() as piper_cursor:
             piper_cursor.execute(
                 'SELECT DISTINCT SwitchVideoID, SwitchChannelID FROM gen_switchtube.Slide_Text;'
@@ -149,7 +139,7 @@ def process_videos_on_rcp(
                         slides = None
                     if analyze_audio:
                         subtitles = get_subtitles_from_kaltura(
-                            kaltura_video_id, login_info, piper_cursor=piper_cursor, force=force,
+                            kaltura_video_id, login_info, piper_connection=piper_connection, force=force,
                             destination_languages=destination_languages, debug=debug
                         )
                         if subtitles:
@@ -173,7 +163,7 @@ def process_videos_on_rcp(
                         subtitles = None
                 else:  # full processing of the video
                     subtitles = get_subtitles_from_kaltura(
-                        kaltura_video_id, login_info, piper_cursor=piper_cursor, force=force,
+                        kaltura_video_id, login_info, piper_connection=piper_connection, force=force,
                         destination_languages=destination_languages, debug=debug
                     )
                     if subtitles:
@@ -206,22 +196,22 @@ def process_videos_on_rcp(
                     for slide_number, slide in enumerate(slides):
                         slide_time = strfdelta(timedelta(seconds=slide['timestamp']), '{H:02}:{M:02}:{S:02}')
                         insert_line_into_table_with_types(
-                            piper_cursor, 'gen_kaltura', 'Slides',
-                            (
+                            piper_connection, 'gen_kaltura', 'Slides',
+                            [
                                 'kalturaVideoId', 'slideNumber',
                                 'timestamp', 'slideTime',
                                 'textFr', 'textEn'
-                            ),
-                            (
+                            ],
+                            [
                                 kaltura_video_id, slide_number,
                                 slide['timestamp'], slide_time,
                                 slide.get('fr', None),  slide.get('en', None)
-                            ),
-                            (
+                            ],
+                            [
                                 'str', 'int',
                                 'int', 'str',
                                 'str', 'str'
-                            )
+                            ]
                         )
                 if subtitles is not None:
                     piper_cursor.execute(
@@ -229,50 +219,50 @@ def process_videos_on_rcp(
                     )
                     for idx, segment in enumerate(subtitles):
                         insert_line_into_table_with_types(
-                            piper_cursor, 'gen_kaltura', 'Subtitles',
-                            (
+                            piper_connection, 'gen_kaltura', 'Subtitles',
+                            [
                                 'kalturaVideoId', 'segmentId', 'startMilliseconds', 'endMilliseconds',
                                 'startTime', 'endTime',
                                 'textFr', 'textEn'
-                            ),
-                            (
+                            ],
+                            [
                                 kaltura_video_id, idx, int(segment['start']*1000), int(segment['end']*1000),
                                 strfdelta(timedelta(seconds=segment['start']), '{H:02}:{M:02}:{S:02}.{m:03}'),
                                 strfdelta(timedelta(seconds=segment['end']), '{H:02}:{M:02}:{S:02}.{m:03}'),
                                 segment.get('fr', None), segment.get('en', None)
-                            ),
-                            (
+                            ],
+                            [
                                 'str', 'int', 'int', 'int',
                                 'str', 'str',
                                 'str', 'str'
-                            )
+                            ]
                         )
                 piper_cursor.execute(
                     f'DELETE FROM `gen_kaltura`.`Videos` WHERE kalturaVideoId="{kaltura_video_id}"'
                 )
                 insert_line_into_table_with_types(
-                    piper_cursor, 'gen_kaltura', 'Videos',
-                    (
+                    piper_connection, 'gen_kaltura', 'Videos',
+                    [
                         'kalturaVideoId', 'kalturaUrl', 'thumbnailUrl', 'kalturaCreationTime', 'kalturaUpdateTime',
                         'title', 'description', 'kalturaOwner', 'kalturaCreator', 'tags', 'categories',
                         'kalturaEntitledEditors', 'msDuration', 'octetSize',
                         'slidesDetectedLanguage', 'audioDetectedLanguage', 'switchVideoId',
                         'slidesDetectionTime', 'audioTranscriptionTime'
-                    ),
-                    (
+                    ],
+                    [
                         kaltura_video_id, kaltura_url, thumbnail_url, kaltura_creation_time, kaltura_update_time,
                         title, description, kaltura_owner, kaltura_creator, tags, categories,
                         kaltura_entitled_editor, ms_duration, octet_size,
                         slides_detected_language, audio_detected_language, switchtube_video_id,
                         slides_detection_time, audio_transcription_time
-                    ),
-                    (
+                    ],
+                    [
                         'str', 'str', 'str', 'str', 'str',
                         'str', 'str', 'str', 'str', 'str', 'str',
                         'str', 'int', 'int',
                         'str', 'str', 'str',
                         'str', 'str'
-                    )
+                    ]
                 )
                 piper_connection.commit()
                 status_msg(
@@ -281,123 +271,107 @@ def process_videos_on_rcp(
                 )
 
 
-def get_piper_cursor(piper_connection=None, piper_mysql_json_file=None, piper_cursor=None, ):
-    if piper_connection is None and piper_cursor is None:
-        if piper_mysql_json_file is None:
-            piper_mysql_json_file = join(dirname(__file__), 'config', 'piper_db.json')
-        with open(piper_mysql_json_file) as fp:
-            piper_con_info = load_json(fp)
-        piper_connection = mysql_connect(
-            host=piper_con_info['host'], port=piper_con_info['port'], user=piper_con_info['user'],
-            password=piper_con_info['password']
-        )
-    if piper_cursor is None:
-        piper_cursor = piper_connection.cursor()
-    return piper_connection, piper_cursor
-
-
 def get_subtitles_from_kaltura(
-        kaltura_video_id, login_info, piper_cursor=None, piper_mysql_json_file=None, force=False,
+        kaltura_video_id, login_info, piper_connection=None, piper_mysql_json_file=None, force=False,
         destination_languages=('en', 'fr'), ignore_autogenerated=True, debug=False
 ):
-    close_cursor = piper_cursor is None
-    piper_connection, piper_cursor = get_piper_cursor(
-        piper_mysql_json_file=piper_mysql_json_file, piper_cursor=piper_cursor
-    )
-    subtitle_query = f'''
-        SELECT captionData, fileExt, language 
-        FROM ca_kaltura.Captions WHERE kalturaVideoId='{kaltura_video_id}'
-    '''
-    if ignore_autogenerated:
-        piper_cursor.execute(f'''
-            SELECT partnerData FROM ca_kaltura.Videos WHERE kalturaVideoId='{kaltura_video_id}';
-        ''')
-        partner_data_info = list(piper_cursor)
-        languages_with_auto_captions = []
-        if len(partner_data_info) > 0:
-            if partner_data_info[0][0]:
-                partner_data = partner_data_info[0][0].split(',')
-                for data in partner_data:
-                    matched = fullmatch(r'sub_([a-z]+)_auto', data)
-                    if matched:
-                        language_short = matched.group(1).lower()
-                        languages_with_auto_captions.append('"' + short_to_language[language_short] + '"')
-        if languages_with_auto_captions:
-            subtitle_query += f' AND language NOT IN ({", ".join(languages_with_auto_captions)})'
-    subtitles_in_kaltura = {}
-    piper_cursor.execute(subtitle_query)
-    caption_info = list(piper_cursor)
-    if len(caption_info) > 0:
-        for caption_data, file_ext, language in caption_info:
-            if caption_data is None:
-                continue
-            if language.lower() in language_to_short:
-                lang = language_to_short[language.lower()]
-            else:
+    close_connection = False
+    if piper_connection is None:
+        piper_connection = get_piper_connection(piper_mysql_json_file)
+        close_connection = True
+    with piper_connection.cursor() as piper_cursor:
+        subtitle_query = f'''
+            SELECT captionData, fileExt, language 
+            FROM ca_kaltura.Captions WHERE kalturaVideoId='{kaltura_video_id}'
+        '''
+        if ignore_autogenerated:
+            piper_cursor.execute(f'''
+                SELECT partnerData FROM ca_kaltura.Videos WHERE kalturaVideoId='{kaltura_video_id}';
+            ''')
+            partner_data_info = list(piper_cursor)
+            languages_with_auto_captions = []
+            if len(partner_data_info) > 0:
+                if partner_data_info[0][0]:
+                    partner_data = partner_data_info[0][0].split(',')
+                    for data in partner_data:
+                        matched = fullmatch(r'sub_([a-z]+)_auto', data)
+                        if matched:
+                            language_short = matched.group(1).lower()
+                            languages_with_auto_captions.append('"' + short_to_language[language_short] + '"')
+            if languages_with_auto_captions:
+                subtitle_query += f' AND language NOT IN ({", ".join(languages_with_auto_captions)})'
+        subtitles_in_kaltura = {}
+        piper_cursor.execute(subtitle_query)
+        caption_info = list(piper_cursor)
+        if len(caption_info) > 0:
+            for caption_data, file_ext, language in caption_info:
+                if caption_data is None:
+                    continue
+                if language.lower() in language_to_short:
+                    lang = language_to_short[language.lower()]
+                else:
+                    status_msg(
+                        f'Unknown caption language: {language}',
+                        sections=['GRAPHAI', 'GET SUBTITLES', 'WARNING'], color='yellow'
+                    )
+                    continue
+                segments = convert_subtitle_into_segments(caption_data, file_ext=file_ext)
+                if segments and len(segments) == 1 and \
+                        segments[0]['text'] == default_missing_transcript.get(lang, None):
+                    continue
+                subtitles_in_kaltura[lang] = segments
+        if not subtitles_in_kaltura:
+            return None
+        if ignore_autogenerated:
+            languages_to_ignore = []
+            for lang, subtitles in subtitles_in_kaltura.items():
+                if subtitles[0]:
+                    if subtitles[0]['text'].split('\n')[0] == default_disclaimer[lang]:
+                        msg = f'Found automatic captions not tagged by "sub_{lang}_auto" in partnerData ' + \
+                              f'for video "{kaltura_video_id}"'
+                        status_msg(msg, sections=['GRAPHAI', 'GET SUBTITLES', 'WARNING'], color='yellow')
+                        languages_to_ignore.append(lang)
+            for lang in languages_to_ignore:
+                del subtitles_in_kaltura[lang]
+        subtitles = combine_language_segments(**subtitles_in_kaltura, precision_s=2)
+        if destination_languages:
+            missing_destination_language = []
+            for lang in destination_languages:
+                if lang not in subtitles_in_kaltura:
+                    missing_destination_language.append(lang)
+            if missing_destination_language:
+                if 'en' in subtitles_in_kaltura:
+                    translate_from = 'en'
+                elif 'fr' in subtitles_in_kaltura:
+                    translate_from = 'fr'
+                elif 'de' in subtitles_in_kaltura:
+                    translate_from = 'de'
+                elif 'it' in subtitles_in_kaltura:
+                    translate_from = 'it'
+                else:
+                    translate_from = list(subtitles_in_kaltura.keys())[0]
                 status_msg(
-                    f'Unknown caption language: {language}',
-                    sections=['GRAPHAI', 'GET SUBTITLES', 'WARNING'], color='yellow'
+                    f'translate transcription for {len(subtitles)} segments in {translate_from}',
+                    color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
                 )
-                continue
-            segments = convert_subtitle_into_segments(caption_data, file_ext=file_ext)
-            if segments and len(segments) == 1 and segments[0]['text'] == default_missing_transcript.get(lang, None):
-                continue
-            subtitles_in_kaltura[lang] = segments
-    if not subtitles_in_kaltura:
-        return None
-    if ignore_autogenerated:
-        languages_to_ignore = []
-        for lang, subtitles in subtitles_in_kaltura.items():
-            if subtitles[0]:
-                if subtitles[0]['text'].split('\n')[0] == default_disclaimer[lang]:
-                    msg = f'Found automatic captions not tagged by "sub_{lang}_auto" in partnerData ' + \
-                          f'for video "{kaltura_video_id}"'
-                    status_msg(msg, sections=['GRAPHAI', 'GET SUBTITLES', 'WARNING'], color='yellow')
-                    languages_to_ignore.append(lang)
-        for lang in languages_to_ignore:
-            del subtitles_in_kaltura[lang]
-    subtitles = combine_language_segments(**subtitles_in_kaltura, precision_s=2)
-    if destination_languages:
-        missing_destination_language = []
-        for lang in destination_languages:
-            if lang not in subtitles_in_kaltura:
-                missing_destination_language.append(lang)
-        if missing_destination_language:
-            if 'en' in subtitles_in_kaltura:
-                translate_from = 'en'
-            elif 'fr' in subtitles_in_kaltura:
-                translate_from = 'fr'
-            elif 'de' in subtitles_in_kaltura:
-                translate_from = 'de'
-            elif 'it' in subtitles_in_kaltura:
-                translate_from = 'it'
-            else:
-                translate_from = subtitles_in_kaltura.keys()[0]
-            status_msg(
-                f'translate transcription for {len(subtitles)} segments in {translate_from}',
-                color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
-            )
-            subtitles = translate_subtitles(
-                subtitles, login_info, force=force, source_language=translate_from,
-                destination_languages=missing_destination_language, debug=debug
-            )
-            subtitles = add_initial_disclaimer(subtitles, restrict_lang=missing_destination_language)
-    if close_cursor:
-        piper_cursor.close()
+                subtitles = translate_subtitles(
+                    subtitles, login_info, force=force, source_language=translate_from,
+                    destination_languages=missing_destination_language, debug=debug
+                )
+                subtitles = add_initial_disclaimer(subtitles, restrict_lang=missing_destination_language)
+    if close_connection:
         piper_connection.close()
     return subtitles
 
 
 def detect_concept_on_rcp(
         kaltura_ids: list, analyze_subtitles=False, analyze_slides=True, graph_api_json=None, login_info=None,
-        piper_mysql_json_file=None, piper_connection=None
+        piper_mysql_json_file=None
 ):
     if login_info is None or 'token'not in login_info:
         login_info = login(graph_api_json)
-    close_connection = piper_connection is None
-    piper_connection, piper_cursor = get_piper_cursor(
-        piper_connection=piper_connection, piper_mysql_json_file=piper_mysql_json_file
-    )
+    piper_connection = get_piper_connection(piper_mysql_json_file)
+    piper_cursor = piper_connection.cursor()
     session = Session()
     for video_id in kaltura_ids:
         status_msg(
@@ -438,7 +412,7 @@ def detect_concept_on_rcp(
                     ) for scores in segment_scores
                 ])
             insert_data_into_table_with_type(
-                piper_cursor, schema='gen_kaltura', table_name='Subtitle_Concepts',
+                piper_connection, schema='gen_kaltura', table_name='Subtitle_Concepts',
                 columns=(
                     'kalturaVideoId', 'segmentId', 'PageId', 'PageTitle', 'SearchScore',
                     'LevenshteinScore', 'GraphScore', 'OntologyLocalScore',
@@ -453,12 +427,13 @@ def detect_concept_on_rcp(
             )
             if segments_processed > 0:
                 status_msg(
-                    f'Concepts have been extracted from {segments_processed}/{len(segments_info)} subtitles of {video_id}',
+                    f'Concepts have been extracted from {segments_processed}/{len(segments_info)} '
+                    f'subtitles of {video_id}',
                     color='green', sections=['KALTURA', 'CONCEPT DETECTION', 'SUBTITLES', 'SUCCESS']
                 )
             else:
                 status_msg(
-                    f'No usuable sutitles found for video {video_id}',
+                    f'No usable subtitles found for video {video_id}',
                     color='yellow', sections=['KALTURA', 'CONCEPT DETECTION', 'SUBTITLES', 'WARNING']
                 )
             now = str(datetime.now())
@@ -502,7 +477,7 @@ def detect_concept_on_rcp(
                     ) for scores in slide_scores
                 ])
             insert_data_into_table_with_type(
-                piper_cursor, schema='gen_kaltura', table_name='Slide_Concepts',
+                piper_connection, schema='gen_kaltura', table_name='Slide_Concepts',
                 columns=(
                     'kalturaVideoId', 'slideNumber', 'PageId', 'PageTitle', 'SearchScore',
                     'LevenshteinScore', 'GraphScore', 'OntologyLocalScore',
@@ -536,21 +511,17 @@ def detect_concept_on_rcp(
             f'The video {video_id} has been processed',
             color='green', sections=['KALTURA', 'CONCEPT DETECTION', 'SUCCESS']
         )
+    session.close()
     piper_cursor.close()
-    if close_connection:
-        piper_connection.close()
+    piper_connection.close()
 
 
 def fix_subtitles_translation_on_rcp(
-        kaltura_ids: list, graph_api_json=None, login_info=None, piper_mysql_json_file=None, piper_connection=None,
-        source_language='fr', target_language='en'
+        kaltura_ids: list, graph_api_json=None, piper_mysql_json_file=None, source_language='fr', target_language='en'
 ):
-    if login_info is None or 'token'not in login_info:
-        login_info = login(graph_api_json)
-    close_connection = piper_connection is None
-    piper_connection, piper_cursor = get_piper_cursor(
-        piper_connection=piper_connection, piper_mysql_json_file=piper_mysql_json_file
-    )
+    login_info = login(graph_api_json)
+    piper_connection = get_piper_connection(piper_mysql_json_file)
+    piper_cursor = piper_connection.cursor()
     assert source_language != target_language
     if source_language == 'en':
         column_source = 'textEn'
@@ -604,7 +575,7 @@ def fix_subtitles_translation_on_rcp(
             if translated_segment is None:
                 continue
             translated_segment_str = prepare_value_for_mysql(translated_segment.strip(), 'str')
-            execute_query(piper_cursor, f'''
+            execute_query(piper_connection, f'''
                 UPDATE gen_kaltura.Subtitles 
                 SET {column_target}={translated_segment_str} 
                 WHERE kalturaVideoId="{video_id}" AND segmentId={segment_id};
@@ -617,20 +588,16 @@ def fix_subtitles_translation_on_rcp(
             color='green', sections=['KALTURA', 'FIX TRANSLATION', 'SUCCESS']
         )
     piper_cursor.close()
-    if close_connection:
-        piper_connection.close()
+    piper_connection.close()
 
 
 def fix_slides_translation_on_rcp(
-        kaltura_ids: list, graph_api_json=None, login_info=None, piper_mysql_json_file=None, piper_connection=None,
+        kaltura_ids: list, graph_api_json=None, piper_mysql_json_file=None,
         source_language='fr', target_language='en'
 ):
-    if login_info is None or 'token'not in login_info:
-        login_info = login(graph_api_json)
-    close_connection = piper_connection is None
-    piper_connection, piper_cursor = get_piper_cursor(
-        piper_connection=piper_connection, piper_mysql_json_file=piper_mysql_json_file
-    )
+    login_info = login(graph_api_json)
+    piper_connection = get_piper_connection(piper_mysql_json_file)
+    piper_cursor = piper_connection.cursor()
     assert source_language != target_language
     if source_language == 'en':
         column_source = 'textEn'
@@ -671,7 +638,7 @@ def fix_slides_translation_on_rcp(
             if translated_slide is None:
                 continue
             translated_slide_str = prepare_value_for_mysql(translated_slide.strip(), 'str')
-            execute_query(piper_cursor, f'''
+            execute_query(piper_connection, f'''
                     UPDATE gen_kaltura.Slides
                     SET {column_target}={translated_slide_str} 
                     WHERE kalturaVideoId="{video_id}" AND SlideNumber={slide_id};
@@ -684,5 +651,4 @@ def fix_slides_translation_on_rcp(
             color='green', sections=['KALTURA', 'FIX TRANSLATION', 'SUCCESS']
         )
     piper_cursor.close()
-    if close_connection:
-        piper_connection.close()
+    piper_connection.close()

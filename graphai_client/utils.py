@@ -5,9 +5,10 @@ from datetime import datetime, timedelta
 from string import Formatter
 from numpy import isnan, isinf
 from re import compile, finditer
-from typing import Literal, Union, List
-from mysql.connector.cursor import MySQLCursor
-from mysql.connector.cursor_cext import CMySQLCursor
+from typing import Union, List
+from json import load as load_json
+from os.path import dirname, join
+from mysql.connector import MySQLConnection, connect as mysql_connect
 
 default_disclaimer = {
     'en': 'These subtitles have been generated automatically',
@@ -103,7 +104,19 @@ def strfdelta(time_delta: timedelta, fmt='{H:02}:{M:02}:{S:02},{m:03}'):
     return f.format(fmt, **values)
 
 
-def prepare_values_for_mysql(values: list, types: List[Literal["str", "int", "float"]], encoding='utf8'):
+def get_piper_connection(piper_mysql_json_file=None) -> MySQLConnection:
+    if piper_mysql_json_file is None:
+        import graphai_client
+        piper_mysql_json_file = join(dirname(graphai_client.__file__), 'config', 'piper_db.json')
+    with open(piper_mysql_json_file) as fp:
+        piper_con_info = load_json(fp)
+    return mysql_connect(
+        host=piper_con_info['host'], port=piper_con_info['port'], user=piper_con_info['user'],
+        password=piper_con_info['password']
+    )
+
+
+def prepare_values_for_mysql(values: list, types: List[str], encoding='utf8'):
     values_str = []
     assert len(values) == len(types)
     for val, val_type in zip(values, types):
@@ -111,7 +124,7 @@ def prepare_values_for_mysql(values: list, types: List[Literal["str", "int", "fl
     return values_str
 
 
-def prepare_value_for_mysql(value: Union[str, int, float], value_type: Literal["str", "int", "float"], encoding='utf8'):
+def prepare_value_for_mysql(value: Union[str, int, float], value_type: str, encoding='utf8'):
     if value is None:
         return "NULL"
     elif value_type == "str":
@@ -130,67 +143,60 @@ def prepare_value_for_mysql(value: Union[str, int, float], value_type: Literal["
 
 
 def insert_line_into_table_with_types(
-        cursor, schema, table_name, columns, values, types: List[Literal["str", "int", "float"]],
-        encoding='utf8', retry=5
+        connection: MySQLConnection, schema, table_name, columns: List[str], values: list,
+        types: List[str], encoding='utf8', retry=5
 ):
     values_str = prepare_values_for_mysql(values, types, encoding=encoding)
     sql_query = f"""
         INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
         VALUES ({', '.join(values_str)});
     """
-    execute_query(cursor, sql_query, retry=retry)
+    execute_query(connection, sql_query, retry=retry)
 
 
-def insert_data_into_table_with_type(cursor, schema, table_name, columns, data, types, retry=5):
-    format_values = ', '.join(['%s' for t in types])
+def insert_data_into_table_with_type(connection: MySQLConnection, schema, table_name, columns, data, types, retry=5):
+    format_values = ', '.join(['%s' for _ in types])
     sql_query = f"""
         INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
         VALUES ({format_values});
     """
-    execute_many(cursor, sql_query, data, retry=retry)
+    execute_many(connection, sql_query, data, retry=retry)
 
 
-def execute_query(cursor: MySQLCursor, sql_query, retry=5, multiple_statements=False):
-    try:
-        cursor.execute(sql_query, multi=multiple_statements)
-    except Exception as e:
-        msg = 'Received exception: ' + str(e) + '\n'
-        if retry > 0:
-            msg += f"Trying to reconnect and resend the query ({retry}x at most)"
-            status_msg(msg, sections=['MYSQL INSERT', 'WARNING'], color='grey')
-            get_connection(cursor).ping(reconnect=True)
-            execute_query(cursor, sql_query, retry=retry-1)
-        else:
-            msg += f"No more tries left to execute the query:\n\t" + sql_query
-            status_msg(msg, sections=['EXECUTE QUERY', 'ERROR'], color='red')
-            raise e
+def execute_query(connection: MySQLConnection, sql_query, retry=5, multiple_statements=False):
+    with connection.cursor() as cursor:
+        try:
+            cursor.execute(sql_query, multi=multiple_statements)
+        except Exception as e:
+            msg = 'Received exception: ' + str(e) + '\n'
+            if retry > 0:
+                msg += f"Trying to reconnect and resend the query ({retry}x at most)"
+                status_msg(msg, sections=['MYSQL INSERT', 'WARNING'], color='grey')
+                connection.ping(reconnect=True)
+                execute_query(connection, sql_query, retry=retry-1)
+            else:
+                msg += f"No more tries left to execute the query:\n\t" + sql_query
+                status_msg(msg, sections=['EXECUTE QUERY', 'ERROR'], color='red')
+                raise e
 
 
-def execute_many(cursor: MySQLCursor, sql_query, data_str, retry=5, delay_s=30):
-    try:
-        cursor.executemany(sql_query, data_str)
-    except Exception as e:
-        msg = 'Received exception: ' + str(e) + '\n'
-        if retry > 0:
-            msg += f"Sleep {delay_s}, then try to reconnect and resend the query ({retry}x at most)"
-            sleep(delay_s)
-            status_msg(msg, sections=['MYSQL INSERT', 'WARNING'], color='grey')
-            get_connection(cursor).ping(reconnect=True)
-            execute_many(cursor, sql_query, data_str, retry=retry-1, delay_s=2*delay_s)
-        else:
-            msg += f"No more tries left to execute the query:\n\t" + sql_query
-            msg += f"with data:\n" + '\n\t'.join([str(d) for d in data_str])
-            status_msg(msg, sections=['EXECUTE MANY', 'ERROR'], color='red')
-            raise e
-
-
-def get_connection(cursor):
-    if isinstance(cursor, MySQLCursor):
-        return cursor._connection
-    elif isinstance(cursor, CMySQLCursor):
-        return cursor._cnx
-    else:
-        raise NotImplementedError(f'cannot get connection from cursor of type {type(cursor)}')
+def execute_many(connection: MySQLConnection, sql_query, data_str, retry=5, delay_s=30):
+    with connection.cursor() as cursor:
+        try:
+            cursor.executemany(sql_query, data_str)
+        except Exception as e:
+            msg = 'Received exception: ' + str(e) + '\n'
+            if retry > 0:
+                msg += f"Sleep {delay_s}, then try to reconnect and resend the query ({retry}x at most)"
+                sleep(delay_s)
+                status_msg(msg, sections=['MYSQL INSERT', 'WARNING'], color='grey')
+                connection.ping(reconnect=True)
+                execute_many(connection, sql_query, data_str, retry=retry-1, delay_s=2*delay_s)
+            else:
+                msg += f"No more tries left to execute the query:\n\t" + sql_query
+                msg += f"with data:\n" + '\n\t'.join([str(d) for d in data_str])
+                status_msg(msg, sections=['EXECUTE MANY', 'ERROR'], color='red')
+                raise e
 
 
 def convert_subtitle_into_segments(caption_data, file_ext='srt', text_key='text'):
@@ -223,9 +229,9 @@ def convert_subtitle_into_segments(caption_data, file_ext='srt', text_key='text'
             if match_time:
                 time_dict = match_time.groupdict(default='0')
                 start = int(time_dict.get('h1', 0)) * 3600 + int(time_dict.get('m1', 0)) * 60 + \
-                        int(time_dict['s1']) + float('0.' + time_dict.get('subs1', 0))
+                    int(time_dict['s1']) + float('0.' + time_dict.get('subs1', 0))
                 end = int(time_dict.get('h2', 0)) * 3600 + int(time_dict.get('m2', 0)) * 60 + \
-                        int(time_dict['s2']) + float('0.' + time_dict.get('subs2', 0))
+                    int(time_dict['s2']) + float('0.' + time_dict.get('subs2', 0))
             else:
                 raise RuntimeError(f'Expected segment start and end time but got: {line}')
             current_line_type = 'text'
@@ -297,7 +303,9 @@ def combine_language_segments(text_key='text', precision_s=0.5, **kwargs):
 
 
 def harmonize_segments(precision_s=0.5, text_key='text', **kwargs):
-    harmonized_segments_interval, link_to_harmonized_segments = _harmonize_segments_interval(precision_s=precision_s, **kwargs)
+    harmonized_segments_interval, link_to_harmonized_segments = _harmonize_segments_interval(
+        precision_s=precision_s, **kwargs
+    )
     harmonized_segments = [
         {'id': idx, 'start': start, 'end': end, }
         for idx, (start, end) in enumerate(harmonized_segments_interval)
@@ -306,7 +314,8 @@ def harmonize_segments(precision_s=0.5, text_key='text', **kwargs):
         harm_seg_idx = 0
         for lang_seg_idx, segment in enumerate(segments_lang):
             harmonized_segments_linked = []
-            while harm_seg_idx < len(harmonized_segments) and link_to_harmonized_segments[harm_seg_idx][lang] == lang_seg_idx:
+            while harm_seg_idx < len(harmonized_segments) and \
+                    link_to_harmonized_segments[harm_seg_idx][lang] == lang_seg_idx:
                 harmonized_segments_linked.append(harm_seg_idx)
                 harm_seg_idx += 1
             num_linked_segments = len(harmonized_segments_linked)
@@ -459,6 +468,7 @@ def _harmonize_segments_interval(precision_s=0.5, **kwargs):
                 link_to_language_segments.append({lang: seg_idx})
                 harmonized_segment_idx += 1
             else:
+                current_harm_seg_end = harmonized_segments[harmonized_segment_idx][1]
                 if not -precision_s < harmonized_segments[harmonized_segment_idx][0] - seg['start'] < precision_s:
                     status_msg(
                         f"start of {lang} segment {seg_idx} ({seg['start']}) did not match the harmonized segment "
@@ -466,19 +476,17 @@ def _harmonize_segments_interval(precision_s=0.5, **kwargs):
                         color='yellow', sections=['KALTURA', 'HARMONIZE SEGMENTS', 'WARNING']
                     )
                     harmonized_segments[harmonized_segment_idx] = (
-                        min(seg['start'], harmonized_segments[harmonized_segment_idx][0]),
-                        harmonized_segments[harmonized_segment_idx][1]
+                        min(seg['start'], harmonized_segments[harmonized_segment_idx][0]), current_harm_seg_end
                     )
-                if -precision_s < harmonized_segments[harmonized_segment_idx][1] - seg['end'] < precision_s:
+                if -precision_s < current_harm_seg_end - seg['end'] < precision_s:
                     link_to_language_segments[harmonized_segment_idx][lang] = seg_idx
                     harmonized_segment_idx += 1
                 else:
                     # the harmonized segment is larger than the new one
-                    if harmonized_segments[harmonized_segment_idx][1] > seg['end']:
+                    if current_harm_seg_end > seg['end']:
                         # the next segment start before the current harmonized segment end
                         if seg_idx + 1 < len(segments) and \
-                                segments[seg_idx+1]['start'] < harmonized_segments[harmonized_segment_idx][1]:
-                            current_harm_seg_end = harmonized_segments[harmonized_segment_idx][1]
+                                segments[seg_idx+1]['start'] < current_harm_seg_end:
                             harmonized_segments[harmonized_segment_idx] = (
                                 harmonized_segments[harmonized_segment_idx][0], seg['end']
                             )
@@ -489,10 +497,10 @@ def _harmonize_segments_interval(precision_s=0.5, **kwargs):
                                 harmonized_segment_idx + 1, link_to_language_segments[harmonized_segment_idx].copy()
                             )
                         else:
-                            if not -precision_s < harmonized_segments[harmonized_segment_idx][1]-seg['end'] < precision_s:
+                            if not -precision_s < current_harm_seg_end - seg['end'] < precision_s:
                                 status_msg(
                                     f'end time of {lang} segment {seg_idx} do not match the harmonized segment '
-                                    f"{harmonized_segment_idx} ({harmonized_segments[harmonized_segment_idx][1]})",
+                                    f"{harmonized_segment_idx} ({current_harm_seg_end})",
                                     color='yellow', sections=['KALTURA', 'HARMONIZE SEGMENTS', 'WARNING']
                                 )
                         link_to_language_segments[harmonized_segment_idx][lang] = seg_idx
@@ -502,21 +510,21 @@ def _harmonize_segments_interval(precision_s=0.5, **kwargs):
                         while harmonized_segment_idx+1 < len(harmonized_segments) and (
                                 seg_idx + 1 >= len(segments) or
                                 harmonized_segments[harmonized_segment_idx+1][1] <= segments[seg_idx+1]['start']
-                            ):
+                        ):
                             link_to_language_segments[harmonized_segment_idx][lang] = seg_idx
                             harmonized_segment_idx += 1
-                            if -precision_s < harmonized_segments[harmonized_segment_idx][1]-seg['end'] < precision_s:
+                            if -precision_s < current_harm_seg_end - seg['end'] < precision_s:
                                 found_matching_end = True
                                 break
                         if not found_matching_end:
                             status_msg(
                                 f'end time of {lang} segment {seg_idx} do not match the harmonized segment '
-                                f"{harmonized_segment_idx} ({harmonized_segments[harmonized_segment_idx][1]})",
+                                f"{harmonized_segment_idx} ({current_harm_seg_end})",
                                 color='yellow', sections=['KALTURA', 'HARMONIZE SEGMENTS', 'WARNING']
                             )
                             harmonized_segments[harmonized_segment_idx] = (
                                 harmonized_segments[harmonized_segment_idx][0],
-                                max(seg['end'], harmonized_segments[harmonized_segment_idx][1])
+                                max(seg['end'], current_harm_seg_end)
                             )
                         link_to_language_segments[harmonized_segment_idx][lang] = seg_idx
                         harmonized_segment_idx += 1
