@@ -7,7 +7,7 @@ from graphai_client.client_api import login
 
 def call_async_endpoint(
         endpoint, json, login_info, token, output_type, try_count=0,
-        n_try=6000, delay_retry=1, sections=(), debug=False
+        n_try=6000, delay_retry=1, sections=(), debug=False, quiet=False
 ):
     response_endpoint = _get_response(
         url=endpoint,
@@ -41,7 +41,7 @@ def call_async_endpoint(
             sleep(delay_retry)
         elif task_status == 'SUCCESS':
             task_result = response_status_json['task_result']
-            if not task_result_is_ok(task_result, token=token, output_type=output_type, sections=sections):
+            if not task_result_is_ok(task_result, token=token, output_type=output_type, sections=sections, quiet=quiet):
                 sleep(delay_retry)
                 continue
             return task_result
@@ -51,7 +51,6 @@ def call_async_endpoint(
                 f'\nThe data was:\n{json}',
                 color='yellow', sections=list(sections) + ['WARNING']
             )
-            print(response_status_json)
             return None
         else:
             raise ValueError(
@@ -132,7 +131,7 @@ def _get_response(
         return None
 
 
-def task_result_is_ok(task_result: Union[dict, None], token: str, output_type='text', sections=tuple()):
+def task_result_is_ok(task_result: Union[dict, None], token: str, output_type='text', sections=tuple(), quiet=False):
     if task_result is None:
         status_msg(
             f'Bad task result while extracting {output_type} from {token}',
@@ -145,14 +144,15 @@ def task_result_is_ok(task_result: Union[dict, None], token: str, output_type='t
             color='yellow', sections=list(sections) + ['WARNING']
         )
         return False
-    if not task_result.get('fresh', True):
-        status_msg(
-            f'{output_type} from {token} has already been extracted in the past',
-            color='yellow', sections=list(sections) + ['WARNING']
-        )
-    else:
-        status_msg(
-            f'{output_type} has been extracted from {token}',
-            color='green', sections=list(sections) + ['SUCCESS']
-        )
+    if not quiet:
+        if not task_result.get('fresh', True):
+            status_msg(
+                f'{output_type} from {token} has already been extracted in the past',
+                color='yellow', sections=list(sections) + ['WARNING']
+            )
+        else:
+            status_msg(
+                f'{output_type} has been extracted from {token}',
+                color='green', sections=list(sections) + ['SUCCESS']
+            )
     return True
