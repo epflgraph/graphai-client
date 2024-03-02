@@ -107,6 +107,7 @@ def _get_response(
                 color='yellow', sections=list(sections) + ['WARNING']
             )
             login_info = login(login_info['graph_api_json'])
+            headers["Authorization"] = f"Bearer {login_info['token']}"
         else:
             status_msg(
                 f'Error {status_code}: {response.reason} while doing {request_func.__name__.upper()} on {url}',
