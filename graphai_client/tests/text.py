@@ -16,6 +16,13 @@ class ConceptExtractionTests(unittest.TestCase):
 
         self.assertEqual(extract_concepts_from_text('', login_info), [])
 
+    def test_login_after_error_401(self):
+        from graphai_client.client_api.text import extract_concepts_from_text
+
+        login_info['token'] = 'wrong_token'
+        extract_concepts_from_text('a demonstration of a theorem must contain a proof', login_info)
+        self.assertNotEqual(login_info['token'], 'wrong_token')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -65,7 +65,7 @@ def call_async_endpoint(
 
 
 def _get_response(
-        url: str, login_info: dict, request_func=get, headers=None, json=None, n_trials=5, sections=tuple(), debug=False
+        url: str, login_info, request_func=get, headers=None, json=None, n_trials=5, sections=tuple(), debug=False
 ):
     trials = 0
     status_code = None
@@ -106,8 +106,9 @@ def _get_response(
                 f'Error {status_code}: {response.reason}, trying to reconnect...',
                 color='yellow', sections=list(sections) + ['WARNING']
             )
-            login_info = login(login_info['graph_api_json'])
-            headers["Authorization"] = f"Bearer {login_info['token']}"
+            new_token = login(login_info['graph_api_json'])['token']
+            login_info['token'] = new_token
+            headers["Authorization"] = f"Bearer {new_token}"
         else:
             status_msg(
                 f'Error {status_code}: {response.reason} while doing {request_func.__name__.upper()} on {url}',

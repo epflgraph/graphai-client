@@ -1,5 +1,6 @@
-from requests import Session
+from requests import Session, post
 from urllib.parse import urlencode
+from typing import Optional
 from graphai_client.client_api import login
 from graphai_client.client_api.utils import _get_response
 
@@ -8,7 +9,7 @@ def extract_concepts_from_text(
         text: str, login_info: dict, restrict_to_ontology=False, graph_score_smoothing=True,
         ontology_score_smoothing=True, keywords_score_smoothing=True, normalisation_coefficient=0.5,
         filtering_threshold=0.1, filtering_min_votes=5, refresh_scores=True, sections=('GRAPHAI', 'CONCEPT DETECTION'),
-        debug=False, n_trials=5, session: Session = None
+        debug=False, n_trials=5, session: Optional[Session] = None
 ):
     """
     Detect concepts (wikipedia pages) with associated scores from a input text.
@@ -30,10 +31,10 @@ def extract_concepts_from_text(
     """
     if 'token' not in login_info:
         login_info = login(login_info['graph_api_json'])
-    close_session = False
     if session is None:
-        session = Session()
-        close_session = True
+        request_func = post
+    else:
+        request_func = session.post
     url_params = dict(
         restrict_to_ontology=restrict_to_ontology,
         graph_score_smoothing=graph_score_smoothing,
@@ -47,10 +48,8 @@ def extract_concepts_from_text(
     url = login_info['host'] + '/text/wikify?' + urlencode(url_params)
     json = {'raw_text': text}
     response = _get_response(
-        url, login_info, request_func=session.post, json=json, n_trials=n_trials, sections=sections, debug=debug
+        url, login_info, request_func=request_func, json=json, n_trials=n_trials, sections=sections, debug=debug
     )
-    if close_session:
-        session.close()
     if response is None:
         return None
     return response.json()
