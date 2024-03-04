@@ -65,10 +65,13 @@ def call_async_endpoint(
 
 
 def _get_response(
-        url: str, login_info, request_func=get, headers=None, json=None, n_trials=5, sections=tuple(), debug=False
+        url: str, login_info, request_func=get, headers=None, json=None, n_trials=5, sections=tuple(), debug=False,
+        delay_retry=1
 ):
     trials = 0
     status_code = None
+    reason = None
+    request_type = request_func.__name__.upper()
     if 'token' not in login_info:
         login_info = login(login_info['graph_api_json'])
     if not url.startswith('http'):
@@ -80,7 +83,7 @@ def _get_response(
     while trials < n_trials:
         trials += 1
         if debug:
-            msg = f'Sending {request_func.__name__.upper()} request to {url}'
+            msg = f'Sending {request_type} request to {url}'
             if headers is not None:
                 msg += f' with headers "{headers}"'
             if json is not None:
@@ -91,12 +94,16 @@ def _get_response(
         except Exception as e:
             if trials == n_trials:
                 raise e
-            msg = f'Caught exception "{str(e)}" while doing POST on {url}'
+            msg = f'Caught exception "{str(e)}" while doing {request_type} on {url}'
+            if headers is not None:
+                msg += f' with headers "{headers}"'
             if json is not None:
                 msg += f' with json data "{json}"'
             status_msg(msg, color='yellow', sections=list(sections) + ['WARNING'])
+            sleep(delay_retry)
             continue
         status_code = response.status_code
+        reason = response.reason
         if debug:
             print(f'Got response with code{status_code}: {response.text}')
         if response.ok:
@@ -111,7 +118,7 @@ def _get_response(
             headers["Authorization"] = f"Bearer {new_token}"
         else:
             status_msg(
-                f'Error {status_code}: {response.reason} while doing {request_func.__name__.upper()} on {url}',
+                f'Error {status_code}: {response.reason} while doing {request_type} on {url}',
                 color='yellow', sections=list(sections) + ['WARNING']
             )
             if status_code == 422:
@@ -120,17 +127,15 @@ def _get_response(
                     if isinstance(response_json['detail'], list):
                         for detail in response_json['detail']:
                             status_msg(str(detail), color='yellow', sections=list(sections) + ['WARNING'])
-                    status_msg(str(response_json['detail']), color='yellow', sections=list(sections) + ['WARNING'])
-            sleep(1)
-    if status_code == 500:
-        msg = f'Could not get response for {request_func.__name__.upper()} on "{url}"'
-        if headers is not None:
-            msg += f' with headers "{headers}"'
-        if json is not None:
-            msg += f' with json data "{json}"'
-        raise RuntimeError(msg)
-    else:
-        return None
+                    else:
+                        status_msg(str(response_json['detail']), color='yellow', sections=list(sections) + ['WARNING'])
+            sleep(delay_retry)
+    msg = f'Error {status_code}: {reason} while doing {request_type} on "{url}"'
+    if headers is not None:
+        msg += f' with headers "{headers}"'
+    if json is not None:
+        msg += f' with json data "{json}"'
+    raise RuntimeError(msg)
 
 
 def task_result_is_ok(task_result: Union[dict, None], token: str, output_type='text', sections=tuple(), quiet=False):

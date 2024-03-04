@@ -9,7 +9,7 @@ def extract_concepts_from_text(
         text: str, login_info: dict, restrict_to_ontology=False, graph_score_smoothing=True,
         ontology_score_smoothing=True, keywords_score_smoothing=True, normalisation_coefficient=0.5,
         filtering_threshold=0.1, filtering_min_votes=5, refresh_scores=True, sections=('GRAPHAI', 'CONCEPT DETECTION'),
-        debug=False, n_trials=5, session: Optional[Session] = None
+        debug=False, n_trials=600, delay_retry=1, session: Optional[Session] = None
 ):
     """
     Detect concepts (wikipedia pages) with associated scores from a input text.
@@ -26,6 +26,7 @@ def extract_concepts_from_text(
     :param sections: sections to use in the status messages.
     :param debug: if True additional information about each connection to the API is displayed.
     :param n_trials: number of trials to perform in case of errors before giving up.
+    :param delay_retry: the time to wait between tries.
     :param session: optional requests.Session object.
     :return: a list of dictionary containing the concept and the associated scores if successful, None otherwise.
     """
@@ -48,7 +49,8 @@ def extract_concepts_from_text(
     url = login_info['host'] + '/text/wikify?' + urlencode(url_params)
     json = {'raw_text': text}
     response = _get_response(
-        url, login_info, request_func=request_func, json=json, n_trials=n_trials, sections=sections, debug=debug
+        url, login_info, request_func=request_func, json=json, n_trials=n_trials, sections=sections, debug=debug,
+        delay_retry=delay_retry
     )
     if response is None:
         return None
