@@ -1,8 +1,9 @@
+from json import load as load_json
+from os.path import normpath, join, dirname
 from time import sleep
 from requests import get, post
 from typing import Union
 from graphai_client.utils import status_msg
-from graphai_client.client_api import login
 
 
 def call_async_endpoint(
@@ -65,21 +66,20 @@ def call_async_endpoint(
 
 
 def _get_response(
-        url: str, login_info, request_func=get, headers=None, json=None, n_trials=5, sections=tuple(), debug=False,
-        delay_retry=1
+        url: str, login_info, request_func=get, headers=None, json=None, data=None, n_trials=5, sections=tuple(),
+        debug=False, delay_retry=1
 ):
     trials = 0
     status_code = None
     reason = None
     request_type = request_func.__name__.upper()
-    if 'token' not in login_info:
-        login_info = login(login_info['graph_api_json'])
     if not url.startswith('http'):
         url = login_info['host'] + url
-    if headers is None:
-        headers = {"Authorization": f"Bearer {login_info['token']}"}
-    else:
-        headers["Authorization"] = f"Bearer {login_info['token']}"
+    if 'token' in login_info:
+        if headers is None:
+            headers = {"Authorization": f"Bearer {login_info['token']}"}
+        else:
+            headers["Authorization"] = f"Bearer {login_info['token']}"
     while trials < n_trials:
         trials += 1
         if debug:
@@ -90,7 +90,7 @@ def _get_response(
                 msg += f' with json data "{json}"'
             print(msg)
         try:
-            response = request_func(url, headers=headers, json=json)
+            response = request_func(url, headers=headers, json=json, data=data)
         except Exception as e:
             if trials == n_trials:
                 raise e
@@ -163,3 +163,22 @@ def task_result_is_ok(task_result: Union[dict, None], token: str, output_type='t
                 color='green', sections=list(sections) + ['SUCCESS']
             )
     return True
+
+
+def login(graph_api_json=None):
+    if graph_api_json is None:
+        import graphai_client
+        graph_api_json = normpath(join(dirname(graphai_client.__file__), 'config', 'graphai-api.json'))
+    with open(graph_api_json) as fp:
+        piper_con_info = load_json(fp)
+    host_with_port = piper_con_info['host'] + ':' + str(piper_con_info['port'])
+    login_info = {
+        'user': piper_con_info['user'],
+        'host': host_with_port,
+        'graph_api_json': graph_api_json
+    }
+    response_login = _get_response(
+        '/token', login_info, post, data={'username': piper_con_info['user'], 'password': piper_con_info['password']}
+    )
+    login_info['token'] = response_login.json()['access_token']
+    return login_info

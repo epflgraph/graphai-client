@@ -34,10 +34,11 @@ from graphai_client.client import process_video
 url= 'http://api.cast.switch.ch/p/113/sp/11300/serveFlavor/entryId/0_00gdquzv/v/2/ev/3/flavorId/0_i0v49s5y/forceproxy/true/name/a.mp4'
 video_info = process_video(url, graph_api_json='config/graphai-api.json')
 ```
-For the basic API functionalities you first need to log in and then use the resulting login_info as parameter:  
+For the basic API functionalities you first need to log in and then use the resulting login_info as parameter:
 
 ```python
-from graphai_client.client_api import login
+
+from graphai_client.client_api.utils import login
 from graphai_client.client_api.translation import translate_text
 
 login_info = login(graph_api_json='config/graphai-api.json')
@@ -50,17 +51,18 @@ Direct API functionalities
 Functions to access most of the API functionalities are available in `graphai_client.client_api`.
 It includes:
 - for text:
-    - translation (`graphai_client.client_api.translation.translate_text)()`)
-    - concept extraction (`graphai_client.client_api.text.extract_concepts_from_text()`)
+    - language detection `graphai_client.client_api.translation.detect_language()`
+    - translation `graphai_client.client_api.translation.translate_text()`
+    - concept extraction `graphai_client.client_api.text.extract_concepts_from_text()`
 - for videos:
-    - video downloading (`graphai_client.client_api.video.get_video_token()`), 
-    - video fingerprinting(`graphai_client.client_api.video.fingerprint_video()`)
-    - audio extraction(`graphai_client.client_api.video.extract_audio()`)
-    - slide extraction(`graphai_client.client_api.video.extract_slides()`)
+    - video downloading `graphai_client.client_api.video.get_video_token()`
+    - video fingerprinting `graphai_client.client_api.video.fingerprint_video()`
+    - audio extraction `graphai_client.client_api.video.extract_audio()`
+    - slide extraction `graphai_client.client_api.video.extract_slides()`
 - for audio extracted from videos:
-    - transcription (`graphai_client.client_api.voice.transcribe_audio()`)
-    - language detection (`graphai_client.client_api.voice.detect_language()`)
-- OCR for slides (`graphai_client.client_api.image.extract_text_from_slide()`)
+    - transcription `graphai_client.client_api.voice.transcribe_audio()`
+    - language detection `graphai_client.client_api.voice.detect_language()`
+- OCR for slides `graphai_client.client_api.image.extract_text_from_slide()`
     
 
 Integrated video processing

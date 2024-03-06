@@ -1,6 +1,6 @@
 import unittest
 from os.path import join, dirname
-from graphai_client.client_api import login
+from graphai_client.client_api.utils import login
 
 test_files_dir = join(dirname(__file__), 'test_files')
 login_info = login()

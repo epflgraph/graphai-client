@@ -1,5 +1,5 @@
 import unittest
-from graphai_client.client_api import login
+from graphai_client.client_api.utils import login
 
 login_info = login()
 

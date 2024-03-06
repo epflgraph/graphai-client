@@ -7,7 +7,7 @@ from graphai_client.utils import (
     insert_data_into_table_with_type, execute_query, prepare_value_for_mysql, get_piper_connection
 )
 from graphai_client.client import process_video, translate_extracted_text, translate_subtitles
-from graphai_client.client_api import login
+from graphai_client.client_api.utils import login
 from graphai_client.client_api.text import extract_concepts_from_text
 from graphai_client.client_api.translation import translate_text
 

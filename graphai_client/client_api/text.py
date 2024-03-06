@@ -1,8 +1,7 @@
 from requests import Session, post
 from urllib.parse import urlencode
 from typing import Optional
-from graphai_client.client_api import login
-from graphai_client.client_api.utils import _get_response
+from graphai_client.client_api.utils import _get_response, login
 
 
 def extract_concepts_from_text(
