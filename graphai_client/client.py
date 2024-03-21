@@ -7,14 +7,16 @@ from graphai_client.client_api.translation import translate_text
 
 
 def process_video(
-        video_url, force=False, audio_language=None, slides_language=None, detect_audio_language=False,
-        analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'),
+        video_url, force=False, force_download=False, audio_language=None, slides_language=None,
+        detect_audio_language=False, analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'),
         graph_api_json=None, login_info=None, debug=False
 ):
     """
     Process the video whose URL is given as argument.
+
     :param video_url: URL of the video to process
     :param force: if True, the cache is ignored and all operations are performed.
+    :param force_download: if True, the downloading of the video is forced even if it is present in the cache.
     :param audio_language: if not None, language detection is skipped and the transcription is performed in the
         specified language.
     :param slides_language: if not None, language detection is skipped and the OCR is performed in the specified
@@ -37,7 +39,7 @@ def process_video(
     )
     if login_info is None or 'token'not in login_info:
         login_info = login(graph_api_json)
-    video_token = get_video_token(video_url, login_info, debug=debug, force=force)
+    video_token = get_video_token(video_url, login_info, debug=debug, force=force or force_download)
     if video_token is None:
         return None
     if analyze_slides:
