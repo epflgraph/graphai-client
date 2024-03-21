@@ -6,7 +6,7 @@ from graphai_client.utils import status_msg
 def transcribe_audio(
         audio_token: str, login_info: dict, force=False, force_lang=None, sections=('GRAPHAI', 'TRANSCRIBE'),
         debug=False, strict=False, n_try=6000, delay_retry=1
-) -> Optional[Tuple[str, List[dict]]]:
+) -> Tuple[Optional[str], Optional[List[dict]]]:
     """
     Transcribe the voices in the audio into segments (subtitles as a list).
     Srt file can be created from segment using graphai_client.utils.create_srt_file_from_segments()
@@ -40,7 +40,7 @@ def transcribe_audio(
         debug=debug
     )
     if task_result is None:
-        return None
+        return None, None
     if task_result['subtitle_results'] is None:
         segments = None
         status_msg(
