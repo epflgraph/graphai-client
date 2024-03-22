@@ -343,6 +343,10 @@ def get_subtitles_from_kaltura(
         if not subtitles_in_kaltura:
             return None
         subtitles = combine_language_segments(**subtitles_in_kaltura, precision_s=2)
+        status_msg(
+            f'Found subtitles ({len(subtitles)} segments) in kaltura in {", ".join(subtitles_in_kaltura.keys())}',
+            color='grey', sections=['GRAPHAI', 'GET SUBTITLES', 'SUCCESS']
+        )
         if destination_languages:
             missing_destination_language = []
             for lang in destination_languages:
