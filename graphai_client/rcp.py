@@ -88,6 +88,10 @@ def process_videos_on_rcp(
                     continue
                 audio_transcription_time = None
                 slides_detection_time = None
+                slides = None
+                slides_detected_language = None
+                audio_detected_language = None
+                subtitles = None
                 switchtube_video_id = kaltura_to_switch_id.get(kaltura_video_id, None)
                 if switchtube_video_id is not None \
                         and switchtube_video_id in switch_ids_to_channel_with_text_from_slides:
@@ -135,8 +139,6 @@ def process_videos_on_rcp(
                                     slide[k] = v
                             slides.append(slide)
                         slides_detection_time = str(datetime.now())
-                    else:
-                        slides = None
                     if analyze_audio:
                         subtitles = get_subtitles_from_kaltura(
                             kaltura_video_id, login_info, piper_connection=piper_connection, force=force,
@@ -158,9 +160,6 @@ def process_videos_on_rcp(
                             audio_detected_language = video_information['audio_language']
                             subtitles = video_information['subtitles']
                             audio_transcription_time = str(datetime.now())
-                    else:
-                        audio_detected_language = None
-                        subtitles = None
                 else:  # full processing of the video
                     subtitles = get_subtitles_from_kaltura(
                         kaltura_video_id, login_info, piper_connection=piper_connection, force=force,
