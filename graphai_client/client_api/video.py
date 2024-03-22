@@ -114,8 +114,8 @@ def extract_slides(
     :param debug: if True additional information about each connection to the API is displayed.
     :param n_try: the number of tries before giving up.
     :param delay_retry: the time to wait between tries.
-    :return: A dictionary with slide number as string for keys and a dictionary with slide token and timestamp as values
-        if successful, None otherwise.
+    :return: A dictionary with slide number as a string for keys and a dictionary with slide token and timestamp as
+        values if successful, None otherwise.
     """
     task_result = call_async_endpoint(
         endpoint='/video/detect_slides',
@@ -130,3 +130,4 @@ def extract_slides(
     )
     if task_result is None:
         return None
+    return task_result['slide_tokens']
