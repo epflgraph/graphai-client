@@ -106,24 +106,37 @@ def process_videos_on_rcp(
                         slides_text = []
                         piper_cursor.execute(f'''
                             SELECT 
-                                SlideID,
-                                SUBSTRING(SlideID,LENGTH(SwitchChannelID) + LENGTH(SwitchVideoID) + 3), 
-                                SlideText 
-                            FROM gen_switchtube.Slide_Text 
+                                t.SlideID,
+                                SUBSTRING(t.SlideID,LENGTH(t.SwitchChannelID) + LENGTH(t.SwitchVideoID) + 3), 
+                                t.SlideText,
+                                SUM(IF(o.DetectedLanguage='fr', 1, 0)) AS Nfr,
+                                SUM(IF(o.DetectedLanguage='en', 1, 0)) AS Nen
+                            FROM gen_switchtube.Slide_Text AS t
+                            LEFT JOIN gen_switchtube.Slide_OCR AS o ON o.SlideID=t.SlideID AND Method='google (dtd)'
                             WHERE SwitchChannelID='{switch_channel}' AND SwitchVideoID='{switchtube_video_id}' 
+                            GROUP BY SlideID
                             ORDER BY SlideNumber;
                         ''')
-                        for slide_id, timestamp, slide_text in piper_cursor:
+                        num_slides_languages = {'en': 0, 'fr': 0}
+                        for slide_id, timestamp, slide_text, n_fr, n_en in piper_cursor:
                             slides_text.append({
                                 'en': slide_text,
                                 'timestamp': int(timestamp)
                             })
+                            if n_fr > n_en:
+                                num_slides_languages['fr'] += 1
+                            elif n_en > n_fr:
+                                num_slides_languages['en'] += 1
+                        slides_detected_language = None
+                        if num_slides_languages['fr'] > num_slides_languages['en']:
+                            slides_detected_language = 'fr'
+                        elif num_slides_languages['en'] > num_slides_languages['fr']:
+                            slides_detected_language = 'en'
                         # translate slide text
                         status_msg(
                             f'translate text from {len(slides_text)} slides in en',
                             color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
                         )
-                        slides_detected_language = None
                         slides_text = translate_extracted_text(
                             slides_text, login_info, source_language='en',
                             destination_languages=destination_languages, force=force, debug=debug
@@ -150,30 +163,26 @@ def process_videos_on_rcp(
                                 detect_audio_language=True, audio_language=None,
                                 login_info=login_info, debug=debug, force_download=True
                             )
-                            audio_detected_language = video_information['audio_language']
                         else:
                             video_information = process_video(
                                 kaltura_url, analyze_audio=True, analyze_slides=False, force=force,
                                 destination_languages=destination_languages, audio_language=None,
                                 login_info=login_info, debug=debug, force_download=True
                             )
-                            audio_detected_language = video_information['audio_language']
                             subtitles = video_information['subtitles']
-                            audio_transcription_time = str(datetime.now())
+                        audio_transcription_time = str(datetime.now())
+                        audio_detected_language = video_information['audio_language']
                 else:  # full processing of the video
                     subtitles = get_subtitles_from_kaltura(
                         kaltura_video_id, login_info, piper_connection=piper_connection, force=force,
                         destination_languages=destination_languages, debug=debug
                     )
-                    if subtitles:
+                    if subtitles and analyze_audio:
                         video_information = process_video(
                             kaltura_url, analyze_audio=False, analyze_slides=analyze_slides, force=force,
-                            detect_audio_language=True, audio_language=None, force_download=True,
-                            destination_languages=destination_languages, login_info=login_info, debug=debug
+                            detect_audio_language=True, audio_language=None,
+                            login_info=login_info, debug=debug, force_download=True
                         )
-                        audio_transcription_time = str(datetime.now())
-                        if analyze_slides:
-                            slides_detection_time = str(datetime.now())
                     else:
                         video_information = process_video(
                             kaltura_url, analyze_audio=analyze_audio, analyze_slides=analyze_slides, force=force,
@@ -181,10 +190,10 @@ def process_videos_on_rcp(
                             force_download=True
                         )
                         subtitles = video_information['subtitles']
-                        if analyze_audio:
-                            audio_transcription_time = str(datetime.now())
-                        if analyze_slides:
-                            slides_detection_time = str(datetime.now())
+                    if analyze_audio:
+                        audio_transcription_time = str(datetime.now())
+                    if analyze_slides:
+                        slides_detection_time = str(datetime.now())
                     slides_detected_language = video_information['slides_language']
                     audio_detected_language = video_information['audio_language']
                     slides = video_information['slides']
