@@ -5,7 +5,7 @@ from graphai_client.utils import status_msg
 
 def transcribe_audio(
         audio_token: str, login_info: dict, force=False, force_lang=None, sections=('GRAPHAI', 'TRANSCRIBE'),
-        debug=False, strict=False, n_try=6000, delay_retry=1
+        debug=False, strict=False, max_tries=5, max_processing_time_s=7200
 ) -> Tuple[Optional[str], Optional[List[dict]]]:
     """
     Transcribe the voices in the audio into segments (subtitles as a list).
@@ -18,8 +18,8 @@ def transcribe_audio(
     :param sections: sections to use in the status messages.
     :param debug: if True additional information about each connection to the API is displayed.
     :param strict: if True, a more aggressive silence detection is applied.
-    :param n_try: the number of tries before giving up.
-    :param delay_retry: the time to wait between tries.
+    :param max_tries: the number of tries before giving up.
+    :param max_processing_time_s: maximum number of seconds to transcribe the voices from the audio.
     :return: a tuple where the first element is either the "force_lang" parameter if not None or the detected language
         of the audio or None if no voice was detected). The second element  of the tuple is a list of segments.
         Each segment is a dictionary with the start and end timestamp (in second) with resp. 'start' and 'end key',
@@ -34,8 +34,8 @@ def transcribe_audio(
         login_info=login_info,
         token=audio_token,
         output_type='transcription',
-        n_try=n_try,
-        delay_retry=delay_retry,
+        max_tries=max_tries,
+        max_processing_time_s=max_processing_time_s,
         sections=sections,
         debug=debug
     )
@@ -61,7 +61,7 @@ def transcribe_audio(
 
 def detect_language(
         audio_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'AUDIO LANGUAGE'), debug=False,
-        n_try=6000, delay_retry=1
+        max_tries=5, max_processing_time_s=3600
 ) -> Optional[str]:
     """
     Detect the language of the voice in the audio.
@@ -71,8 +71,8 @@ def detect_language(
     :param force: Should the cache be bypassed and the language detection forced.
     :param sections: sections to use in the status messages.
     :param debug: if True additional information about each connection to the API is displayed.
-    :param n_try: the number of tries before giving up.
-    :param delay_retry: the time to wait between tries.
+    :param max_tries: the number of tries before giving up.
+    :param max_processing_time_s: maximum number of seconds to detect the language from the voices in the audio.
     :return: the language  of the voice detected in the audio if successful, None otherwise.
     """
     task_result = call_async_endpoint(
@@ -81,8 +81,8 @@ def detect_language(
         login_info=login_info,
         token=audio_token,
         output_type='language detection',
-        n_try=n_try,
-        delay_retry=delay_retry,
+        max_tries=max_tries,
+        max_processing_time_s=max_processing_time_s,
         sections=sections,
         debug=debug
     )

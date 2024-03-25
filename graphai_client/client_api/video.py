@@ -1,10 +1,10 @@
 from typing import Optional
-from graphai_client.client_api.utils import call_async_endpoint
+from graphai_client.client_api.utils import call_async_endpoint, status_msg
 
 
 def get_video_token(
         url_video: str, login_info: dict, playlist=False, sections=('GRAPHAI', 'DOWNLOAD VIDEO'),
-        debug=False, force=False, n_try=6000, delay_retry=1
+        debug=False, force=False, max_tries=5, max_processing_time_s=900
 ) -> Optional[str]:
     """
     Download a video and get a token.
@@ -15,8 +15,8 @@ def get_video_token(
     :param sections: sections to use in the status messages.
     :param debug: if True additional information about each connection to the API is displayed.
     :param force: Should the cache be bypassed and the download forced.
-    :param n_try: the number of tries before giving up.
-    :param delay_retry: the time to wait between tries.
+    :param max_tries: the number of tries before giving up.
+    :param max_processing_time_s: maximum number of seconds to download the video.
     :return: the video token if successful, None otherwise.
     """
     task_result = call_async_endpoint(
@@ -25,19 +25,25 @@ def get_video_token(
         login_info=login_info,
         token=url_video,
         output_type='file',
-        n_try=n_try,
-        delay_retry=delay_retry,
+        max_tries=max_tries,
+        max_processing_time_s=max_processing_time_s,
         sections=sections,
         debug=debug
     )
     if task_result is None:
         return None
+    if not task_result['token_status']['active']:
+        status_msg('Missing video file in cache, downloading...', sections=list(sections) + ['WARNING'], color='yellow')
+        return get_video_token(
+            url_video=url_video, login_info=login_info, playlist=playlist, max_tries=max_tries,
+            max_processing_time_s=max_processing_time_s, sections=sections, debug=debug, force=True
+        )
     return task_result['token']
 
 
 def fingerprint_video(
         video_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'FINGERPRINT VIDEO'), debug=False,
-        n_try=6000, delay_retry=1
+        max_tries=5, max_processing_time_s=900
 ) -> Optional[str]:
     """
     Get the fingerprint of a video.
@@ -47,8 +53,8 @@ def fingerprint_video(
     :param force: Should the cache be bypassed and the fingerprint forced.
     :param sections: sections to use in the status messages.
     :param debug: if True additional information about each connection to the API is displayed.
-    :param n_try: the number of tries before giving up.
-    :param delay_retry: the time to wait between tries.
+    :param max_tries: the number of tries before giving up.
+    :param max_processing_time_s: maximum number of seconds to fingerprint the video.
     :return: the fingerprint of the video if successful, None otherwise.
     """
     task_result = call_async_endpoint(
@@ -57,8 +63,8 @@ def fingerprint_video(
         login_info=login_info,
         token=video_token,
         output_type='fingerprint',
-        n_try=n_try,
-        delay_retry=delay_retry,
+        max_tries=max_tries,
+        max_processing_time_s=max_processing_time_s,
         sections=sections,
         debug=debug
     )
@@ -68,8 +74,8 @@ def fingerprint_video(
 
 
 def extract_audio(
-        video_token: str, login_info: dict, force=False, force_non_self=True, sections=('GRAPHAI', 'EXTRACT AUDIO'),
-        debug=False, n_try=300, delay_retry=1
+        video_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'EXTRACT AUDIO'),
+        debug=False, max_tries=5, max_processing_time_s=300
 ):
     """
     extract the audio from a video and return the audio token.
@@ -77,21 +83,20 @@ def extract_audio(
     :param video_token: video token, typically returned by get_video_token()
     :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
     :param force: Should the cache be bypassed and the audio extraction forced.
-    :param force_non_self: see the API documentation.
     :param sections: sections to use in the status messages.
     :param debug: if True additional information about each connection to the API is displayed.
-    :param n_try: the number of tries before giving up.
-    :param delay_retry: the time to wait between tries.
+    :param max_tries: the number of tries before giving up.
+    :param max_processing_time_s: maximum number of seconds to fingerprint the video.
     :return: the audio token if successful, None otherwise.
     """
     task_result = call_async_endpoint(
         endpoint='/video/extract_audio',
-        json={"token": video_token, "force_non_self": force_non_self, "force": force},
+        json={"token": video_token, "force": force},
         login_info=login_info,
         token=video_token,
         output_type='audio',
-        n_try=n_try,
-        delay_retry=delay_retry,
+        max_tries=max_tries,
+        max_processing_time_s=max_processing_time_s,
         sections=sections,
         debug=debug
     )
@@ -101,33 +106,48 @@ def extract_audio(
 
 
 def extract_slides(
-        video_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'EXTRACT SLIDES'), debug=False,
-        n_try=6000, delay_retry=1
+        video_token: str, login_info: dict, recalculate_cached=False, force=False,
+        max_tries=5, max_processing_time_s=6000, sections=('GRAPHAI', 'EXTRACT SLIDES'), debug=False
 ) -> Optional[dict]:
     """
     Extract slides from a video. Slides are defined as a times in a video where there is a significant visual change.
 
     :param video_token: video token, typically returned by get_video_token()
     :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
+    :param recalculate_cached: extract slides based on the cached results.
     :param force: Should the cache be bypassed and the slides extraction forced.
     :param sections: sections to use in the status messages.
     :param debug: if True additional information about each connection to the API is displayed.
-    :param n_try: the number of tries before giving up.
-    :param delay_retry: the time to wait between tries.
+    :param max_tries: the number of tries before giving up.
+    :param max_processing_time_s: maximum number of seconds to extract slides from the video.
     :return: A dictionary with slide number as a string for keys and a dictionary with slide token and timestamp as
         values if successful, None otherwise.
     """
     task_result = call_async_endpoint(
         endpoint='/video/detect_slides',
-        json={"token": video_token, "force_non_self": False, "force": force},
+        json={"token": video_token, "recalculate_cached": recalculate_cached, "force": force},
         login_info=login_info,
         token=video_token,
         output_type='slide',
-        n_try=n_try,
-        delay_retry=delay_retry,
+        max_tries=max_tries,
+        max_processing_time_s=max_processing_time_s,
         sections=sections,
         debug=debug
     )
     if task_result is None:
         return None
+    if not force and not recalculate_cached and not task_result['fresh']:
+        force_recalculate_cached = False
+        for slide_index, slide_dict in task_result['slide_tokens'].items():
+            if not slide_dict['token_status']['active']:
+                force_recalculate_cached = True
+        if force_recalculate_cached:
+            status_msg(
+                'Missing slide files in cache, extracting them from the videos...',
+                sections=list(sections) + ['WARNING'], color='yellow'
+            )
+            return extract_slides(
+                video_token=video_token, login_info=login_info, recalculate_cached=True, force=False,
+                max_tries=max_tries, max_processing_time_s=max_processing_time_s, sections=sections, debug=debug
+            )
     return task_result['slide_tokens']

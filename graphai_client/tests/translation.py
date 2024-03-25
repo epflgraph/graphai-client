@@ -39,6 +39,11 @@ class TranslationTests(unittest.TestCase):
             'fr'
         )
 
+    def test_detect_language_fail(self):
+        from graphai_client.client_api.translation import detect_language
+
+        self.assertEqual(detect_language('https://www.linkedin.com/', login_info, quiet=True), None)
+
 
 class TestSplitText(unittest.TestCase):
     def test_split(self):

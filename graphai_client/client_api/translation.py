@@ -18,15 +18,7 @@ def translate_text(
     :param target_language: language of the output translated text.
     :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
     :param sections: sections to use in the status messages.
-    :param force: Should the cache be bypassed and the translation forced.
-    :param debug: if True additional information about each connection to the API is displayed.
-    :param max_text_length: if not None, the text will be split in chunks smaller than max_text_length before being
-        translated, it is glued together after translation. This happens automatically in case the API send a
-        `text too long error`.
-    :param max_text_list_length: if not None and the input is a list, the list will be translated in chunks where the
-        total number of characters do not exceed that value. The list is then reformed after translation.
-    :param n_try: the number of tries before giving up.
-    :param delay_retry: the time to wait between tries.
+    :param kwargs: see translate_text_str() or translate_text_list() for the other parameters.
     :return: the translated text if successful, None otherwise.
         If the input text was a string the output is a string too.
         If the input was a list, the output is a list with the same number of elements than the input.
@@ -61,7 +53,7 @@ def translate_text(
 def translate_text_str(
         text: str, source_language, target_language, login_info,
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000,
-        n_try=600, delay_retry=1
+        max_tries=5, max_processing_time_s=600
 ) -> Optional[str]:
     """
     Translate the input text from the source language to the target language.
@@ -78,8 +70,8 @@ def translate_text_str(
         `text too long error`.
     :param max_text_list_length: if not None and the input is a list, the list will be translated in chunks where the
         total number of characters do not exceed that value. The list is then reformed after translation.
-    :param n_try: the number of tries before giving up.
-    :param delay_retry: the time to wait between tries.
+    :param max_tries: the number of tries before giving up.
+    :param max_processing_time_s: maximum number of seconds to perform the translation.
     :return: the translated text if successful, None otherwise.
     """
     # check for empty text
@@ -96,7 +88,7 @@ def translate_text_str(
         translated_list = translate_text_list(
             text_to_translate, source_language, target_language, login_info,
             sections=sections, force=force, debug=debug, max_text_length=max_text_length,
-            max_text_list_length=max_text_list_length, n_try=n_try, delay_retry=delay_retry
+            max_text_list_length=max_text_list_length, max_tries=max_tries, max_processing_time_s=max_processing_time_s
         )
         return ''.join(translated_list)
     task_result = call_async_endpoint(
@@ -105,8 +97,8 @@ def translate_text_str(
         login_info=login_info,
         token=source_language + ' text',
         output_type='translation',
-        n_try=n_try,
-        delay_retry=delay_retry,
+        max_tries=max_tries,
+        max_processing_time_s=max_processing_time_s,
         sections=sections,
         debug=debug
     )
@@ -127,7 +119,7 @@ def translate_text_str(
         return translate_text_str(
             text, source_language, target_language, login_info, sections=sections,
             force=force, debug=debug, max_text_length=max_text_length,
-            max_text_list_length=max_text_list_length
+            max_text_list_length=max_text_list_length, max_tries=max_tries, max_processing_time_s=max_processing_time_s
         )
     return task_result['result']
 
@@ -135,7 +127,7 @@ def translate_text_str(
 def translate_text_list(
         text: list, source_language, target_language, login_info,
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000,
-        n_try=600, delay_retry=1
+        max_tries=5, max_processing_time_s=600
 ) -> Optional[list]:
     """
     Translate the input text (as a list) from the source language to the target language.
@@ -152,8 +144,8 @@ def translate_text_list(
         `text too long error`.
     :param max_text_list_length: if not None and the input is a list, the list will be translated in chunks where the
         total number of characters do not exceed that value. The list is then reformed after translation.
-    :param n_try: the number of tries before giving up.
-    :param delay_retry: the time to wait between tries.
+    :param max_tries: the number of tries before giving up.
+    :param max_processing_time_s: maximum number of seconds to perform the translation.
     :return: the translated text if successful, None otherwise. The length of the returned list is the same as for text
     """
     # check for list of empty text
@@ -182,7 +174,7 @@ def translate_text_list(
                 translated_text_full[idx_start:] = translate_text_list(
                     text[idx_start:], source_language, target_language, login_info,
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
-                    max_text_list_length=max_text_list_length
+                    max_text_list_length=max_text_list_length, max_tries=5, max_processing_time_s=max_processing_time_s
                 )
             # one element is already too large
             elif sum_length > max_text_list_length:
@@ -193,7 +185,7 @@ def translate_text_list(
                 translated_text_full[idx_start] = translate_text_str(
                     text[idx_start], source_language, target_language, login_info,
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
-                    max_text_list_length=max_text_list_length
+                    max_text_list_length=max_text_list_length, max_tries=5, max_processing_time_s=max_processing_time_s
                 )
                 idx_start += 1
                 sum_length = 0
@@ -206,7 +198,7 @@ def translate_text_list(
                 translated_text_full[idx_start:idx_end + 1] = translate_text_list(
                     text[idx_start:idx_end + 1], source_language, target_language, login_info,
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
-                    max_text_list_length=max_text_list_length
+                    max_text_list_length=max_text_list_length, max_tries=5, max_processing_time_s=max_processing_time_s
                 )
                 idx_start = idx_end + 1
                 sum_length = 0
@@ -230,8 +222,8 @@ def translate_text_list(
         login_info=login_info,
         token=source_language + ' text',
         output_type='translation',
-        n_try=n_try,
-        delay_retry=delay_retry,
+        max_tries=max_tries,
+        max_processing_time_s=max_processing_time_s,
         sections=sections,
         debug=debug
     )
@@ -254,7 +246,7 @@ def translate_text_list(
         return translate_text_list(
             text, source_language, target_language, login_info, sections=sections,
             force=force, debug=debug, max_text_length=max_text_length,
-            max_text_list_length=max_text_list_length
+            max_text_list_length=max_text_list_length, max_tries=5, max_processing_time_s=max_processing_time_s
         )
     # put back None in the output so the number of element is the same as in the input
     translated_text_full = [None] * len(text)
@@ -268,7 +260,8 @@ def translate_text_list(
 
 
 def detect_language(
-        text: str, login_info, sections=('GRAPHAI', 'TRANSLATE'), debug=False, n_try=120, delay_retry=1, quiet=True
+        text: str, login_info, sections=('GRAPHAI', 'TRANSLATE'), debug=False, max_tries=5, max_processing_time_s=120,
+        quiet=True
 ) -> Optional[str]:
     """
     Detect the language of the given text.
@@ -277,8 +270,8 @@ def detect_language(
     :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
     :param sections: sections to use in the status messages.
     :param debug: if True additional information about each connection to the API is displayed.
-    :param n_try: the number of tries before giving up.
-    :param delay_retry: the time to wait between tries.
+    :param max_tries: the number of tries before giving up.
+    :param max_processing_time_s: maximum number of seconds to perform the language detection.
     :param quiet: disable success status messages.
     :return: the detected language if successful, None otherwise.
     """
@@ -288,8 +281,8 @@ def detect_language(
         login_info=login_info,
         token=f'"{text}"',
         output_type='language',
-        n_try=n_try,
-        delay_retry=delay_retry,
+        max_tries=max_tries,
+        max_processing_time_s=max_processing_time_s,
         sections=sections,
         debug=debug,
         quiet=quiet
