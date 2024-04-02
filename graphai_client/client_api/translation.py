@@ -53,7 +53,7 @@ def translate_text(
 def translate_text_str(
         text: str, source_language, target_language, login_info,
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000,
-        max_tries=5, max_processing_time_s=600
+        max_tries=5, max_processing_time_s=600, delay_retry=1
 ) -> Optional[str]:
     """
     Translate the input text from the source language to the target language.
@@ -72,6 +72,7 @@ def translate_text_str(
         total number of characters do not exceed that value. The list is then reformed after translation.
     :param max_tries: the number of tries before giving up.
     :param max_processing_time_s: maximum number of seconds to perform the translation.
+    :param delay_retry: time to wait before retrying after an error
     :return: the translated text if successful, None otherwise.
     """
     # check for empty text
@@ -86,9 +87,9 @@ def translate_text_str(
             translated_line_to_original_mapping[len(text_to_translate)] = 0
             text_to_translate.append(text_portion)
         translated_list = translate_text_list(
-            text_to_translate, source_language, target_language, login_info,
-            sections=sections, force=force, debug=debug, max_text_length=max_text_length,
-            max_text_list_length=max_text_list_length, max_tries=max_tries, max_processing_time_s=max_processing_time_s
+            text_to_translate, source_language, target_language, login_info, sections=sections, force=force,
+            debug=debug, max_text_length=max_text_length,  max_text_list_length=max_text_list_length,
+            max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
         )
         return ''.join(translated_list)
     task_result = call_async_endpoint(
@@ -99,6 +100,7 @@ def translate_text_str(
         output_type='translation',
         max_tries=max_tries,
         max_processing_time_s=max_processing_time_s,
+        delay_retry=delay_retry,
         sections=sections,
         debug=debug
     )
@@ -118,8 +120,8 @@ def translate_text_str(
         )
         return translate_text_str(
             text, source_language, target_language, login_info, sections=sections,
-            force=force, debug=debug, max_text_length=max_text_length,
-            max_text_list_length=max_text_list_length, max_tries=max_tries, max_processing_time_s=max_processing_time_s
+            force=force, debug=debug, max_text_length=max_text_length, max_text_list_length=max_text_list_length,
+            max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
         )
     return task_result['result']
 
@@ -127,7 +129,7 @@ def translate_text_str(
 def translate_text_list(
         text: list, source_language, target_language, login_info,
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000,
-        max_tries=5, max_processing_time_s=600
+        max_tries=5, max_processing_time_s=600, delay_retry=1
 ) -> Optional[list]:
     """
     Translate the input text (as a list) from the source language to the target language.
@@ -146,6 +148,7 @@ def translate_text_list(
         total number of characters do not exceed that value. The list is then reformed after translation.
     :param max_tries: the number of tries before giving up.
     :param max_processing_time_s: maximum number of seconds to perform the translation.
+    :param delay_retry: time to wait before retrying after an error
     :return: the translated text if successful, None otherwise. The length of the returned list is the same as for text
     """
     # check for list of empty text
@@ -174,7 +177,8 @@ def translate_text_list(
                 translated_text_full[idx_start:] = translate_text_list(
                     text[idx_start:], source_language, target_language, login_info,
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
-                    max_text_list_length=max_text_list_length, max_tries=5, max_processing_time_s=max_processing_time_s
+                    max_text_list_length=max_text_list_length, max_tries=max_tries,
+                    max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
                 )
             # one element is already too large
             elif sum_length > max_text_list_length:
@@ -185,7 +189,8 @@ def translate_text_list(
                 translated_text_full[idx_start] = translate_text_str(
                     text[idx_start], source_language, target_language, login_info,
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
-                    max_text_list_length=max_text_list_length, max_tries=5, max_processing_time_s=max_processing_time_s
+                    max_text_list_length=max_text_list_length, max_tries=max_tries,
+                    max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
                 )
                 idx_start += 1
                 sum_length = 0
@@ -198,7 +203,8 @@ def translate_text_list(
                 translated_text_full[idx_start:idx_end + 1] = translate_text_list(
                     text[idx_start:idx_end + 1], source_language, target_language, login_info,
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
-                    max_text_list_length=max_text_list_length, max_tries=5, max_processing_time_s=max_processing_time_s
+                    max_text_list_length=max_text_list_length, max_tries=max_tries,
+                    max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
                 )
                 idx_start = idx_end + 1
                 sum_length = 0
@@ -224,6 +230,7 @@ def translate_text_list(
         output_type='translation',
         max_tries=max_tries,
         max_processing_time_s=max_processing_time_s,
+        delay_retry=delay_retry,
         sections=sections,
         debug=debug
     )
@@ -245,8 +252,8 @@ def translate_text_list(
         )
         return translate_text_list(
             text, source_language, target_language, login_info, sections=sections,
-            force=force, debug=debug, max_text_length=max_text_length,
-            max_text_list_length=max_text_list_length, max_tries=5, max_processing_time_s=max_processing_time_s
+            force=force, debug=debug, max_text_length=max_text_length, max_text_list_length=max_text_list_length,
+            max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
         )
     # put back None in the output so the number of element is the same as in the input
     translated_text_full = [None] * len(text)
@@ -261,7 +268,7 @@ def translate_text_list(
 
 def detect_language(
         text: str, login_info, sections=('GRAPHAI', 'TRANSLATE'), debug=False, max_tries=5, max_processing_time_s=120,
-        quiet=True
+        delay_retry=1, quiet=True
 ) -> Optional[str]:
     """
     Detect the language of the given text.
@@ -272,6 +279,7 @@ def detect_language(
     :param debug: if True additional information about each connection to the API is displayed.
     :param max_tries: the number of tries before giving up.
     :param max_processing_time_s: maximum number of seconds to perform the language detection.
+    :param delay_retry: time to wait before retrying after an error
     :param quiet: disable success status messages.
     :return: the detected language if successful, None otherwise.
     """
@@ -283,6 +291,7 @@ def detect_language(
         output_type='language',
         max_tries=max_tries,
         max_processing_time_s=max_processing_time_s,
+        delay_retry=delay_retry,
         sections=sections,
         debug=debug,
         quiet=quiet
