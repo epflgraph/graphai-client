@@ -71,12 +71,12 @@ def call_async_endpoint(
                     color='yellow', sections=list(sections) + ['WARNING']
                 )
             _tries += 1
-            sleep(1)
+            sleep(delay_retry)
             continue
         response_status_json = response_status.json()
         task_status = response_status_json['task_status']
         if task_status in ['PENDING', 'STARTED']:
-            sleep(delay_retry)
+            sleep(1)
         elif task_status == 'SUCCESS':
             task_result = response_status_json['task_result']
             if task_result is None:
