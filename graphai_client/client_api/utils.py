@@ -3,6 +3,7 @@ from os.path import normpath, join, dirname
 from time import sleep
 from datetime import datetime, timedelta
 from requests import get, post
+from typing import Callable, Dict, Optional
 from graphai_client.utils import status_msg
 
 
@@ -70,7 +71,7 @@ def call_async_endpoint(
                     color='yellow', sections=list(sections) + ['WARNING']
                 )
             _tries += 1
-            sleep(delay_retry)
+            sleep(1)
             continue
         response_status_json = response_status.json()
         task_status = response_status_json['task_status']
@@ -137,8 +138,9 @@ def call_async_endpoint(
 
 
 def _get_response(
-        url: str, login_info, request_func=get, headers=None, json=None, data=None, max_tries=5, sections=tuple(),
-        debug=False, delay_retry=1, timeout=600
+        url: str, login_info: Dict[str, str], request_func: Callable = get, headers: Optional[Dict[str, str]] = None,
+        json: Optional[Dict] = None, data: Optional[Dict] = None, max_tries=5,
+        sections=tuple(), debug=False, delay_retry=1, timeout=600
 ):
     request_type = request_func.__name__.upper()
     if not url.startswith('http'):
