@@ -12,7 +12,7 @@ def call_async_endpoint(
         max_tries=5, delay_retry=1, sections=(), debug=False, quiet=False, _tries=1,
 ):
     """
-    Helper for asynchronous API endpoints. It first send json data to the endpoint, get the task_id from the response
+    Helper for asynchronous API endpoints. It first sends json data to the endpoint, get the task_id from the response
     then query the status endpoint until it gets a 'SUCCESS' in 'task_status' and then return the content of
     'task_status'. In case of error, the full process is tried up to max_tries times.
 
@@ -80,10 +80,11 @@ def call_async_endpoint(
         elif task_status == 'SUCCESS':
             task_result = response_status_json['task_result']
             if task_result is None:
-                status_msg(
-                    f'Bad task result while extracting {output_type} from {token} at try {_tries}/{max_tries}',
-                    color='yellow', sections=list(sections) + ['WARNING']
-                )
+                if not quiet:
+                    status_msg(
+                        f'Bad task result while extracting {output_type} from {token} at try {_tries}/{max_tries}',
+                        color='yellow', sections=list(sections) + ['WARNING']
+                    )
                 _tries += 1
                 sleep(delay_retry)
                 continue
@@ -130,10 +131,13 @@ def call_async_endpoint(
                 + task_status
             )
     if not quiet:
-        status_msg(
-            f'Maximum try {max_tries}/{max_tries} reached for {endpoint} with the following json data: \n{json}',
-            color='yellow', sections=list(sections) + ['WARNING']
-        )
+        if _tries > max_tries:
+            msg = f'Maximum try {max_tries}/{max_tries} reached for {endpoint} with the following json data: \n{json}'
+        elif datetime.now() - start > max_processing_time:
+            msg = f'Timeout of {max_processing_time_s}s reached for {endpoint} with the following json data: \n{json}'
+        else:
+            msg = f'Unknown failure for {endpoint} with the following json data: \n{json}'
+        status_msg(msg, color='yellow', sections=list(sections) + ['WARNING'])
     return None
 
 

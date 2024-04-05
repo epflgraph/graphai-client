@@ -86,12 +86,29 @@ def process_videos_on_rcp(
                         color='yellow', sections=['KALTURA', 'VIDEO', 'WARNING']
                     )
                     continue
-                audio_transcription_time = None
-                slides_detection_time = None
                 slides = None
+                subtitles = None
+                # get details about the previous analysis if it exists
                 slides_detected_language = None
                 audio_detected_language = None
-                subtitles = None
+                slides_detection_time = None
+                audio_transcription_time = None
+                previous_analysis_info = piper_cursor.execute(
+                    f'''SELECT 
+                        slidesDetectedLanguage, 
+                        audioDetectedLanguage, 
+                        slidesDetectionTime, 
+                        audioTranscriptionTime 
+                    FROM `gen_kaltura`.`Videos` 
+                    WHERE kalturaVideoId="{kaltura_video_id}"''',
+                    return_output=True
+                )
+                if previous_analysis_info:
+                    (
+                        slides_detected_language, audio_detected_language, slides_detection_time,
+                        audio_transcription_time
+                    ) = previous_analysis_info[-1]
+                # skip OCR if the video was on switchtube and has already OCR results from there
                 switchtube_video_id = kaltura_to_switch_id.get(kaltura_video_id, None)
                 if switchtube_video_id is not None \
                         and switchtube_video_id in switch_ids_to_channel_with_text_from_slides:
@@ -127,11 +144,12 @@ def process_videos_on_rcp(
                                 num_slides_languages['fr'] += 1
                             elif n_en > n_fr:
                                 num_slides_languages['en'] += 1
-                        slides_detected_language = None
                         if num_slides_languages['fr'] > num_slides_languages['en']:
                             slides_detected_language = 'fr'
                         elif num_slides_languages['en'] > num_slides_languages['fr']:
                             slides_detected_language = 'en'
+                        else:
+                            slides_detected_language = None
                         # translate slide text
                         status_msg(
                             f'translate text from {len(slides_text)} slides in en',
@@ -151,7 +169,6 @@ def process_videos_on_rcp(
                                 if k != 'timestamp':
                                     slide[k] = v
                             slides.append(slide)
-                        slides_detection_time = str(datetime.now())
                     if analyze_audio:
                         subtitles = get_subtitles_from_kaltura(
                             kaltura_video_id, login_info, piper_connection=piper_connection, force=force,
@@ -169,9 +186,7 @@ def process_videos_on_rcp(
                                 destination_languages=destination_languages, audio_language=None,
                                 login_info=login_info, debug=debug, force_download=True
                             )
-                            subtitles = video_information['subtitles']
-                        audio_transcription_time = str(datetime.now())
-                        audio_detected_language = video_information['audio_language']
+                            subtitles = video_information.get('subtitles', None)
                 else:  # full processing of the video
                     subtitles = get_subtitles_from_kaltura(
                         kaltura_video_id, login_info, piper_connection=piper_connection, force=force,
@@ -189,63 +204,69 @@ def process_videos_on_rcp(
                             destination_languages=destination_languages, login_info=login_info, debug=debug,
                             force_download=True
                         )
-                        subtitles = video_information['subtitles']
-                    if analyze_audio:
-                        audio_transcription_time = str(datetime.now())
-                    if analyze_slides:
-                        slides_detection_time = str(datetime.now())
-                    slides_detected_language = video_information['slides_language']
-                    audio_detected_language = video_information['audio_language']
-                    slides = video_information['slides']
+                        subtitles = video_information.get('subtitles', None)
+                    slides = video_information.get('slides', None)
+                    slides_detected_language = video_information.get('slides_language', None)
                 # update gen_kaltura with processed info
-                if slides is not None:
-                    piper_cursor.execute(
-                        f'DELETE FROM `gen_kaltura`.`Slides` WHERE kalturaVideoId="{kaltura_video_id}"'
-                    )
+                if analyze_slides and slides is not None:
+                    slides_detection_time = str(datetime.now())
+                    data_slides = []
                     for slide_number, slide in enumerate(slides):
                         slide_time = strfdelta(timedelta(seconds=slide['timestamp']), '{H:02}:{M:02}:{S:02}')
-                        insert_line_into_table_with_types(
-                            piper_connection, 'gen_kaltura', 'Slides',
-                            [
-                                'kalturaVideoId', 'slideNumber',
-                                'timestamp', 'slideTime',
-                                'textFr', 'textEn'
-                            ],
+                        data_slides.append(
                             [
                                 kaltura_video_id, slide_number,
                                 slide['timestamp'], slide_time,
-                                slide.get('fr', None),  slide.get('en', None)
-                            ],
-                            [
-                                'str', 'int',
-                                'int', 'str',
-                                'str', 'str'
+                                slide.get('fr', None), slide.get('en', None)
                             ]
                         )
-                if subtitles is not None:
                     piper_cursor.execute(
-                        f'DELETE FROM `gen_kaltura`.`Subtitles` WHERE kalturaVideoId="{kaltura_video_id}"'
+                        f'DELETE FROM `gen_kaltura`.`Slides` WHERE kalturaVideoId="{kaltura_video_id}"'
                     )
+                    insert_data_into_table_with_type(
+                        piper_connection, 'gen_kaltura', 'Slides',
+                        [
+                            'kalturaVideoId', 'slideNumber',
+                            'timestamp', 'slideTime',
+                            'textFr', 'textEn'
+                        ],
+                        data_slides,
+                        [
+                            'str', 'int',
+                            'int', 'str',
+                            'str', 'str'
+                        ]
+                    )
+                if analyze_audio and subtitles is not None:
+                    audio_transcription_time = str(datetime.now())
+                    audio_detected_language = video_information.get('audio_language', None)
+                    data_subtitles = []
                     for idx, segment in enumerate(subtitles):
-                        insert_line_into_table_with_types(
-                            piper_connection, 'gen_kaltura', 'Subtitles',
+                        data_subtitles.append(
                             [
-                                'kalturaVideoId', 'segmentId', 'startMilliseconds', 'endMilliseconds',
-                                'startTime', 'endTime',
-                                'textFr', 'textEn'
-                            ],
-                            [
-                                kaltura_video_id, idx, int(segment['start']*1000), int(segment['end']*1000),
+                                kaltura_video_id, idx, int(segment['start'] * 1000), int(segment['end'] * 1000),
                                 strfdelta(timedelta(seconds=segment['start']), '{H:02}:{M:02}:{S:02}.{m:03}'),
                                 strfdelta(timedelta(seconds=segment['end']), '{H:02}:{M:02}:{S:02}.{m:03}'),
                                 segment.get('fr', None), segment.get('en', None)
-                            ],
-                            [
-                                'str', 'int', 'int', 'int',
-                                'str', 'str',
-                                'str', 'str'
                             ]
                         )
+                    piper_cursor.execute(
+                        f'DELETE FROM `gen_kaltura`.`Subtitles` WHERE kalturaVideoId="{kaltura_video_id}"'
+                    )
+                    insert_data_into_table_with_type(
+                        piper_connection, 'gen_kaltura', 'Subtitles',
+                        [
+                            'kalturaVideoId', 'segmentId', 'startMilliseconds', 'endMilliseconds',
+                            'startTime', 'endTime',
+                            'textFr', 'textEn'
+                        ],
+                        data_subtitles
+                        [
+                            'str', 'int', 'int', 'int',
+                            'str', 'str',
+                            'str', 'str'
+                        ]
+                    )
                 piper_cursor.execute(
                     f'DELETE FROM `gen_kaltura`.`Videos` WHERE kalturaVideoId="{kaltura_video_id}"'
                 )

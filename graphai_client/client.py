@@ -182,7 +182,7 @@ def process_audio(
         audio_language, segments = transcribe_audio(
             audio_token, login_info, force=force, force_lang=audio_language, debug=debug, strict=True
         )
-        if audio_language not in ['en', 'fr', 'de', 'it']:
+        if audio_language not in ['en', 'fr', 'de', 'it', None]:
             status_msg(
                 f'Audio language was detected as {audio_language} which is not supported, transcription discarded.',
                 color='yellow', sections=['GRAPHAI', 'TRANSCRIBE', 'WARNING']
