@@ -721,12 +721,16 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
             existing_slides_fingerprint[slide_num] = fingerprint
         # extract slides fingerprint
         video_token = get_video_token(video_url, login_info)  # , force=True)
+        if not video_token:
+            continue
         slides = extract_slides(video_token, login_info, recalculate_cached=True)
         new_slides_fingerprint_per_timestamp = {}
         if slides:
             for slide_index_str in sorted(slides.keys(), key=int):
                 slide_info = slides[slide_index_str]
                 slide_token = slide_info["token"]
+                if not slide_token:
+                    continue
                 token_status = slide_info["token_status"]
                 if not token_status["active"]:
                     status_msg(
@@ -763,25 +767,29 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
                 color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
             )
         # extract audio fingerprint
+        new_audio_fingerprint = None
         audio_token = extract_audio(video_token, login_info)
-        new_audio_fingerprint = calculate_audio_fingerprint(audio_token, login_info)
-        if existing_audio_fingerprint and existing_audio_fingerprint != new_audio_fingerprint:
-            status_msg(
-                f'Computed ausio fingerprint {new_audio_fingerprint} does not match that '
-                f'in the database: {existing_audio_fingerprint} for video {video_id}',
-                color='yellow', sections=['KALTURA', 'FINGERPRINT', 'AUDIO', 'WARNING']
-            )
+        if audio_token:
+            new_audio_fingerprint = calculate_audio_fingerprint(audio_token, login_info)
+            if existing_audio_fingerprint and existing_audio_fingerprint != new_audio_fingerprint:
+                status_msg(
+                    f'Computed ausio fingerprint {new_audio_fingerprint} does not match that '
+                    f'in the database: {existing_audio_fingerprint} for video {video_id}',
+                    color='yellow', sections=['KALTURA', 'FINGERPRINT', 'AUDIO', 'WARNING']
+                )
         # update db
-        execute_many(
-            piper_connection,
-            'UPDATE gen_kaltura.Slides SET fingerprint=%s WHERE kalturaVideoId=%s AND SlideNumber=%s;',
-            update_data_slides
-        )
-        execute_many(
-            piper_connection,
-            'UPDATE gen_kaltura.Videos SET audioFingerprint=%s WHERE kalturaVideoId=%s;',
-            [(new_audio_fingerprint, video_id)]
-        )
+        if update_data_slides:
+            execute_many(
+                piper_connection,
+                'UPDATE gen_kaltura.Slides SET fingerprint=%s WHERE kalturaVideoId=%s AND SlideNumber=%s;',
+                update_data_slides
+            )
+        if new_audio_fingerprint:
+            execute_many(
+                piper_connection,
+                'UPDATE gen_kaltura.Videos SET audioFingerprint=%s WHERE kalturaVideoId=%s;',
+                [(new_audio_fingerprint, video_id)]
+            )
         piper_connection.commit()
         status_msg(
             f'Success fingerprinting {len(update_data_slides)}/{len(existing_slides_fingerprint)} slides '
@@ -793,4 +801,4 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
 
 
 if __name__ == '__main__':
-    fingerprint_on_rcp(['0_003ipc0i'])
+    fingerprint_on_rcp(['0_005gbz9k'])
