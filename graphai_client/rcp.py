@@ -698,9 +698,12 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
     piper_cursor = piper_connection.cursor()
     videos_id_str = ', '.join([f'"{video_id}"' for video_id in kaltura_ids])
     piper_cursor.execute(f'''
-        SELECT kalturaVideoId, kalturaUrl, audioFingerprint FROM gen_kaltura.Videos WHERE kalturaVideoId IN ({videos_id_str});
+        SELECT kalturaVideoId, kalturaUrl, audioFingerprint 
+        FROM gen_kaltura.Videos 
+        WHERE kalturaVideoId IN ({videos_id_str});
     ''')
-    for video_id, video_url, existing_audio_fingerprint in piper_cursor:
+    video_info = list(piper_cursor)
+    for video_id, video_url, existing_audio_fingerprint in video_info:
         status_msg(
             f'Processing video {video_id}...', color='grey', sections=['KALTURA', 'FINGERPRINT', 'PROCESSING']
         )
