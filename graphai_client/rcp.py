@@ -4,7 +4,7 @@ from requests import Session
 from graphai_client.utils import (
     status_msg, get_video_link_and_size, strfdelta, insert_line_into_table_with_types, convert_subtitle_into_segments,
     combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript,
-    insert_data_into_table_with_type, execute_query, prepare_value_for_mysql, get_piper_connection
+    insert_data_into_table_with_type, execute_query, prepare_value_for_mysql, get_piper_connection, execute_many
 )
 from graphai_client.client import process_video, translate_extracted_text, translate_subtitles
 from graphai_client.client_api.utils import login
@@ -260,7 +260,7 @@ def process_videos_on_rcp(
                             'startTime', 'endTime',
                             'textFr', 'textEn'
                         ],
-                        data_subtitles
+                        data_subtitles,
                         [
                             'str', 'int', 'int', 'int',
                             'str', 'str',
@@ -683,6 +683,105 @@ def fix_slides_translation_on_rcp(
             f'{n_fix}/{len(slides_info)} slides has been translated from '
             f'{source_language} to {target_language} for video {video_id}',
             color='green', sections=['KALTURA', 'FIX TRANSLATION', 'SUCCESS']
+        )
+    piper_cursor.close()
+    piper_connection.close()
+
+
+def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_file=None):
+    from graphai_client.client_api.video import get_video_token, extract_slides, extract_audio
+    from graphai_client.client_api.image import calculate_fingerprint as calculate_slide_fingerprint
+    from graphai_client.client_api.voice import calculate_fingerprint as calculate_audio_fingerprint
+
+    login_info = login(graph_api_json)
+    piper_connection = get_piper_connection(piper_mysql_json_file)
+    piper_cursor = piper_connection.cursor()
+    videos_id_str = ', '.join([f'"{video_id}"' for video_id in kaltura_ids])
+    piper_cursor.execute(f'''
+        SELECT kalturaVideoId, kalturaUrl, audioFingerprint FROM gen_kaltura.Videos WHERE kalturaVideoId IN ({videos_id_str});
+    ''')
+    for video_id, video_url, existing_audio_fingerprint in piper_cursor:
+        status_msg(
+            f'Processing video {video_id}...', color='grey', sections=['KALTURA', 'FINGERPRINT', 'PROCESSING']
+        )
+        # get existing slides info
+        piper_cursor.execute(f'''
+            SELECT slideNumber, `timestamp`, fingerprint 
+            FROM gen_kaltura.Slides 
+            WHERE kalturaVideoId="{video_id}" 
+            ORDER BY slideNumber;
+        ''')
+        existing_slides_timestamp = {}
+        existing_slides_fingerprint = {}
+        for slide_num, timestamp, fingerprint in piper_cursor:
+            existing_slides_timestamp[slide_num] = timestamp
+            existing_slides_fingerprint[slide_num] = fingerprint
+        # extract slides fingerprint
+        video_token = get_video_token(video_url, login_info)  # , force=True)
+        slides = extract_slides(video_token, login_info, recalculate_cached=True)
+        new_slides_fingerprint_per_timestamp = {}
+        for slide_index_str in sorted(slides.keys(), key=int):
+            slide_info = slides[slide_index_str]
+            slide_token = slide_info["token"]
+            token_status = slide_info["token_status"]
+            if not token_status["active"]:
+                status_msg(
+                    f'Non-active token status for slide {slide_token}',
+                    color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
+                )
+            new_slide_fingerprint = calculate_slide_fingerprint(slide_token, login_info)
+            if new_slide_fingerprint:
+                new_slides_fingerprint_per_timestamp[slide_info["timestamp"]] = new_slide_fingerprint
+        # check if existing info and extracted slides matches
+        if len(new_slides_fingerprint_per_timestamp) != len(existing_slides_timestamp):
+            status_msg(
+                f'The number of slides in the cache: {len(new_slides_fingerprint_per_timestamp)} does not match that '
+                f'in the database: {len(existing_slides_timestamp)} for video {video_id}',
+                color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
+            )
+        update_data_slides = []
+        for existing_slides_num, existing_slides_timestamp in existing_slides_timestamp.items():
+            if existing_slides_timestamp in new_slides_fingerprint_per_timestamp:
+                new_slide_fingerprint = new_slides_fingerprint_per_timestamp[existing_slides_timestamp]
+                existing_slide_fingerprint = existing_slides_fingerprint[existing_slides_num]
+                if existing_slide_fingerprint and existing_slide_fingerprint != new_slide_fingerprint:
+                    status_msg(
+                        f'Computed fingerprint {new_slide_fingerprint} does not match that '
+                        f'in the database: {existing_slide_fingerprint} for slide {existing_slides_num} '
+                        f'at t={existing_slides_timestamp}s of video {video_id}',
+                        color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
+                    )
+                update_data_slides.append((new_slide_fingerprint, video_id, existing_slides_num))
+        if len(update_data_slides) != len(existing_slides_fingerprint):
+            status_msg(
+                f'Could only match {len(update_data_slides)}/{len(existing_slides_fingerprint)} fingerprinted slides '
+                f'to those in the database for video {video_id}',
+                color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
+            )
+        # extract audio fingerprint
+        new_audio_fingerprint = calculate_audio_fingerprint(video_token, login_info)
+        if existing_audio_fingerprint and existing_audio_fingerprint != new_audio_fingerprint:
+            status_msg(
+                f'Computed ausio fingerprint {new_audio_fingerprint} does not match that '
+                f'in the database: {existing_audio_fingerprint} for video {video_id}',
+                color='yellow', sections=['KALTURA', 'FINGERPRINT', 'AUDIO', 'WARNING']
+            )
+        # update db
+        execute_many(
+            piper_connection,
+            'UPDATE gen_kaltura.Slides SET fingerprint=%s WHERE kalturaVideoId=%s AND SlideNumber=%s;',
+            update_data_slides
+        )
+        execute_many(
+            piper_connection,
+            'UPDATE gen_kaltura.Videos SET audioFingerprint=%s WHERE kalturaVideoId=%s;',
+            [(new_audio_fingerprint, video_id)]
+        )
+        piper_connection.commit()
+        status_msg(
+            f'Success fingerprinting {len(update_data_slides)}/{len(existing_slides_fingerprint)} slides '
+            f'and audio for video {video_id}',
+            color='green', sections=['KALTURA', 'FINGERPRINT', 'SUCCESS']
         )
     piper_cursor.close()
     piper_connection.close()

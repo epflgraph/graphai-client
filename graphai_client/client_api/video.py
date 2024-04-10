@@ -74,14 +74,15 @@ def fingerprint_video(
 
 
 def extract_audio(
-        video_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'EXTRACT AUDIO'),
-        debug=False, max_tries=5, max_processing_time_s=300
+        video_token: str, login_info: dict, recalculate_cached=False, force=False,
+        sections=('GRAPHAI', 'EXTRACT AUDIO'), debug=False, max_tries=5, max_processing_time_s=300
 ):
     """
     extract the audio from a video and return the audio token.
 
     :param video_token: video token, typically returned by get_video_token()
     :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
+    :param recalculate_cached: extract audio based on the cached results.
     :param force: Should the cache be bypassed and the audio extraction forced.
     :param sections: sections to use in the status messages.
     :param debug: if True additional information about each connection to the API is displayed.
@@ -91,7 +92,7 @@ def extract_audio(
     """
     task_result = call_async_endpoint(
         endpoint='/video/extract_audio',
-        json={"token": video_token, "force": force},
+        json={"token": video_token, "recalculate_cached": recalculate_cached, "force": force},
         login_info=login_info,
         token=video_token,
         output_type='audio',
@@ -128,7 +129,7 @@ def extract_slides(
         json={"token": video_token, "recalculate_cached": recalculate_cached, "force": force},
         login_info=login_info,
         token=video_token,
-        output_type='slide',
+        output_type='slides',
         max_tries=max_tries,
         max_processing_time_s=max_processing_time_s,
         sections=sections,
