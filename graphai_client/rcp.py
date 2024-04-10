@@ -759,7 +759,8 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
                 color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
             )
         # extract audio fingerprint
-        new_audio_fingerprint = calculate_audio_fingerprint(video_token, login_info)
+        audio_token = extract_audio(video_token, login_info)
+        new_audio_fingerprint = calculate_audio_fingerprint(audio_token, login_info)
         if existing_audio_fingerprint and existing_audio_fingerprint != new_audio_fingerprint:
             status_msg(
                 f'Computed ausio fingerprint {new_audio_fingerprint} does not match that '
@@ -785,3 +786,7 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
         )
     piper_cursor.close()
     piper_connection.close()
+
+
+if __name__ == '__main__':
+    fingerprint_on_rcp(['0_003ipc0i'])

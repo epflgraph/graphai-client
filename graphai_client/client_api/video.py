@@ -76,7 +76,7 @@ def fingerprint_video(
 def extract_audio(
         video_token: str, login_info: dict, recalculate_cached=False, force=False,
         sections=('GRAPHAI', 'EXTRACT AUDIO'), debug=False, max_tries=5, max_processing_time_s=300
-):
+) -> Optional[str]:
     """
     extract the audio from a video and return the audio token.
 
