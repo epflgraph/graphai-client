@@ -93,16 +93,16 @@ def process_videos_on_rcp(
                 audio_detected_language = None
                 slides_detection_time = None
                 audio_transcription_time = None
-                previous_analysis_info = piper_cursor.execute(
+                piper_cursor.execute(
                     f'''SELECT 
                         slidesDetectedLanguage, 
                         audioDetectedLanguage, 
                         slidesDetectionTime, 
                         audioTranscriptionTime 
                     FROM `gen_kaltura`.`Videos` 
-                    WHERE kalturaVideoId="{kaltura_video_id}"''',
-                    return_output=True
+                    WHERE kalturaVideoId="{kaltura_video_id}"'''
                 )
+                previous_analysis_info = list(piper_cursor)
                 if previous_analysis_info:
                     (
                         slides_detected_language, audio_detected_language, slides_detection_time,
