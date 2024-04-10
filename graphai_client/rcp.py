@@ -723,18 +723,19 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
         video_token = get_video_token(video_url, login_info)  # , force=True)
         slides = extract_slides(video_token, login_info, recalculate_cached=True)
         new_slides_fingerprint_per_timestamp = {}
-        for slide_index_str in sorted(slides.keys(), key=int):
-            slide_info = slides[slide_index_str]
-            slide_token = slide_info["token"]
-            token_status = slide_info["token_status"]
-            if not token_status["active"]:
-                status_msg(
-                    f'Non-active token status for slide {slide_token}',
-                    color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
-                )
-            new_slide_fingerprint = calculate_slide_fingerprint(slide_token, login_info)
-            if new_slide_fingerprint:
-                new_slides_fingerprint_per_timestamp[slide_info["timestamp"]] = new_slide_fingerprint
+        if slides:
+            for slide_index_str in sorted(slides.keys(), key=int):
+                slide_info = slides[slide_index_str]
+                slide_token = slide_info["token"]
+                token_status = slide_info["token_status"]
+                if not token_status["active"]:
+                    status_msg(
+                        f'Non-active token status for slide {slide_token}',
+                        color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
+                    )
+                new_slide_fingerprint = calculate_slide_fingerprint(slide_token, login_info)
+                if new_slide_fingerprint:
+                    new_slides_fingerprint_per_timestamp[slide_info["timestamp"]] = new_slide_fingerprint
         # check if existing info and extracted slides matches
         if len(new_slides_fingerprint_per_timestamp) != len(existing_slides_timestamp):
             status_msg(
