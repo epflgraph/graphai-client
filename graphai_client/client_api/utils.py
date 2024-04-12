@@ -2,13 +2,13 @@ from json import load as load_json
 from os.path import normpath, join, dirname
 from time import sleep
 from datetime import datetime, timedelta
-from requests import get, post
+from requests import get, post, Response
 from typing import Callable, Dict, Optional
 from graphai_client.utils import status_msg
 
 
 def call_async_endpoint(
-        endpoint, json, login_info, token, output_type, max_processing_time_s=6000,
+        endpoint, json, login_info, token, output_type, result_key=None, max_processing_time_s=6000,
         max_tries=5, delay_retry=1, sections=(), debug=False, quiet=False, _tries=1,
 ):
     """
@@ -21,6 +21,7 @@ def call_async_endpoint(
     :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
     :param token: label of the input, this parameter is only used for logs.
     :param output_type: type of output, this parameter is only used for logs.
+    :param result_key: key of the main result, this parameter is only used for logs.
     :param max_processing_time_s: maximum number of seconds to wait for a successful task status after starting a task.
     :param max_tries: maximum number of time the task should be tried.
     :param delay_retry: time waited between status checks and before a new trial after an error.
@@ -74,15 +75,24 @@ def call_async_endpoint(
             sleep(delay_retry)
             continue
         response_status_json = response_status.json()
+        if not isinstance(response_status_json, dict):
+            status_msg(
+                f'Got unexpected response_status: {response_status_json} while extracting {output_type} from {token} '
+                f'at try {_tries}/{max_tries}', color='yellow', sections=list(sections) + ['WARNING']
+            )
+            _tries += 1
+            sleep(delay_retry)
+            continue
         task_status = response_status_json['task_status']
         if task_status in ['PENDING', 'STARTED']:
             sleep(1)
         elif task_status == 'SUCCESS':
-            task_result = response_status_json['task_result']
-            if task_result is None:
+            task_result = response_status_json.get('task_result', None)
+            if task_result is None or not isinstance(task_result, dict):
                 if not quiet:
                     status_msg(
-                        f'Bad task result while extracting {output_type} from {token} at try {_tries}/{max_tries}',
+                        f'Bad task result "{task_result}" while extracting {output_type} from {token} '
+                        f'at try {_tries}/{max_tries}',
                         color='yellow', sections=list(sections) + ['WARNING']
                     )
                 _tries += 1
@@ -100,17 +110,7 @@ def call_async_endpoint(
                     _tries=_tries + 1, max_tries=max_tries, delay_retry=delay_retry,
                     sections=sections, debug=debug, quiet=quiet
                 )
-            if not quiet:
-                if not task_result.get('fresh', True):
-                    status_msg(
-                        f'{output_type} from {token} has already been extracted in the past',
-                        color='yellow', sections=list(sections) + ['WARNING']
-                    )
-                else:
-                    status_msg(
-                        f'{output_type} has been extracted from {token}',
-                        color='green', sections=list(sections) + ['SUCCESS']
-                    )
+            _check_cached_result(task_result, result_key, token, output_type, list(sections), quiet)
             return task_result
         elif task_status == 'FAILURE':
             if not quiet:
@@ -141,11 +141,66 @@ def call_async_endpoint(
     return None
 
 
+def _check_cached_result(
+        task_result: dict, result_key: str, token: str, output_type: str, sections: list, quiet: bool) -> None:
+    def _fill_cached_result(task_res: dict, cached_res_dict: dict, output_id: str) -> None:
+        if not isinstance(task_res, dict):
+            raise RuntimeError(f'invalid result type for {output_id}')
+        token_status = task_res.get('token_status', {})
+        if isinstance(token_status, dict):
+            for cached in token_status.get('cached', []):
+                cached_res_dict[cached] = cached_res_dict.get(cached, 0) + 1
+        else:
+            raise RuntimeError(f'invalid cached result for {output_id}')
+
+    num_result = 1
+    if result_key:
+        result_type = 'str'
+        result = task_result.get(result_key, None)
+        if isinstance(result, dict):
+            num_result = len(result)
+            result_type = 'dict'
+        elif isinstance(result, list) or isinstance(result, tuple):
+            num_result = len(result)
+            result_type = 'list'
+        if not task_result.get('fresh', True):
+            msg = f'{num_result} {output_type} from {token} has already been extracted in the past'
+            cached_results_dict = {}
+            if num_result == 1:
+                _fill_cached_result(task_result, cached_results_dict, f'{output_type} from {token}')
+            else:
+                if result_type == 'dict':
+                    for key, res in result.items():
+                        _fill_cached_result(res, cached_results_dict, f'{output_type} {key} from {token}')
+                elif result_type in {'list', 'tuple'}:
+                    for idx, res in enumerate(result):
+                        _fill_cached_result(res, cached_results_dict, f'{output_type} {idx} from {token}')
+            all_cached = True
+            for cached_results, num in cached_results_dict.items():
+                if num != num_result:
+                    all_cached = False
+            if not all_cached:
+                cached_results_str = ", ".join(
+                    [f'"{r}" {num}/{num_result}' for r, num in cached_results_dict.items()]
+                )
+            else:
+                cached_results_str = ", ".join([f'"{r}"' for r in cached_results_dict])
+            if cached_results_str:
+                msg += f', the cached results are: {cached_results_str}'
+            if not quiet:
+                status_msg(msg, color='grey', sections=sections + ['INFO'])
+    if not quiet:
+        status_msg(
+            f'{num_result} {output_type} has been extracted from {token}',
+            color='green', sections=sections + ['SUCCESS']
+        )
+
+
 def _get_response(
         url: str, login_info: Dict[str, str], request_func: Callable = get, headers: Optional[Dict[str, str]] = None,
         json: Optional[Dict] = None, data: Optional[Dict] = None, max_tries=5,
         sections=tuple(), debug=False, delay_retry=1, timeout=600
-):
+) -> Optional[Response]:
     request_type = request_func.__name__.upper()
     if not url.startswith('http'):
         url = login_info['host'] + url

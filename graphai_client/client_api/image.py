@@ -26,6 +26,7 @@ def extract_text_from_slide(
         login_info=login_info,
         token=slide_token,
         output_type='text',
+        result_key=None,
         max_tries=max_tries,
         max_processing_time_s=max_processing_time_s,
         sections=sections,
@@ -46,7 +47,7 @@ def extract_text_from_slide(
 
 def calculate_fingerprint(
         slide_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'SLIDE FINGERPRINT'), debug=False,
-        max_tries=5, max_processing_time_s=20
+        max_tries=5, max_processing_time_s=20, quiet=False
 ):
     """
     Calculate the fingerprint of a single slide
@@ -58,6 +59,7 @@ def calculate_fingerprint(
     :param debug: if True additional information about each connection to the API is displayed.
     :param max_tries: the number of tries before giving up.
     :param max_processing_time_s: maximum number of seconds to perform the text extraction.
+    :param quiet: if True the log messages will not be displayed.
     :return: the fingerprint of the slide if successful, None otherwise.
     """
     task_result = call_async_endpoint(
@@ -66,10 +68,12 @@ def calculate_fingerprint(
         login_info=login_info,
         token=slide_token,
         output_type='fingerprint',
+        result_key='result',
         max_tries=max_tries,
         max_processing_time_s=max_processing_time_s,
         sections=sections,
-        debug=debug
+        debug=debug,
+        quiet=quiet
     )
     if task_result is None:
         return None
