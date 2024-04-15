@@ -47,8 +47,8 @@ def get_video_token(
         if force:
             raise RuntimeError(f'Missing downloaded file from {url_video} while forced')
         force_download = False
+        cached_jobs = token_status.get('cached', None) or []
         for result in results_needed:
-            cached_jobs = token_status.get('cached', None) or []
             if result not in cached_jobs:
                 force_download = True
                 break
@@ -145,8 +145,8 @@ def extract_audio(
         if recalculate_cached:
             raise RuntimeError(f'Missing file for audio extracted from {video_token} while recalculated')
         force_extraction = False
+        cached_jobs = token_status.get('cached', None) or []
         for result in results_needed:
-            cached_jobs = token_status.get('cached', None) or []
             if result not in cached_jobs:
                 force_extraction = True
                 break
@@ -206,30 +206,29 @@ def extract_slides(
                 color='yellow', sections=list(sections) + ['WARNING']
             )
         elif not token_status.get("active", None):
+            cached_jobs = token_status.get('cached', None) or []
             for result in results_needed:
-                cached_jobs = token_status.get('cached', None) or []
                 if result not in cached_jobs:
                     num_missing_slides += 1
                     break
     if num_missing_slides > 0:
         if task_result.get('fresh', None):
             raise RuntimeError(
-                f'Missing {num_missing_slides}/{len(task_result["slide_tokens"])} slide files'
-                f' for fresh audio extracted from {video_token}'
+                f'Missing {num_missing_slides}/{len(task_result["slide_tokens"])} slide files from {video_token}'
             )
         if force:
             raise RuntimeError(
-                f'Missing {num_missing_slides}/{len(task_result["slide_tokens"])} slide files'
-                f' for audio extracted from {video_token} while forced'
+                f'Missing {num_missing_slides}/{len(task_result["slide_tokens"])} slide files from {video_token} '
+                f'while forced'
             )
         if recalculate_cached:
             raise RuntimeError(
-                f'Missing {num_missing_slides}/{len(task_result["slide_tokens"])} slide files'
-                f' for audio extracted from {video_token} while recalculated'
+                f'Missing {num_missing_slides}/{len(task_result["slide_tokens"])} slide files from {video_token} '
+                f'while recalculated'
             )
         status_msg(
-            f'Missing {num_missing_slides}/{len(task_result["slide_tokens"])} slide files for '
-            f'video {video_token}, extracting slides according to the cache...',
+            f'Missing {num_missing_slides}/{len(task_result["slide_tokens"])} slide files from {video_token}, '
+            f'extracting slides according to the cache...',
             sections=list(sections) + ['WARNING'], color='yellow'
         )
         return extract_slides(
