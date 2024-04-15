@@ -723,6 +723,10 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
         # extract slides fingerprint
         video_token = get_video_token(video_url, login_info, force=force_download)
         if not video_token:
+            status_msg(
+                f'Skipping video {video_id} as the download failed.',
+                color='red', sections=['KALTURA', 'FINGERPRINT', 'FAILED']
+            )
             continue
         slides = extract_slides(video_token, login_info, results_needed=('calculate_fingerprint',))
         new_slides_fingerprint_per_timestamp = {}

@@ -34,6 +34,17 @@ def get_video_token(
         debug=debug
     )
     if task_result is None:
+        status_msg(
+            f'Empty video got for {url_video}',
+            color='red', sections=list(sections) + ['WARNING']
+        )
+        return None
+    token_size = task_result.get('token_size', 0)
+    if token_size == 0:
+        status_msg(
+            f'Empty video got for {url_video}',
+            color='yellow', sections=list(sections) + ['WARNING']
+        )
         return None
     token_status = task_result.get('token_status', None)
     if not token_status:
