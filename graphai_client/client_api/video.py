@@ -48,7 +48,8 @@ def get_video_token(
             raise RuntimeError(f'Missing downloaded file from {url_video} while forced')
         force_download = False
         for result in results_needed:
-            if result not in token_status.get('cached', []):
+            cached_jobs = token_status.get('cached', None) or []
+            if result not in cached_jobs:
                 force_download = True
                 break
         if force_download:
@@ -145,7 +146,8 @@ def extract_audio(
             raise RuntimeError(f'Missing file for audio extracted from {video_token} while recalculated')
         force_extraction = False
         for result in results_needed:
-            if result not in token_status.get('cached', []):
+            cached_jobs = token_status.get('cached', None) or []
+            if result not in cached_jobs:
                 force_extraction = True
                 break
         if force_extraction:
@@ -205,7 +207,8 @@ def extract_slides(
             )
         elif not token_status.get("active", None):
             for result in results_needed:
-                if result not in token_status.get('cached', []):
+                cached_jobs = token_status.get('cached', None) or []
+                if result not in cached_jobs:
                     num_missing_slides += 1
                     break
     if num_missing_slides > 0:

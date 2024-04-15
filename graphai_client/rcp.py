@@ -807,7 +807,7 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
                 [(new_audio_fingerprint, video_id)]
             )
         piper_connection.commit()
-        if num_update_slides>0 or new_audio_fingerprint:
+        if num_update_slides > 0 or new_audio_fingerprint:
             status_msg(
                 f'Success fingerprinting {len(update_data_slides)}/{len(existing_slides_fingerprint)} slides '
                 f'and {"1" if new_audio_fingerprint else 0} audio for video {video_id}',
@@ -820,9 +820,3 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
             )
     piper_cursor.close()
     piper_connection.close()
-
-
-if __name__ == '__main__':
-    # videos with pb: '0_005gbz9k', '0_00h8gj93', '0_00j302wr',
-    # no audio: '0_00g7xxaz'
-    fingerprint_on_rcp(['0_00urnwps'])

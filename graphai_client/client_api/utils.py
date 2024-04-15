@@ -148,9 +148,7 @@ def _check_cached_result(
             raise RuntimeError(f'invalid result type for {output_id}')
         token_status = task_res.get('token_status', {})
         if isinstance(token_status, dict):
-            cached_tasks = token_status.get('cached', [])
-            if cached_tasks is None:
-                RuntimeError(f'invalid cached result: None for {output_id}')
+            cached_tasks = token_status.get('cached', None) or []
             for cached in cached_tasks:
                 cached_res_dict[cached] = cached_res_dict.get(cached, 0) + 1
         else:
