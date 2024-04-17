@@ -47,7 +47,7 @@ def extract_text_from_slide(
 
 def calculate_fingerprint(
         slide_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'SLIDE FINGERPRINT'), debug=False,
-        max_tries=5, max_processing_time_s=20, quiet=False
+        max_tries=5, max_processing_time_s=120, quiet=False
 ):
     """
     Calculate the fingerprint of a single slide

@@ -729,9 +729,9 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
             )
             continue
         slides = extract_slides(video_token, login_info, results_needed=('calculate_fingerprint',))
-        num_slides_in_cache = len(slides)
         new_slides_fingerprint_per_timestamp = {}
         if slides:
+            num_slides_in_cache = len(slides)
             for slide_index_str in sorted(slides.keys(), key=int):
                 slide_info = slides[slide_index_str]
                 slide_token = slide_info.get("token", None)
@@ -767,13 +767,13 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
                     f'Fingerprinted only {num_slides_fingerprinted}/{num_slides_in_cache} slides for video {video_id}',
                     color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
                 )
-        # check if existing info and extracted slides matches
-        if num_slides_in_cache != num_existing_slides:
-            status_msg(
-                f'The number of slides in the cache: {num_slides_in_cache} does not match that '
-                f'in the database: {num_existing_slides} for video {video_id}',
-                color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
-            )
+            # check if existing info and extracted slides matches
+            if num_slides_in_cache != num_existing_slides:
+                status_msg(
+                    f'The number of slides in the cache: {num_slides_in_cache} does not match that '
+                    f'in the database: {num_existing_slides} for video {video_id}',
+                    color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
+                )
         update_data_slides = []
         for existing_slides_num, existing_slides_timestamp in existing_slides_timestamp.items():
             if existing_slides_timestamp in new_slides_fingerprint_per_timestamp:
