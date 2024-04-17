@@ -130,14 +130,13 @@ def call_async_endpoint(
                 f'Unexpected status while requesting the status of {endpoint} for {token} at try {_tries}/{max_tries}: '
                 + task_status
             )
-    if not quiet:
-        if _tries > max_tries:
-            msg = f'Maximum try {max_tries}/{max_tries} reached for {endpoint} with the following json data: \n{json}'
-        elif datetime.now() - start > max_processing_time:
-            msg = f'Timeout of {max_processing_time_s}s reached for {endpoint} with the following json data: \n{json}'
-        else:
-            msg = f'Unknown failure for {endpoint} with the following json data: \n{json}'
-        status_msg(msg, color='yellow', sections=list(sections) + ['WARNING'])
+    if _tries > max_tries:
+        msg = f'Maximum try {max_tries}/{max_tries} reached for {endpoint} with the following json data: \n{json}'
+    elif datetime.now() - start > max_processing_time:
+        msg = f'Timeout of {max_processing_time_s}s reached for {endpoint} with the following json data: \n{json}'
+    else:
+        msg = f'Unknown failure for {endpoint} with the following json data: \n{json}'
+    status_msg(msg, color='yellow', sections=list(sections) + ['WARNING'])
     return None
 
 

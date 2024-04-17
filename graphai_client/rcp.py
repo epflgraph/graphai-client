@@ -719,7 +719,7 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
         for slide_num, timestamp, slide_fingerprint in piper_cursor:
             existing_slides_timestamp[slide_num] = timestamp
             existing_slides_fingerprint[slide_num] = slide_fingerprint
-        num_existing_slides = len(existing_slides_fingerprint)
+        num_existing_slides = len(existing_slides_timestamp)
         # extract slides fingerprint
         video_token = get_video_token(video_url, login_info, force=force_download)
         if not video_token:
@@ -729,6 +729,7 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
             )
             continue
         slides = extract_slides(video_token, login_info, results_needed=('calculate_fingerprint',))
+        num_slides_in_cache = len(slides)
         new_slides_fingerprint_per_timestamp = {}
         if slides:
             for slide_index_str in sorted(slides.keys(), key=int):
@@ -755,15 +756,22 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
                 new_slide_fingerprint = calculate_slide_fingerprint(slide_token, login_info, quiet=True)
                 if new_slide_fingerprint:
                     new_slides_fingerprint_per_timestamp[slide_info["timestamp"]] = new_slide_fingerprint
-            status_msg(
-                f'Fingerprinted {len(new_slides_fingerprint_per_timestamp)} slides for video {video_id}',
-                color='green', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'SUCCESS']
-            )
+            num_slides_fingerprinted = len(new_slides_fingerprint_per_timestamp)
+            if num_slides_fingerprinted == num_slides_in_cache:
+                status_msg(
+                    f'Fingerprinted {num_slides_fingerprinted} slides for video {video_id}',
+                    color='green', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'SUCCESS']
+                )
+            else:
+                status_msg(
+                    f'Fingerprinted only {num_slides_fingerprinted}/{num_slides_in_cache} slides for video {video_id}',
+                    color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
+                )
         # check if existing info and extracted slides matches
-        if len(new_slides_fingerprint_per_timestamp) != num_existing_slides:
+        if num_slides_in_cache != num_existing_slides:
             status_msg(
-                f'The number of slides in the cache: {len(new_slides_fingerprint_per_timestamp)} does not match that '
-                f'in the database: {len(existing_slides_timestamp)} for video {video_id}',
+                f'The number of slides in the cache: {num_slides_in_cache} does not match that '
+                f'in the database: {num_existing_slides} for video {video_id}',
                 color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
             )
         update_data_slides = []
@@ -780,10 +788,10 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
                     )
                 update_data_slides.append((new_slide_fingerprint, video_id, existing_slides_num))
         num_update_slides = len(update_data_slides)
-        if num_update_slides != len(existing_slides_fingerprint):
+        if num_update_slides != num_existing_slides:
             status_msg(
                 f'Could only match {num_update_slides}/{num_existing_slides} fingerprinted slides '
-                f'to those in the database for video {video_id}',
+                f'with respect to the ones in the database for video {video_id}',
                 color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
             )
         # extract audio fingerprint
@@ -813,7 +821,7 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
         piper_connection.commit()
         if num_update_slides > 0 or new_audio_fingerprint:
             status_msg(
-                f'Success fingerprinting {len(update_data_slides)}/{len(existing_slides_fingerprint)} slides '
+                f'Success fingerprinting {num_update_slides}/{num_existing_slides} slides '
                 f'and {"1" if new_audio_fingerprint else 0} audio for video {video_id}',
                 color='green', sections=['KALTURA', 'FINGERPRINT', 'SUCCESS']
             )
