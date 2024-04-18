@@ -730,9 +730,7 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
                 color='red', sections=['KALTURA', 'FINGERPRINT', 'FAILED']
             )
             continue
-        slides = extract_slides(
-            video_token, login_info, results_needed=('calculate_fingerprint',), sections=('KALTURA', 'EXTRACT SLIDES')
-        )
+        slides = extract_slides(video_token, login_info, sections=('KALTURA', 'EXTRACT SLIDES'))
         new_slides_fingerprint_per_timestamp = {}
         if slides:
             num_slides_in_cache = len(slides)
@@ -751,10 +749,9 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
                         f'Invalid token status for slide {slide_token}',
                         color='yellow', sections=['KALTURA', 'EXTRACT SLIDES', 'WARNING']
                     )
-                elif (not token_status.get("active", None) and
-                      'calculate_fingerprint' not in token_status.get("cached", [])):
+                elif not token_status.get("active", None) and not token_status.get("fingerprinted", None):
                     status_msg(
-                        f'Non-active token status for slide {slide_token}',
+                        f'Non-active and not-fingerprinted token status for slide {slide_token}',
                         color='yellow', sections=['KALTURA', 'EXTRACT SLIDES', 'WARNING']
                     )
                 new_slide_fingerprint = calculate_slide_fingerprint(
@@ -802,9 +799,7 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
             )
         # extract audio fingerprint
         new_audio_fingerprint = None
-        audio_token = extract_audio(
-            video_token, login_info, results_needed=('calculate_fingerprint',), sections=('KALTURA', 'EXTRACT AUDIO')
-        )
+        audio_token = extract_audio(video_token, login_info, sections=('KALTURA', 'EXTRACT AUDIO'))
         if audio_token:
             new_audio_fingerprint = calculate_audio_fingerprint(
                 audio_token, login_info, sections=['KALTURA', 'FINGERPRINT', 'AUDIO']

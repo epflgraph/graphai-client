@@ -95,9 +95,7 @@ def process_slides(
         f'extracting slides',
         color='grey', sections=['GRAPHAI', 'EXTRACT SLIDES', 'PROCESSING']
     )
-    slide_tokens = extract_slides(
-        video_token, login_info, force=force, debug=debug, results_needed=('extract_text', 'detect_language')
-    )
+    slide_tokens = extract_slides(video_token, login_info, force=force, debug=debug)
     if slide_tokens is None:
         slides = None
     else:
@@ -169,12 +167,7 @@ def process_audio(
         f'extracting audio',
         color='grey', sections=['GRAPHAI', 'EXTRACT AUDIO', 'PROCESSING']
     )
-    results_needed = ['calculate_fingerprint']
-    if not audio_language:
-        results_needed.append('detect_language')
-    if not only_detect_language:
-        results_needed.append('transcribe')
-    audio_token = extract_audio(video_token, login_info, force=force, debug=debug, results_needed=tuple(results_needed))
+    audio_token = extract_audio(video_token, login_info, force=force, debug=debug)
     if audio_token is None:
         segments = None
     else:

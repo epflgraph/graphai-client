@@ -4,7 +4,7 @@ from graphai_client.client_api.utils import call_async_endpoint, status_msg
 
 def get_video_token(
         url_video: str, login_info: dict, playlist=False, sections=('GRAPHAI', 'DOWNLOAD VIDEO'),
-        debug=False, force=False, results_needed=(), max_tries=5, max_processing_time_s=900
+        debug=False, force=False, max_tries=5, max_processing_time_s=900
 ) -> Optional[str]:
     """
     Download a video and get a token.
@@ -15,8 +15,6 @@ def get_video_token(
     :param sections: sections to use in the status messages.
     :param debug: if True additional information about each connection to the API is displayed.
     :param force: Should the cache be bypassed and the download forced.
-    :param results_needed: list of operations which should be available in cache otherwise the audio extraction is
-        extracted according to cache results.
     :param max_tries: the number of tries before giving up.
     :param max_processing_time_s: maximum number of seconds to download the video.
     :return: the video token if successful, None otherwise.
@@ -57,22 +55,14 @@ def get_video_token(
             raise RuntimeError(f'Missing downloaded file from {url_video} while fresh')
         if force:
             raise RuntimeError(f'Missing downloaded file from {url_video} while forced')
-        force_download = False
-        cached_jobs = token_status.get('cached', None) or []
-        for result in results_needed:
-            if result not in cached_jobs:
-                force_download = True
-                break
-        if force_download:
-            status_msg(
-                f'Missing downloaded file from {url_video}, force downloading...',
-                sections=list(sections) + ['WARNING'], color='yellow'
-            )
-            return get_video_token(
-                url_video=url_video, login_info=login_info, playlist=playlist, sections=sections, debug=debug,
-                force=True, results_needed=results_needed, max_tries=max_tries,
-                max_processing_time_s=max_processing_time_s,
-            )
+        status_msg(
+            f'Missing downloaded file from {url_video}, force downloading...',
+            sections=list(sections) + ['WARNING'], color='yellow'
+        )
+        return get_video_token(
+            url_video=url_video, login_info=login_info, playlist=playlist, sections=sections, debug=debug,
+            force=True, max_tries=max_tries, max_processing_time_s=max_processing_time_s,
+        )
     return task_result['token']
 
 
@@ -110,7 +100,7 @@ def fingerprint_video(
 
 
 def extract_audio(
-        video_token: str, login_info: dict, recalculate_cached=False, force=False, results_needed=(),
+        video_token: str, login_info: dict, recalculate_cached=False, force=False,
         sections=('GRAPHAI', 'EXTRACT AUDIO'), debug=False, max_tries=5, max_processing_time_s=300
 ) -> Optional[str]:
     """
@@ -120,8 +110,6 @@ def extract_audio(
     :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
     :param recalculate_cached: extract audio based on the cached results.
     :param force: Should the cache be bypassed and the audio extraction forced.
-    :param results_needed: list of operations which should be available in cache otherwise the audio extraction is
-        extracted according to cache results.
     :param sections: sections to use in the status messages.
     :param debug: if True additional information about each connection to the API is displayed.
     :param max_tries: the number of tries before giving up.
@@ -155,27 +143,19 @@ def extract_audio(
             raise RuntimeError(f'Missing file for audio extracted from {video_token} while forced')
         if recalculate_cached:
             raise RuntimeError(f'Missing file for audio extracted from {video_token} while recalculated')
-        force_extraction = False
-        cached_jobs = token_status.get('cached', None) or []
-        for result in results_needed:
-            if result not in cached_jobs:
-                force_extraction = True
-                break
-        if force_extraction:
-            status_msg(
-                f'Missing file for audio extracted from {video_token}, extracting audio according to the cache...',
-                color='yellow', sections=list(sections) + ['WARNING']
-            )
-            return extract_audio(
-                video_token, login_info, recalculate_cached=True, force=force,
-                results_needed=results_needed, sections=sections, debug=debug, max_tries=max_tries,
-                max_processing_time_s=max_processing_time_s
-            )
+        status_msg(
+            f'Missing file for audio extracted from {video_token}, extracting audio according to the cache...',
+            color='yellow', sections=list(sections) + ['WARNING']
+        )
+        return extract_audio(
+            video_token, login_info, recalculate_cached=True, force=force, sections=sections, debug=debug,
+            max_tries=max_tries, max_processing_time_s=max_processing_time_s
+        )
     return task_result['token']
 
 
 def extract_slides(
-        video_token: str, login_info: dict, recalculate_cached=False, force=False, results_needed=(),
+        video_token: str, login_info: dict, recalculate_cached=False, force=False,
         max_tries=5, max_processing_time_s=6000, sections=('GRAPHAI', 'EXTRACT SLIDES'), debug=False
 ) -> Optional[dict]:
     """
@@ -185,8 +165,6 @@ def extract_slides(
     :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
     :param recalculate_cached: extract slides based on the cached results.
     :param force: Should the cache be bypassed and the slides extraction forced.
-    :param results_needed: list of operations which should be available in cache for all slides otherwise the
-        slides extraction is performed according to cache results.
     :param sections: sections to use in the status messages.
     :param debug: if True additional information about each connection to the API is displayed.
     :param max_tries: the number of tries before giving up.
@@ -217,11 +195,7 @@ def extract_slides(
                 color='yellow', sections=list(sections) + ['WARNING']
             )
         elif not token_status.get("active", None):
-            cached_jobs = token_status.get('cached', None) or []
-            for result in results_needed:
-                if result not in cached_jobs:
-                    num_missing_slides += 1
-                    break
+            num_missing_slides += 1
     if num_missing_slides > 0:
         if task_result.get('fresh', None):
             raise RuntimeError(

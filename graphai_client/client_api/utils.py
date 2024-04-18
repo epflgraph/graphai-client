@@ -3,7 +3,7 @@ from os.path import normpath, join, dirname
 from time import sleep
 from datetime import datetime, timedelta
 from requests import get, post, Response
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Tuple
 from graphai_client.utils import status_msg
 
 
@@ -31,6 +31,11 @@ def call_async_endpoint(
     :param _tries: current try number (internal usage).
     :return: the content of the 'task_result' key from the response of the status endpoint.
     """
+    if not quiet:
+        status_msg(
+            f'extracting {output_type} from {token}...',
+            color='grey', sections=list(sections) + ['PROCESSING']
+        )
     response_endpoint = _get_response(
         url=endpoint,
         login_info=login_info,
@@ -111,7 +116,7 @@ def call_async_endpoint(
                     _tries=_tries + 1, max_tries=max_tries, delay_retry=delay_retry,
                     sections=sections, debug=debug, quiet=quiet
                 )
-            _check_cached_result(task_result, result_key, token, output_type, list(sections), quiet)
+            _check_result(task_result, result_key, token, output_type, list(sections), quiet)
             return task_result
         elif task_status == 'FAILURE':
             if not quiet or _tries == max_tries:
@@ -141,53 +146,52 @@ def call_async_endpoint(
     return None
 
 
-def _check_cached_result(
-        task_result: dict, result_key: str, token: str, output_type: str, sections: list, quiet: bool) -> None:
-    def _fill_cached_result(task_res: dict, cached_res_dict: dict, output_id: str) -> None:
+def _check_result(
+        task_result: dict, result_key: str, token: str, output_type: str, sections: list, quiet: bool
+) -> None:
+    def _is_active_and_fingerprinted(task_res: dict, output_id: str) -> Tuple[bool, bool]:
         if not isinstance(task_res, dict):
             raise RuntimeError(f'invalid result type for {output_id}')
         token_status = task_res.get('token_status', {})
         if isinstance(token_status, dict):
-            cached_tasks = token_status.get('cached', None) or []
-            for cached in cached_tasks:
-                cached_res_dict[cached] = cached_res_dict.get(cached, 0) + 1
+            return token_status.get('active', False), token_status.get('fingerprinted', False)
         else:
-            raise RuntimeError(f'invalid type of cached result: {type(cached_results)} for {output_id}')
+            raise RuntimeError(f'invalid type of token_status: {type(token_status)} for {output_id}')
 
     num_result = 1
     if result_key:
-        result_type = 'str'
         result = task_result.get(result_key, None)
-        if isinstance(result, dict):
-            num_result = len(result)
-            result_type = 'dict'
-        elif isinstance(result, list) or isinstance(result, tuple):
-            num_result = len(result)
-            result_type = 'list'
         if not task_result.get('fresh', True):
+            num_active = 0
+            num_fingerprinted = 0
+            if isinstance(result, dict):
+                num_result = len(result)
+                for key, res in result.items():
+                    is_active, is_fp = _is_active_and_fingerprinted(res, f'{output_type} {key} from {token}')
+                    if is_active:
+                        num_active += 1
+                    if is_fp:
+                        num_fingerprinted += 1
+            elif isinstance(result, list) or isinstance(result, tuple):
+                num_result = len(result)
+                for idx, res in enumerate(result):
+                    is_active, is_fp = _is_active_and_fingerprinted(res, f'{output_type} {idx} from {token}')
+                    if is_active:
+                        num_active += 1
+                    if is_fp:
+                        num_fingerprinted += 1
+            else:
+                num_result = 1
+                is_active, is_fp = _is_active_and_fingerprinted(task_result, f'{output_type} from {token}')
+                if is_active:
+                    num_active += 1
+                if is_fp:
+                    num_fingerprinted += 1
             msg = f'{num_result} {output_type} from {token} has already been extracted in the past'
-            cached_results_dict = {}
-            if num_result == 1:
-                _fill_cached_result(task_result, cached_results_dict, f'{output_type} from {token}')
-            else:
-                if result_type == 'dict':
-                    for key, res in result.items():
-                        _fill_cached_result(res, cached_results_dict, f'{output_type} {key} from {token}')
-                elif result_type in {'list', 'tuple'}:
-                    for idx, res in enumerate(result):
-                        _fill_cached_result(res, cached_results_dict, f'{output_type} {idx} from {token}')
-            all_cached = True
-            for cached_results, num in cached_results_dict.items():
-                if num != num_result:
-                    all_cached = False
-            if not all_cached:
-                cached_results_str = ", ".join(
-                    [f'"{r}" {num}/{num_result}' for r, num in cached_results_dict.items()]
-                )
-            else:
-                cached_results_str = ", ".join([f'"{r}"' for r in cached_results_dict])
-            if cached_results_str:
-                msg += f', the cached results are: {cached_results_str}'
+            if num_active != num_result:
+                msg += f' {num_active}/{num_result} active'
+            if num_fingerprinted != num_result:
+                msg += f'  {num_fingerprinted}/{num_result} fingerprinted'
             if not quiet:
                 status_msg(msg, color='grey', sections=sections + ['INFO'])
     if not quiet:
