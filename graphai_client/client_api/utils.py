@@ -161,11 +161,14 @@ def _check_result(
     num_result = 1
     if result_key:
         result = task_result.get(result_key, None)
+        if isinstance(result, dict):
+            num_result = len(result)
+        elif isinstance(result, list) or isinstance(result, tuple):
+            num_result = len(result)
         if not task_result.get('fresh', True):
             num_active = 0
             num_fingerprinted = 0
             if isinstance(result, dict):
-                num_result = len(result)
                 for key, res in result.items():
                     is_active, is_fp = _is_active_and_fingerprinted(res, f'{output_type} {key} from {token}')
                     if is_active:
@@ -173,7 +176,6 @@ def _check_result(
                     if is_fp:
                         num_fingerprinted += 1
             elif isinstance(result, list) or isinstance(result, tuple):
-                num_result = len(result)
                 for idx, res in enumerate(result):
                     is_active, is_fp = _is_active_and_fingerprinted(res, f'{output_type} {idx} from {token}')
                     if is_active:
@@ -181,7 +183,6 @@ def _check_result(
                     if is_fp:
                         num_fingerprinted += 1
             else:
-                num_result = 1
                 is_active, is_fp = _is_active_and_fingerprinted(task_result, f'{output_type} from {token}')
                 if is_active:
                     num_active += 1
