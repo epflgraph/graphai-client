@@ -65,7 +65,7 @@ def call_async_endpoint(
             debug=debug,
         )
         if response_status is None:
-            if not quiet:
+            if not quiet or _tries == max_tries:
                 status_msg(
                     f'Got unexpected None response calling {endpoint}/status/{task_id} at try {_tries}/{max_tries}. '
                     f'The data sent to {endpoint} was: {json}',
@@ -76,10 +76,11 @@ def call_async_endpoint(
             continue
         response_status_json = response_status.json()
         if not isinstance(response_status_json, dict):
-            status_msg(
-                f'Got unexpected response_status: {response_status_json} while extracting {output_type} from {token} '
-                f'at try {_tries}/{max_tries}', color='yellow', sections=list(sections) + ['WARNING']
-            )
+            if not quiet or _tries == max_tries:
+                status_msg(
+                    f'Got unexpected response_status: {response_status_json} while extracting {output_type} from {token} '
+                    f'at try {_tries}/{max_tries}', color='yellow', sections=list(sections) + ['WARNING']
+                )
             _tries += 1
             sleep(delay_retry)
             continue
@@ -89,7 +90,7 @@ def call_async_endpoint(
         elif task_status == 'SUCCESS':
             task_result = response_status_json.get('task_result', None)
             if task_result is None or not isinstance(task_result, dict):
-                if not quiet:
+                if not quiet or _tries == max_tries:
                     status_msg(
                         f'Bad task result "{task_result}" while extracting {output_type} from {token} '
                         f'at try {_tries}/{max_tries}',
@@ -99,7 +100,7 @@ def call_async_endpoint(
                 sleep(delay_retry)
                 continue
             if not task_result.get('successful', True):
-                if not quiet:
+                if not quiet or _tries == max_tries:
                     status_msg(
                         f'extraction of the {output_type} from {token} failed at try {_tries}/{max_tries}',
                         color='yellow', sections=list(sections) + ['WARNING']
@@ -113,7 +114,7 @@ def call_async_endpoint(
             _check_cached_result(task_result, result_key, token, output_type, list(sections), quiet)
             return task_result
         elif task_status == 'FAILURE':
-            if not quiet:
+            if not quiet or _tries == max_tries:
                 status_msg(
                     f'Calling {endpoint} caused a failure at try {_tries}/{max_tries}. '
                     f'The response was:\n{response_status_json}\nThe data was:\n{json}',

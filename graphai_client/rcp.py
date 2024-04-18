@@ -721,14 +721,18 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
             existing_slides_fingerprint[slide_num] = slide_fingerprint
         num_existing_slides = len(existing_slides_timestamp)
         # extract slides fingerprint
-        video_token = get_video_token(video_url, login_info, force=force_download)
+        video_token = get_video_token(
+            video_url, login_info, force=force_download, sections=('KALTURA', 'DOWNLOAD VIDEO')
+        )
         if not video_token:
             status_msg(
                 f'Skipping video {video_id} as the download failed.',
                 color='red', sections=['KALTURA', 'FINGERPRINT', 'FAILED']
             )
             continue
-        slides = extract_slides(video_token, login_info, results_needed=('calculate_fingerprint',))
+        slides = extract_slides(
+            video_token, login_info, results_needed=('calculate_fingerprint',), sections=('KALTURA', 'EXTRACT SLIDES')
+        )
         new_slides_fingerprint_per_timestamp = {}
         if slides:
             num_slides_in_cache = len(slides)
@@ -738,22 +742,24 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
                 if not slide_token:
                     status_msg(
                         f'Invalid token for slide {slide_token}, slide is skipped.',
-                        color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
+                        color='yellow', sections=['KALTURA', 'EXTRACT SLIDES', 'WARNING']
                     )
                     continue
                 token_status = slide_info.get("token_status", None)
                 if not token_status:
                     status_msg(
                         f'Invalid token status for slide {slide_token}',
-                        color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
+                        color='yellow', sections=['KALTURA', 'EXTRACT SLIDES', 'WARNING']
                     )
                 elif (not token_status.get("active", None) and
                       'calculate_fingerprint' not in token_status.get("cached", [])):
                     status_msg(
                         f'Non-active token status for slide {slide_token}',
-                        color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
+                        color='yellow', sections=['KALTURA', 'EXTRACT SLIDES', 'WARNING']
                     )
-                new_slide_fingerprint = calculate_slide_fingerprint(slide_token, login_info, quiet=True)
+                new_slide_fingerprint = calculate_slide_fingerprint(
+                    slide_token, login_info, quiet=True, sections=('KALTURA', 'FINGERPRINT', 'SLIDE ' + slide_index_str)
+                )
                 if new_slide_fingerprint:
                     new_slides_fingerprint_per_timestamp[slide_info["timestamp"]] = new_slide_fingerprint
             num_slides_fingerprinted = len(new_slides_fingerprint_per_timestamp)
@@ -796,9 +802,13 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
             )
         # extract audio fingerprint
         new_audio_fingerprint = None
-        audio_token = extract_audio(video_token, login_info, results_needed=('calculate_fingerprint',))
+        audio_token = extract_audio(
+            video_token, login_info, results_needed=('calculate_fingerprint',), sections=('KALTURA', 'EXTRACT AUDIO')
+        )
         if audio_token:
-            new_audio_fingerprint = calculate_audio_fingerprint(audio_token, login_info)
+            new_audio_fingerprint = calculate_audio_fingerprint(
+                audio_token, login_info, sections=['KALTURA', 'FINGERPRINT', 'AUDIO']
+            )
             if existing_audio_fingerprint and existing_audio_fingerprint != new_audio_fingerprint:
                 status_msg(
                     f'Computed audio fingerprint {new_audio_fingerprint} does not match that '
