@@ -385,13 +385,14 @@ def translate_subtitles(
     return segments
 
 
-def get_fingerprint_of_slides(slide_tokens: dict, login_info: dict, force=False):
-    def _calculate_slide_fingerprint(index_str, token, login_info, force):
-        fingerprint = calculate_slide_fingerprint(
-            token, login_info, force=force, quiet=True, sections=('KALTURA', 'FINGERPRINT', 'SLIDE ' + index_str)
-        )
-        return index_str, fingerprint
+def _calculate_slide_fingerprint(index_str, token, login_info, force):
+    fingerprint = calculate_slide_fingerprint(
+        token, login_info, force=force, quiet=True, sections=('KALTURA', 'FINGERPRINT', 'SLIDE ' + index_str)
+    )
+    return index_str, fingerprint
 
+
+def get_fingerprint_of_slides(slide_tokens: dict, login_info: dict, force=False):
     args = []
     for slide_index_str in sorted(slide_tokens.keys(), key=int):
         slide_info = slide_tokens[slide_index_str]
