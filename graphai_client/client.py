@@ -415,7 +415,7 @@ def get_fingerprint_of_slides(slide_tokens: dict, login_info: dict, force=False)
                 color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
             )
         args.append((slide_index_str, slide_token, login_info, force))
-    with Pool(processes=50) as pool:
+    with Pool(processes=10) as pool:
         results = pool.starmap(_calculate_slide_fingerprint, args)
         for index_slide_str, slide_fingerprint in results:
             slide_tokens[index_slide_str]['fingerprint'] = slide_fingerprint
