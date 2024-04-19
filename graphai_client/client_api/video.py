@@ -138,7 +138,7 @@ def extract_audio(
         )
     elif not token_status.get("active", None):
         if task_result.get('fresh', None):
-            raise RuntimeError(f'Missing file for fresh audio extracted from {video_token}')
+            raise RuntimeError(f'Missing file for fresh audio extracted from {video_token} while fresh')
         if force:
             raise RuntimeError(f'Missing file for audio extracted from {video_token} while forced')
         if recalculate_cached:
@@ -198,8 +198,13 @@ def extract_slides(
             num_missing_slides += 1
     if num_missing_slides > 0:
         if task_result.get('fresh', None):
-            raise RuntimeError(
-                f'Missing {num_missing_slides}/{len(task_result["slide_tokens"])} slide files from {video_token}'
+            status_msg(
+                f'Missing {num_missing_slides}/{len(task_result["slide_tokens"])} slide files from {video_token} '
+                f'while fresh, forcing extraction...', sections=list(sections) + ['WARNING'], color='yellow'
+            )
+            return extract_slides(
+                video_token=video_token, login_info=login_info, recalculate_cached=False, force=True,
+                max_tries=max_tries, max_processing_time_s=max_processing_time_s, sections=sections, debug=debug
             )
         if force:
             raise RuntimeError(

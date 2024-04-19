@@ -105,7 +105,7 @@ def detect_language(
 
 def calculate_fingerprint(
         audio_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'AUDIO FINGERPRINT'), debug=False,
-        max_tries=5, max_processing_time_s=60
+        max_tries=5, max_processing_time_s=300
 ):
     """
     Calculate the fingerprint of a single slide

@@ -6,7 +6,9 @@ from graphai_client.utils import (
     combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript,
     insert_data_into_table_with_type, execute_query, prepare_value_for_mysql, get_piper_connection, execute_many
 )
-from graphai_client.client import process_video, translate_extracted_text, translate_subtitles
+from graphai_client.client import (
+    process_video, translate_extracted_text, translate_subtitles, get_fingerprint_of_slides
+)
 from graphai_client.client_api.utils import login
 from graphai_client.client_api.text import extract_concepts_from_text
 from graphai_client.client_api.translation import translate_text
@@ -690,7 +692,6 @@ def fix_slides_translation_on_rcp(
 
 def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_file=None, force_download=True):
     from graphai_client.client_api.video import get_video_token, extract_slides, extract_audio
-    from graphai_client.client_api.image import calculate_fingerprint as calculate_slide_fingerprint
     from graphai_client.client_api.voice import calculate_fingerprint as calculate_audio_fingerprint
 
     login_info = login(graph_api_json)
@@ -730,35 +731,25 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
                 color='red', sections=['KALTURA', 'FINGERPRINT', 'FAILED']
             )
             continue
-        slides = extract_slides(video_token, login_info, sections=('KALTURA', 'EXTRACT SLIDES'))
+        slides = extract_slides(
+            video_token, login_info, recalculate_cached=True, sections=('KALTURA', 'EXTRACT SLIDES')
+        )
+        if not slides:
+            status_msg(
+                'failed to extract slides based on cached results, forcing extraction',
+                color='yellow', sections=['KALTURA', 'EXTRACT SLIDES', 'WARNING']
+            )
+            extract_slides(
+                video_token, login_info, force=True, sections=('KALTURA', 'EXTRACT SLIDES')
+            )
         new_slides_fingerprint_per_timestamp = {}
         if slides:
             num_slides_in_cache = len(slides)
-            for slide_index_str in sorted(slides.keys(), key=int):
-                slide_info = slides[slide_index_str]
-                slide_token = slide_info.get("token", None)
-                if not slide_token:
-                    status_msg(
-                        f'Invalid token for slide {slide_token}, slide is skipped.',
-                        color='yellow', sections=['KALTURA', 'EXTRACT SLIDES', 'WARNING']
-                    )
-                    continue
-                token_status = slide_info.get("token_status", None)
-                if not token_status:
-                    status_msg(
-                        f'Invalid token status for slide {slide_token}',
-                        color='yellow', sections=['KALTURA', 'EXTRACT SLIDES', 'WARNING']
-                    )
-                elif not token_status.get("active", None) and not token_status.get("fingerprinted", None):
-                    status_msg(
-                        f'Non-active and not-fingerprinted token status for slide {slide_token}',
-                        color='yellow', sections=['KALTURA', 'EXTRACT SLIDES', 'WARNING']
-                    )
-                new_slide_fingerprint = calculate_slide_fingerprint(
-                    slide_token, login_info, quiet=True, sections=('KALTURA', 'FINGERPRINT', 'SLIDE ' + slide_index_str)
-                )
-                if new_slide_fingerprint:
-                    new_slides_fingerprint_per_timestamp[slide_info["timestamp"]] = new_slide_fingerprint
+            slides = get_fingerprint_of_slides(slides, login_info)
+            for slide in slides.values():
+                fingerprint = slide.get('fingerprint', None)
+                if fingerprint:
+                    new_slides_fingerprint_per_timestamp[slide['timestamp']] = fingerprint
             num_slides_fingerprinted = len(new_slides_fingerprint_per_timestamp)
             if num_slides_fingerprinted == num_slides_in_cache:
                 status_msg(
@@ -799,7 +790,17 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
             )
         # extract audio fingerprint
         new_audio_fingerprint = None
-        audio_token = extract_audio(video_token, login_info, sections=('KALTURA', 'EXTRACT AUDIO'))
+        audio_token = extract_audio(
+            video_token, login_info, recalculate_cached=True, sections=('KALTURA', 'EXTRACT AUDIO')
+        )
+        if not audio_token:
+            status_msg(
+                'failed to extract audio based on cached result, forcing extraction',
+                color='yellow', sections=['KALTURA', 'EXTRACT AUDIO', 'WARNING']
+            )
+            audio_token = extract_audio(
+                video_token, login_info, force=True, sections=('KALTURA', 'EXTRACT AUDIO')
+            )
         if audio_token:
             new_audio_fingerprint = calculate_audio_fingerprint(
                 audio_token, login_info, sections=['KALTURA', 'FINGERPRINT', 'AUDIO']

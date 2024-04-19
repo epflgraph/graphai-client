@@ -191,8 +191,12 @@ def _check_result(
             msg = f'{num_result} {output_type} from {token} has already been extracted in the past'
             if num_active != num_result:
                 msg += f' {num_active}/{num_result} active'
+            else:
+                msg += ' all active'
             if num_fingerprinted != num_result:
                 msg += f'  {num_fingerprinted}/{num_result} fingerprinted'
+            else:
+                msg += ' all fingerprinted'
             if not quiet:
                 status_msg(msg, color='grey', sections=sections + ['INFO'])
     if not quiet:

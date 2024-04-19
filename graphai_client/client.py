@@ -1,6 +1,9 @@
+from multiprocessing import Pool
 from graphai_client.utils import status_msg, add_initial_disclaimer
 from graphai_client.client_api.utils import login
-from graphai_client.client_api.image import extract_text_from_slide
+from graphai_client.client_api.image import (
+    extract_text_from_slide, calculate_fingerprint as calculate_slide_fingerprint
+)
 from graphai_client.client_api.video import extract_slides, extract_audio, get_video_token
 from graphai_client.client_api.voice import transcribe_audio, detect_language
 from graphai_client.client_api.translation import translate_text
@@ -380,3 +383,39 @@ def translate_subtitles(
                     else:
                         segments[idx][lang] = translated_segment.strip()
     return segments
+
+
+def get_fingerprint_of_slides(slide_tokens: dict, login_info: dict, force=False):
+    def _calculate_slide_fingerprint(index_str, token, login_info, force):
+        fingerprint = calculate_slide_fingerprint(
+            token, login_info, force=force, quiet=True, sections=('KALTURA', 'FINGERPRINT', 'SLIDE ' + index_str)
+        )
+        return index_str, fingerprint
+
+    args = []
+    for slide_index_str in sorted(slide_tokens.keys(), key=int):
+        slide_info = slide_tokens[slide_index_str]
+        slide_token = slide_info.get("token", None)
+        if not slide_token:
+            status_msg(
+                f'Invalid token for slide {slide_token}, slide is skipped.',
+                color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
+            )
+            continue
+        token_status = slide_info.get("token_status", None)
+        if not token_status:
+            status_msg(
+                f'Invalid token status for slide {slide_token}',
+                color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
+            )
+        elif not token_status.get("active", None) and not token_status.get("fingerprinted", None):
+            status_msg(
+                f'Non-active and not-fingerprinted token status for slide {slide_token}',
+                color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
+            )
+        args.append((slide_index_str, slide_token, login_info, force))
+    with Pool(processes=50) as pool:
+        results = pool.starmap(_calculate_slide_fingerprint, args)
+        for index_slide_str, slide_fingerprint in results:
+            slide_tokens[index_slide_str]['fingerprint'] = slide_fingerprint
+    return slide_tokens
