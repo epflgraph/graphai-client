@@ -811,6 +811,8 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
                     f'in the database: {existing_audio_fingerprint} for video {video_id}',
                     color='yellow', sections=['KALTURA', 'FINGERPRINT', 'AUDIO', 'WARNING']
                 )
+        else:
+            new_audio_fingerprint = ''
         # update db
         if update_data_slides:
             execute_many(
@@ -818,7 +820,7 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
                 'UPDATE gen_kaltura.Slides SET fingerprint=%s WHERE kalturaVideoId=%s AND SlideNumber=%s;',
                 update_data_slides
             )
-        if new_audio_fingerprint:
+        if new_audio_fingerprint is not None:
             execute_many(
                 piper_connection,
                 'UPDATE gen_kaltura.Videos SET audioFingerprint=%s WHERE kalturaVideoId=%s;',
