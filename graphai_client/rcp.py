@@ -739,7 +739,7 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
                 'failed to extract slides based on cached results, forcing extraction',
                 color='yellow', sections=['KALTURA', 'EXTRACT SLIDES', 'WARNING']
             )
-            extract_slides(
+            slides = extract_slides(
                 video_token, login_info, force=True, sections=('KALTURA', 'EXTRACT SLIDES')
             )
         new_slides_fingerprint_per_timestamp = {}
