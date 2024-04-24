@@ -213,8 +213,8 @@ def _check_result(
                 msg += f' ({num_fingerprinted}/{num_result} are fingerprinted)'
             else:
                 msg += ' (all are fingerprinted)'
-            if not quiet:
-                status_msg(msg, color='green', sections=sections + ['SUCCESS'])
+        if not quiet:
+            status_msg(msg, color='green', sections=sections + ['SUCCESS'])
     else:
         if not quiet:
             status_msg(
