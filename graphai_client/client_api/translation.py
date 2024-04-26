@@ -175,12 +175,15 @@ def translate_text_list(
                     f'get part of the text (from {idx_start} to the {n_text_elems}) as the full list is too long',
                     color='grey', sections=list(sections) + ['PROCESSING']
                 )
-                translated_text_full[idx_start:] = translate_text_list(
+                translated_text_part = translate_text_list(
                     text[idx_start:], source_language, target_language, login_info,
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
                     max_text_list_length=max_text_list_length, max_tries=max_tries,
                     max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
                 )
+                if translated_text_part is None:
+                    return None
+                translated_text_full[idx_start:] = translated_text_part
             # one element is already too large
             elif sum_length > max_text_list_length:
                 status_msg(
@@ -201,12 +204,15 @@ def translate_text_list(
                     f'get part of the text (from {idx_start} to {idx_end}) as the full list is too long',
                     color='grey', sections=list(sections) + ['PROCESSING']
                 )
-                translated_text_full[idx_start:idx_end + 1] = translate_text_list(
+                translated_text_part = translate_text_list(
                     text[idx_start:idx_end + 1], source_language, target_language, login_info,
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
                     max_text_list_length=max_text_list_length, max_tries=max_tries,
                     max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
                 )
+                if translated_text_part is None:
+                    return None
+                translated_text_full[idx_start:idx_end + 1] = translated_text_part
                 idx_start = idx_end + 1
                 sum_length = 0
         return translated_text_full
