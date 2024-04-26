@@ -21,7 +21,7 @@ def transcribe_audio(
     :param max_tries: the number of tries before giving up.
     :param max_processing_time_s: maximum number of seconds to transcribe the voices from the audio.
     :return: a tuple where the first element is either the "force_lang" parameter if not None or the detected language
-        of the audio or None if no voice was detected). The second element  of the tuple is a list of segments.
+        of the audio or None if no voice was detected. The second element  of the tuple is a list of segments.
         Each segment is a dictionary with the start and end timestamp (in second) with resp. 'start' and 'end key',
         and the detected language as key and the detected text  during that interval as value.
     """
@@ -53,10 +53,6 @@ def transcribe_audio(
             {'start': segment['start'], 'end': segment['end'], task_result['language']: segment['text'].strip()}
             for segment in task_result['subtitle_results']
         ]
-        status_msg(
-            f'{len(segments)} segments have been extracted from {audio_token}',
-            color='green', sections=list(sections) + ['SUCCESS']
-        )
     return task_result['language'], segments
 
 

@@ -149,14 +149,18 @@ def call_async_endpoint(
 def _check_result(
         task_result: dict, result_key: str, token: str, output_type: str, sections: list, quiet: bool
 ) -> None:
-    def _is_active_and_fingerprinted(task_res: dict, output_id: str) -> Tuple[Optional[bool], Optional[bool]]:
+    def _incr_active_and_fingerprinted(
+            task_res: dict, output_id: str, n_missing: int, n_active: int, n_fingerprinted: int
+    ) -> Tuple[int, int, int]:
         if not isinstance(task_res, dict):
-            raise RuntimeError(f'invalid result type for {output_id}')
+            return n_missing + 1, n_active, n_fingerprinted
         token_status = task_res.get('token_status', None)
         if token_status is None:
-            return None, None
+            return n_missing + 1, n_active, n_fingerprinted
         if isinstance(token_status, dict):
-            return token_status.get('active', False), token_status.get('fingerprinted', False)
+            active = token_status.get('active', False)
+            fingerprinted = token_status.get('fingerprinted', False)
+            return n_missing, n_active + (1 if active else 0), n_fingerprinted + (1 if fingerprinted else 0)
         else:
             raise RuntimeError(f'invalid type of token_status: {type(token_status)} for {output_id}')
 
@@ -172,33 +176,20 @@ def _check_result(
         n_fingerprinted = 0
         if isinstance(result, dict):
             for key, res in result.items():
-                is_active, is_fp = _is_active_and_fingerprinted(res, f'{output_type} {key} from {token}')
-                if is_active is None and is_fp is None:
-                    n_missing_token_status += 1
-                if is_active:
-                    n_active += 1
-                if is_fp:
-                    n_fingerprinted += 1
+                n_missing_token_status, n_active, n_fingerprinted = _incr_active_and_fingerprinted(
+                    res, f'{output_type} {key} from {token}', n_missing_token_status, n_active, n_fingerprinted
+                )
         elif isinstance(result, list) or isinstance(result, tuple):
             for idx, res in enumerate(result):
-                is_active, is_fp = _is_active_and_fingerprinted(res, f'{output_type} {idx} from {token}')
-                if is_active is None and is_fp is None:
-                    n_missing_token_status += 1
-                if is_active:
-                    n_active += 1
-                if is_fp:
-                    n_fingerprinted += 1
+                n_missing_token_status, n_active, n_fingerprinted = _incr_active_and_fingerprinted(
+                    res, f'{output_type} {idx} from {token}', n_missing_token_status, n_active, n_fingerprinted
+                )
         else:
-            is_active, is_fp = _is_active_and_fingerprinted(task_result, f'{output_type} from {token}')
-            if is_active is None and is_fp is None:
-                n_missing_token_status += 1
-            if is_active:
-                n_active += 1
-            if is_fp:
-                n_fingerprinted += 1
+            n_missing_token_status, n_active, n_fingerprinted = _incr_active_and_fingerprinted(
+                task_result, f'{output_type} from {token}', n_missing_token_status, n_active, n_fingerprinted
+            )
         return n_result, n_missing_token_status, n_active, n_fingerprinted
 
-    num_result = 1
     if result_key:
         num_result, num_missing_token_status, num_active, num_fingerprinted = _count_active_and_fingerprinted()
         msg = f'{num_result} {output_type} has been extracted from {token}'
@@ -217,10 +208,10 @@ def _check_result(
             status_msg(msg, color='green', sections=sections + ['SUCCESS'])
     else:
         if not quiet:
-            status_msg(
-                f'{num_result} {output_type} has been extracted from {token}',
-                color='green', sections=sections + ['SUCCESS']
-            )
+            msg = f'{output_type} has been extracted from {token}'
+            if not task_result.get('fresh', True):
+                msg += f' (already done in the past)'
+            status_msg(msg, color='green', sections=sections + ['SUCCESS'])
 
 
 def _get_response(

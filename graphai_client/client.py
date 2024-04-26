@@ -1,11 +1,14 @@
 from multiprocessing import Pool
+from typing import Tuple, Dict, Optional, Any
 from graphai_client.utils import status_msg, add_initial_disclaimer
 from graphai_client.client_api.utils import login
 from graphai_client.client_api.image import (
     extract_text_from_slide, calculate_fingerprint as calculate_slide_fingerprint
 )
 from graphai_client.client_api.video import extract_slides, extract_audio, get_video_token
-from graphai_client.client_api.voice import transcribe_audio, detect_language
+from graphai_client.client_api.voice import (
+    transcribe_audio, detect_language, calculate_fingerprint as calculate_audio_fingerprint
+)
 from graphai_client.client_api.translation import translate_text
 
 
@@ -36,10 +39,6 @@ def process_video(
     :param debug: if True additional information about each connection to the API is displayed.
     :return: a dictionary containing the results ot the processing.
     """
-    status_msg(
-        f'processing the video {video_url}',
-        color='grey', sections=['GRAPHAI', 'DOWNLOAD VIDEO', 'PROCESSING']
-    )
     if login_info is None or 'token'not in login_info:
         login_info = login(graph_api_json)
     video_token = get_video_token(video_url, login_info, debug=debug, force=force or force_download)
@@ -54,21 +53,17 @@ def process_video(
         slides_language = None
         slides = None
     if analyze_audio:
-        audio_language, segments = process_audio(
+        audio_language, audio_fingerprint, segments = process_audio(
             video_token, login_info, force=force, audio_language=audio_language,
             destination_languages=destination_languages, debug=debug
         )
     elif detect_audio_language:
-        audio_language, segments = process_audio(
+        audio_language, audio_fingerprint, segments = process_audio(
             video_token, login_info, force=force, audio_language=audio_language, only_detect_language=True, debug=debug
         )
     else:
         audio_language = None
         segments = None
-    status_msg(
-        f'The video {video_url} has been successfully processed',
-        color='green', sections=['GRAPHAI', 'VIDEO', 'SUCCESS']
-    )
     return dict(
         url=video_url,
         video_token=video_token,
@@ -76,6 +71,7 @@ def process_video(
         slides_language=slides_language,
         subtitles=segments,
         audio_language=audio_language,
+        audio_fingerprint=audio_fingerprint
     )
 
 
@@ -94,14 +90,11 @@ def process_slides(
     :return: a 2-tuple containing first the language detected by the OCR (or forced by slides_language) and
         second a dictionary containing the result of the processing.
     """
-    status_msg(
-        f'extracting slides',
-        color='grey', sections=['GRAPHAI', 'EXTRACT SLIDES', 'PROCESSING']
-    )
     slide_tokens = extract_slides(video_token, login_info, force=force, debug=debug)
     if slide_tokens is None:
         slides = None
     else:
+        slide_tokens = get_fingerprint_of_slides(slide_tokens, login_info, force=force, debug=debug)
         status_msg(
             f'extracting text from {len(slide_tokens)} slides',
             color='grey', sections=['GRAPHAI', 'EXTRACT TEXT FROM SLIDES', 'PROCESSING']
@@ -129,7 +122,7 @@ def process_slides(
             )
             slides_language = 'en'
         status_msg(
-            f'translate text from {len(slides_text)} slides in {slides_language}',
+            f'translate text from {len(slides_text)} {slides_language} slides to {",".join(destination_languages)}',
             color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
         )
         slides_text = translate_extracted_text(
@@ -140,19 +133,24 @@ def process_slides(
         for slide_idx_str in sorted(slide_tokens.keys(), key=int):
             slide = {
                 'token': slide_tokens[slide_idx_str]['token'],
-                'timestamp': slide_tokens[slide_idx_str]['timestamp']
+                'timestamp': slide_tokens[slide_idx_str]['timestamp'],
+                'fingerprint': slide_tokens[slide_idx_str]['fingerprint']
             }
             for k, v in slides_text[int(slide_idx_str) - 1].items():
                 if k != 'timestamp':
                     slide[k] = v
             slides.append(slide)
+        status_msg(
+            f'Successfully extracted text from {len(slide_tokens)} slides',
+            color='green', sections=['GRAPHAI', 'EXTRACT TEXT FROM SLIDES', 'SUCCESS']
+        )
     return slides_language, slides
 
 
 def process_audio(
         video_token, login_info, force=False, only_detect_language=False, audio_language=None,
         destination_languages=('fr', 'en'), debug=False
-):
+) -> Tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
     """
     Extract audio from a video, perform transcription and translate the text.
     :param video_token: token associated with a video, typically the result of a call to get_video_token()
@@ -163,25 +161,20 @@ def process_audio(
         specified language.
     :param destination_languages: tuple of target languages. Perform translations if needed.
     :param debug: if True debug output is enabled.
-    :return: a 2-tuple containing first the language detected for the audio (or forced by audio_language) and
-        second a dictionary containing the result of the processing (None if only_detect_language is True).
+    :return: a 3-tuple containing first the language detected for the audio (or forced by audio_language),
+        the audio fingerprint and a dictionary containing the result of the processing
+        (or None if only_detect_language is True).
     """
-    status_msg(
-        f'extracting audio',
-        color='grey', sections=['GRAPHAI', 'EXTRACT AUDIO', 'PROCESSING']
-    )
     audio_token = extract_audio(video_token, login_info, force=force, debug=debug)
     if audio_token is None:
         segments = None
+        audio_fingerprint = None
     else:
+        audio_fingerprint = calculate_audio_fingerprint(audio_token, login_info, force=force, debug=debug)
         if only_detect_language:
             if not audio_language:
                 audio_language = detect_language(audio_token, login_info, force=force, debug=debug)
-            return audio_language, None
-        status_msg(
-            f'transcribe audio',
-            color='grey', sections=['GRAPHAI', 'TRANSCRIBE', 'PROCESSING']
-        )
+            return audio_language, audio_fingerprint, None
         audio_language, segments = transcribe_audio(
             audio_token, login_info, force=force, force_lang=audio_language, debug=debug, strict=True
         )
@@ -214,10 +207,6 @@ def process_audio(
             if not segments:
                 audio_language = None
         if segments:
-            status_msg(
-                f'translate transcription for {len(segments)} segments in {audio_language}',
-                color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
-            )
             segments = translate_subtitles(
                 segments, login_info, force=force, source_language=audio_language,
                 destination_languages=destination_languages, debug=debug
@@ -225,7 +214,7 @@ def process_audio(
             segments = add_initial_disclaimer(segments)
         else:
             audio_language = None
-    return audio_language, segments
+    return audio_language, audio_fingerprint, segments
 
 
 def extract_text_from_slides(slide_tokens: dict, login_info: dict, force=False, slides_language=None, debug=False):
@@ -385,14 +374,15 @@ def translate_subtitles(
     return segments
 
 
-def _calculate_slide_fingerprint(index_str, token, login_info, force):
+def _calculate_slide_fingerprint(index_str, token, login_info, force, debug):
     fingerprint = calculate_slide_fingerprint(
-        token, login_info, force=force, quiet=True, sections=('KALTURA', 'FINGERPRINT', 'SLIDE ' + index_str)
+        token, login_info, force=force, debug=debug, quiet=True,
+        sections=('KALTURA', 'FINGERPRINT', 'SLIDE ' + index_str)
     )
     return index_str, fingerprint
 
 
-def get_fingerprint_of_slides(slide_tokens: dict, login_info: dict, force=False):
+def get_fingerprint_of_slides(slide_tokens: dict, login_info: dict, force=False, debug=False):
     args = []
     for slide_index_str in sorted(slide_tokens.keys(), key=int):
         slide_info = slide_tokens[slide_index_str]
@@ -414,7 +404,7 @@ def get_fingerprint_of_slides(slide_tokens: dict, login_info: dict, force=False)
                 f'Non-active and not-fingerprinted token status for slide {slide_token}',
                 color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
             )
-        args.append((slide_index_str, slide_token, login_info, force))
+        args.append((slide_index_str, slide_token, login_info, force, debug))
     with Pool(processes=10) as pool:
         results = pool.starmap(_calculate_slide_fingerprint, args)
         for index_slide_str, slide_fingerprint in results:

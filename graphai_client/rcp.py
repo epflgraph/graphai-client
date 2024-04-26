@@ -95,12 +95,14 @@ def process_videos_on_rcp(
                 audio_detected_language = None
                 slides_detection_time = None
                 audio_transcription_time = None
+                audio_fingerprint = None
                 piper_cursor.execute(
                     f'''SELECT 
                         slidesDetectedLanguage, 
                         audioDetectedLanguage, 
                         slidesDetectionTime, 
-                        audioTranscriptionTime 
+                        audioTranscriptionTime,
+                        audioFingerprint
                     FROM `gen_kaltura`.`Videos` 
                     WHERE kalturaVideoId="{kaltura_video_id}"'''
                 )
@@ -108,7 +110,7 @@ def process_videos_on_rcp(
                 if previous_analysis_info:
                     (
                         slides_detected_language, audio_detected_language, slides_detection_time,
-                        audio_transcription_time
+                        audio_transcription_time, audio_fingerprint
                     ) = previous_analysis_info[-1]
                 # skip OCR if the video was on switchtube and has already OCR results from there
                 switchtube_video_id = kaltura_to_switch_id.get(kaltura_video_id, None)
@@ -153,10 +155,6 @@ def process_videos_on_rcp(
                         else:
                             slides_detected_language = None
                         # translate slide text
-                        status_msg(
-                            f'translate text from {len(slides_text)} slides in en',
-                            color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
-                        )
                         slides_text = translate_extracted_text(
                             slides_text, login_info, source_language='en',
                             destination_languages=destination_languages, force=force, debug=debug
@@ -165,6 +163,7 @@ def process_videos_on_rcp(
                         for slide_idx, slide_text in enumerate(slides_text):
                             slide = {
                                 'token': None,  # as we did not do slide detection we do not know the token
+                                'fingerprint': None,  # nor the fingerprint
                                 'timestamp': int(slide_text['timestamp']),
                             }
                             for k, v in slide_text.items():
@@ -189,6 +188,7 @@ def process_videos_on_rcp(
                                 login_info=login_info, debug=debug, force_download=True
                             )
                             subtitles = video_information.get('subtitles', None)
+                        audio_fingerprint = video_information.get('audio_fingerprint', None)
                 else:  # full processing of the video
                     subtitles = get_subtitles_from_kaltura(
                         kaltura_video_id, login_info, piper_connection=piper_connection, force=force,
@@ -209,6 +209,7 @@ def process_videos_on_rcp(
                         subtitles = video_information.get('subtitles', None)
                     slides = video_information.get('slides', None)
                     slides_detected_language = video_information.get('slides_language', None)
+                    audio_fingerprint = video_information.get('audio_fingerprint', None)
                 # update gen_kaltura with processed info
                 if analyze_slides and slides is not None:
                     slides_detection_time = str(datetime.now())
@@ -217,7 +218,7 @@ def process_videos_on_rcp(
                         slide_time = strfdelta(timedelta(seconds=slide['timestamp']), '{H:02}:{M:02}:{S:02}')
                         data_slides.append(
                             [
-                                kaltura_video_id, slide_number,
+                                kaltura_video_id, slide_number, slide['fingerprint'],
                                 slide['timestamp'], slide_time,
                                 slide.get('fr', None), slide.get('en', None)
                             ]
@@ -228,13 +229,13 @@ def process_videos_on_rcp(
                     insert_data_into_table_with_type(
                         piper_connection, 'gen_kaltura', 'Slides',
                         [
-                            'kalturaVideoId', 'slideNumber',
+                            'kalturaVideoId', 'slideNumber', 'fingerprint',
                             'timestamp', 'slideTime',
                             'textFr', 'textEn'
                         ],
                         data_slides,
                         [
-                            'str', 'int',
+                            'str', 'int', 'str',
                             'int', 'str',
                             'str', 'str'
                         ]
@@ -275,23 +276,23 @@ def process_videos_on_rcp(
                 insert_line_into_table_with_types(
                     piper_connection, 'gen_kaltura', 'Videos',
                     [
-                        'kalturaVideoId', 'kalturaUrl', 'thumbnailUrl', 'kalturaCreationTime', 'kalturaUpdateTime',
-                        'title', 'description', 'kalturaOwner', 'kalturaCreator', 'tags', 'categories',
-                        'kalturaEntitledEditors', 'msDuration', 'octetSize',
+                        'kalturaVideoId', 'audioFingerprint', 'kalturaUrl', 'thumbnailUrl', 'kalturaCreationTime',
+                        'kalturaUpdateTime', 'title', 'description', 'kalturaOwner', 'kalturaCreator', 'tags',
+                        'categories', 'kalturaEntitledEditors', 'msDuration', 'octetSize',
                         'slidesDetectedLanguage', 'audioDetectedLanguage', 'switchVideoId',
                         'slidesDetectionTime', 'audioTranscriptionTime'
                     ],
                     [
-                        kaltura_video_id, kaltura_url, thumbnail_url, kaltura_creation_time, kaltura_update_time,
-                        title, description, kaltura_owner, kaltura_creator, tags, categories,
-                        kaltura_entitled_editor, ms_duration, octet_size,
+                        kaltura_video_id, audio_fingerprint, kaltura_url, thumbnail_url, kaltura_creation_time,
+                        kaltura_update_time, title, description, kaltura_owner, kaltura_creator, tags,
+                        categories, kaltura_entitled_editor, ms_duration, octet_size,
                         slides_detected_language, audio_detected_language, switchtube_video_id,
                         slides_detection_time, audio_transcription_time
                     ],
                     [
                         'str', 'str', 'str', 'str', 'str',
                         'str', 'str', 'str', 'str', 'str', 'str',
-                        'str', 'int', 'int',
+                        'str', 'str', 'int', 'int',
                         'str', 'str', 'str',
                         'str', 'str'
                     ]
@@ -690,7 +691,10 @@ def fix_slides_translation_on_rcp(
     piper_connection.close()
 
 
-def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_file=None, force_download=True):
+def fingerprint_on_rcp(
+        kaltura_ids: list, graph_api_json=None, piper_mysql_json_file=None, force_download=True, force=False,
+        debug=False
+):
     from graphai_client.client_api.video import get_video_token, extract_slides, extract_audio
     from graphai_client.client_api.voice import calculate_fingerprint as calculate_audio_fingerprint
 
@@ -745,7 +749,7 @@ def fingerprint_on_rcp(kaltura_ids: list, graph_api_json=None, piper_mysql_json_
         new_slides_fingerprint_per_timestamp = {}
         if slides:
             num_slides_in_cache = len(slides)
-            slides = get_fingerprint_of_slides(slides, login_info)
+            slides = get_fingerprint_of_slides(slides, login_info, force=force, debug=debug)
             for slide in slides.values():
                 fingerprint = slide.get('fingerprint', None)
                 if fingerprint:
