@@ -9,11 +9,11 @@ Installation
 
 To install `graphai-client` you can use pip from the git repository:
 ```bash
-pip install git@github.com:epflgraph/graphai-client.git
+pip install git+git@github.com:epflgraph/graphai-client.git
 ```
 Alternatively, installation in editable mode is also possible with pip version >= 21.3:
 ```bash
-pip install -e git@github.com:epflgraph/graphai-client.git
+pip install -e git+git@github.com:epflgraph/graphai-client.git
 ```
 Authentication
 --------------
