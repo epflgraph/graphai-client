@@ -1,5 +1,6 @@
 from typing import Optional
-from graphai_client.client_api.utils import call_async_endpoint, status_msg
+from requests import post, Session
+from graphai_client.client_api.utils import call_async_endpoint, status_msg, _get_response
 
 
 def get_video_token(
@@ -226,3 +227,38 @@ def extract_slides(
             max_tries=max_tries, max_processing_time_s=max_processing_time_s, sections=sections, debug=debug
         )
     return task_result['slide_tokens']
+
+
+def download_file(
+        token: str, file_path: str, login_info: dict, max_tries=5, timeout=60, sections=('GRAPHAI', 'DOWNLOAD FILE'),
+        delay_retry=60, session: Optional[Session] = None, debug=False
+) -> Optional[str]:
+    """
+    Download the resource identified by its token (video file, audio or slide) and save it in the specified file_path.
+
+    :param token: token of the resource to download.
+    :param file_path: where to save the downloaded file.
+    :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json)
+    :param max_tries: number of trials to perform in case of errors before giving up.
+    :param timeout: timeout for the request to complete
+    :param sections: sections to use in the status messages.
+    :param delay_retry:  the time to wait between tries.
+    :param session: optional requests.Session object.
+    :param debug: if True additional information about each connection to the API is displayed.
+    :return: the path to the downloaded resource if successful, None otherwise.
+    """
+    if session is None:
+        request_func = post
+    else:
+        request_func = session.post
+    url = login_info['host'] + '/video/get_file'
+    json = {'token': token}
+    response = _get_response(
+        url, login_info, request_func=request_func, json=json, max_tries=max_tries, sections=sections, debug=debug,
+        delay_retry=delay_retry, timeout=timeout
+    )
+    if response is None:
+        return None
+    with open(file_path, 'wb') as fid:
+        fid.write(response.content)
+    return file_path
