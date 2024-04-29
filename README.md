@@ -59,6 +59,7 @@ It includes:
     - video fingerprinting `graphai_client.client_api.video.fingerprint_video()`
     - audio extraction `graphai_client.client_api.video.extract_audio()`
     - slide extraction `graphai_client.client_api.video.extract_slides()`
+    - download of resources `graphai_client.client_api.video.download_file()`
 - for audio extracted from videos:
     - transcription `graphai_client.client_api.voice.transcribe_audio()`
     - language detection `graphai_client.client_api.voice.detect_language()`
