@@ -1,6 +1,6 @@
 from multiprocessing import Pool
 from typing import Tuple, Dict, Optional, Any
-from graphai_client.utils import status_msg, add_initial_disclaimer
+from graphai_client.utils import status_msg, add_initial_disclaimer, get_video_link_and_size
 from graphai_client.client_api.utils import login
 from graphai_client.client_api.image import (
     extract_text_from_slide, calculate_fingerprint as calculate_slide_fingerprint
@@ -41,7 +41,12 @@ def process_video(
     """
     if login_info is None or 'token'not in login_info:
         login_info = login(graph_api_json)
-    video_token = get_video_token(video_url, login_info, debug=debug, force=force or force_download)
+
+    _, octet_size = get_video_link_and_size(video_url)
+    max_download_time = max(int(octet_size/1048576), 900)  # 15 min or 1MB/s download
+    video_token = get_video_token(
+        video_url, login_info, debug=debug, force=force or force_download, max_processing_time_s=max_download_time
+    )
     if video_token is None:
         return None
     if analyze_slides:
