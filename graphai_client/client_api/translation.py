@@ -244,6 +244,24 @@ def translate_text_list(
     )
     if task_result is None:
         return None
+    n_results = len(task_result['result'])
+    if n_results != len(text_to_translate):
+        if not force and not task_result.get('fresh', True):
+            status_msg(
+                f'invalid result for translation: the length of the translation {n_results} does not match '
+                f'the length of the input {len(text_to_translate)}, trying to force ...',
+                color='yellow', sections=list(sections) + ['WARNING']
+            )
+            return translate_text_list(
+                text, source_language, target_language, login_info, sections=sections,
+                force=True, debug=debug, max_text_length=max_text_length, max_text_list_length=max_text_list_length,
+                max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
+            )
+        else:
+            raise RuntimeError(
+                f'invalid result for translation: the length of the translation {n_results} does not match '
+                f'the length of the input {len(text_to_translate)}'
+            )
     # resubmit with a smaller value of max_text_length if we get a text_too_large error
     any_text_too_large = False
     for result_str in task_result['result']:
@@ -263,6 +281,7 @@ def translate_text_list(
             force=force, debug=debug, max_text_length=max_text_length, max_text_list_length=max_text_list_length,
             max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
         )
+
     # put back None in the output so the number of element is the same as in the input
     translated_text_full = [None] * len(text)
     for tr_line_idx, translated_line in enumerate(task_result['result']):
