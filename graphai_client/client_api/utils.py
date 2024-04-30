@@ -190,11 +190,16 @@ def _check_result(
             )
         return n_result, n_missing_token_status, n_active, n_fingerprinted
 
+    device = task_result.get('device', None)
+    msg = f'{output_type} has been extracted from {token}'
+    if device:
+        msg += f' using {device}'
+    if not task_result.get('fresh', True):
+        msg += ' (already done in the past)'
     if result_key:
         num_result, num_missing_token_status, num_active, num_fingerprinted = _count_active_and_fingerprinted()
-        msg = f'{num_result} {output_type} has been extracted from {token}'
-        if not task_result.get('fresh', True):
-            msg += f' (already done in the past)'
+        if num_result > 1:
+            msg = str(num_result) + ' ' + msg
         if num_missing_token_status != num_result:
             if num_active != num_result:
                 msg += f' ({num_active}/{num_result} are active)'
@@ -208,9 +213,6 @@ def _check_result(
             status_msg(msg, color='green', sections=sections + ['SUCCESS'])
     else:
         if not quiet:
-            msg = f'{output_type} has been extracted from {token}'
-            if not task_result.get('fresh', True):
-                msg += f' (already done in the past)'
             status_msg(msg, color='green', sections=sections + ['SUCCESS'])
 
 
