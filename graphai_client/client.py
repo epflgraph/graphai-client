@@ -64,6 +64,7 @@ def process_video(
     else:
         audio_language = None
         segments = None
+        audio_fingerprint = None
     return dict(
         url=video_url,
         video_token=video_token,
@@ -217,7 +218,9 @@ def process_audio(
     return audio_language, audio_fingerprint, segments
 
 
-def extract_text_from_slides(slide_tokens: dict, login_info: dict, force=False, slides_language=None, debug=False):
+def extract_text_from_slides(
+        slide_tokens: dict, login_info: dict, force=False, slides_language=None, debug=False, quiet=False
+):
     """
     Extract text (using google OCR) from the slides extracted with extract_slides().
     The main language of the slides is statistically determined.
@@ -227,6 +230,7 @@ def extract_text_from_slides(slide_tokens: dict, login_info: dict, force=False, 
     :param slides_language: if not None, the statistical determination of the main language is skipped and the given
         value is used instead.
     :param debug: if True debug output is enabled.
+    :param quiet: disable success status messages.
     :return: a list of dictionaries with the timestamp and text of the slides. The detected language is used as key
         for the extracted text in each dictionary.
     """
@@ -242,7 +246,7 @@ def extract_text_from_slides(slide_tokens: dict, login_info: dict, force=False, 
         slide_timestamp = slide_token_dict['timestamp']
         slide_text = extract_text_from_slide(
             slide_token, login_info, force=force, sections=('GRAPHAI', 'OCR', f'SLIDE {slide_index_str}/{n_slide}'),
-            debug=debug
+            debug=debug, quiet=quiet
         )
         slides_text.append(slide_text)
         slides_timestamp.append(slide_timestamp)

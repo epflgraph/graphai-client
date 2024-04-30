@@ -4,7 +4,7 @@ from graphai_client.utils import status_msg
 
 
 def extract_text_from_slide(
-        slide_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'OCR'), debug=False,
+        slide_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'OCR'), debug=False, quiet=False,
         max_tries=5, max_processing_time_s=600
 ) -> Optional[dict[str, str]]:
     """
@@ -15,6 +15,7 @@ def extract_text_from_slide(
     :param force: Should the cache be bypassed and the slide extraction forced.
     :param sections: sections to use in the status messages.
     :param debug: if True additional information about each connection to the API is displayed.
+    :param quiet: disable success status messages.
     :param max_tries: the number of tries before giving up.
     :param max_processing_time_s: maximum number of seconds to perform the text extraction.
     :return: a dictionary with the text extracted as value of the 'text' key and the detected language as value of the
@@ -30,7 +31,8 @@ def extract_text_from_slide(
         max_tries=max_tries,
         max_processing_time_s=max_processing_time_s,
         sections=sections,
-        debug=debug
+        debug=debug,
+        quiet=quiet
     )
     if task_result is None:
         return None

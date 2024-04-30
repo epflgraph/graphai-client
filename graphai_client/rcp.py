@@ -24,7 +24,7 @@ short_to_language = {v: k for k, v in language_to_short.items()}
 
 def process_videos_on_rcp(
         kaltura_ids: list, analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'), force=False,
-        graph_api_json=None, login_info=None, debug=False, piper_mysql_json_file=None
+        graph_api_json=None, login_info=None, debug=False, piper_mysql_json_file=None, force_download=False
 ):
     if login_info is None or 'token' not in login_info:
         login_info = login(graph_api_json)
@@ -96,13 +96,17 @@ def process_videos_on_rcp(
                 slides_detection_time = None
                 audio_transcription_time = None
                 audio_fingerprint = None
+                slides_concept_extract_time = None
+                subtitles_concept_extract_time = None
                 piper_cursor.execute(
                     f'''SELECT 
                         slidesDetectedLanguage, 
                         audioDetectedLanguage, 
                         slidesDetectionTime, 
                         audioTranscriptionTime,
-                        audioFingerprint
+                        audioFingerprint,
+                        slidesConceptExtractionTime,
+                        subtitlesConceptExtractionTime
                     FROM `gen_kaltura`.`Videos` 
                     WHERE kalturaVideoId="{kaltura_video_id}"'''
                 )
@@ -110,7 +114,8 @@ def process_videos_on_rcp(
                 if previous_analysis_info:
                     (
                         slides_detected_language, audio_detected_language, slides_detection_time,
-                        audio_transcription_time, audio_fingerprint
+                        audio_transcription_time, audio_fingerprint,
+                        slides_concept_extract_time, subtitles_concept_extract_time
                     ) = previous_analysis_info[-1]
                 # skip OCR if the video was on switchtube and has already OCR results from there
                 switchtube_video_id = kaltura_to_switch_id.get(kaltura_video_id, None)
@@ -179,13 +184,13 @@ def process_videos_on_rcp(
                             video_information = process_video(
                                 kaltura_url, analyze_audio=False, analyze_slides=False, force=force,
                                 detect_audio_language=True, audio_language=None,
-                                login_info=login_info, debug=debug, force_download=True
+                                login_info=login_info, debug=debug, force_download=force_download
                             )
                         else:
                             video_information = process_video(
                                 kaltura_url, analyze_audio=True, analyze_slides=False, force=force,
                                 destination_languages=destination_languages, audio_language=None,
-                                login_info=login_info, debug=debug, force_download=True
+                                login_info=login_info, debug=debug, force_download=force_download
                             )
                             subtitles = video_information.get('subtitles', None)
                         audio_fingerprint = video_information.get('audio_fingerprint', None)
@@ -198,18 +203,20 @@ def process_videos_on_rcp(
                         video_information = process_video(
                             kaltura_url, analyze_audio=False, analyze_slides=analyze_slides, force=force,
                             detect_audio_language=True, audio_language=None,
-                            login_info=login_info, debug=debug, force_download=True
+                            login_info=login_info, debug=debug, force_download=force_download
                         )
                     else:
                         video_information = process_video(
                             kaltura_url, analyze_audio=analyze_audio, analyze_slides=analyze_slides, force=force,
                             destination_languages=destination_languages, login_info=login_info, debug=debug,
-                            force_download=True
+                            force_download=force_download
                         )
                         subtitles = video_information.get('subtitles', None)
                     slides = video_information.get('slides', None)
-                    slides_detected_language = video_information.get('slides_language', None)
-                    audio_fingerprint = video_information.get('audio_fingerprint', None)
+                    if analyze_slides:
+                        slides_detected_language = video_information.get('slides_language', None)
+                    if analyze_audio:
+                        audio_fingerprint = video_information.get('audio_fingerprint', None)
                 # update gen_kaltura with processed info
                 if analyze_slides and slides is not None:
                     slides_detection_time = str(datetime.now())
@@ -220,7 +227,7 @@ def process_videos_on_rcp(
                             [
                                 kaltura_video_id, slide_number, slide['fingerprint'],
                                 slide['timestamp'], slide_time,
-                                slide.get('fr', None), slide.get('en', None)
+                                slide.get('fr', None), slide.get('en', None), slide.get(slides_detected_language, None)
                             ]
                         )
                     piper_cursor.execute(
@@ -231,13 +238,13 @@ def process_videos_on_rcp(
                         [
                             'kalturaVideoId', 'slideNumber', 'fingerprint',
                             'timestamp', 'slideTime',
-                            'textFr', 'textEn'
+                            'textFr', 'textEn', 'textOriginal'
                         ],
                         data_slides,
                         [
                             'str', 'int', 'str',
                             'int', 'str',
-                            'str', 'str'
+                            'str', 'str', 'str'
                         ]
                     )
                 if analyze_audio and subtitles is not None:
@@ -250,7 +257,8 @@ def process_videos_on_rcp(
                                 kaltura_video_id, idx, int(segment['start'] * 1000), int(segment['end'] * 1000),
                                 strfdelta(timedelta(seconds=segment['start']), '{H:02}:{M:02}:{S:02}.{m:03}'),
                                 strfdelta(timedelta(seconds=segment['end']), '{H:02}:{M:02}:{S:02}.{m:03}'),
-                                segment.get('fr', None), segment.get('en', None)
+                                segment.get('fr', None), segment.get('en', None),
+                                segment.get(audio_detected_language, None)
                             ]
                         )
                     piper_cursor.execute(
@@ -261,13 +269,13 @@ def process_videos_on_rcp(
                         [
                             'kalturaVideoId', 'segmentId', 'startMilliseconds', 'endMilliseconds',
                             'startTime', 'endTime',
-                            'textFr', 'textEn'
+                            'textFr', 'textEn', 'textOriginal'
                         ],
                         data_subtitles,
                         [
                             'str', 'int', 'int', 'int',
                             'str', 'str',
-                            'str', 'str'
+                            'str', 'str', 'str'
                         ]
                     )
                 piper_cursor.execute(
@@ -280,20 +288,23 @@ def process_videos_on_rcp(
                         'kalturaUpdateTime', 'title', 'description', 'kalturaOwner', 'kalturaCreator', 'tags',
                         'categories', 'kalturaEntitledEditors', 'msDuration', 'octetSize',
                         'slidesDetectedLanguage', 'audioDetectedLanguage', 'switchVideoId',
-                        'slidesDetectionTime', 'audioTranscriptionTime'
+                        'slidesDetectionTime', 'audioTranscriptionTime',
+                        'slidesConceptExtractionTime', 'subtitlesConceptExtractionTime'
                     ],
                     [
                         kaltura_video_id, audio_fingerprint, kaltura_url, thumbnail_url, kaltura_creation_time,
                         kaltura_update_time, title, description, kaltura_owner, kaltura_creator, tags,
                         categories, kaltura_entitled_editor, ms_duration, octet_size,
                         slides_detected_language, audio_detected_language, switchtube_video_id,
-                        slides_detection_time, audio_transcription_time
+                        slides_detection_time, audio_transcription_time,
+                        slides_concept_extract_time, subtitles_concept_extract_time
                     ],
                     [
                         'str', 'str', 'str', 'str', 'str',
                         'str', 'str', 'str', 'str', 'str', 'str',
                         'str', 'str', 'int', 'int',
                         'str', 'str', 'str',
+                        'str', 'str',
                         'str', 'str'
                     ]
                 )
