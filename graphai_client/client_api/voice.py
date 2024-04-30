@@ -26,14 +26,16 @@ def transcribe_audio(
         and the detected language as key and the detected text  during that interval as value.
     """
     json_data = {"token": audio_token, "force": force, "strict": strict}
+    output_type = 'segments from transcription'
     if force_lang is not None:
         json_data["force_lang"] = force_lang
+        output_type = force_lang + ' ' + output_type
     task_result = call_async_endpoint(
         endpoint='/voice/transcribe',
         json=json_data,
         login_info=login_info,
         token=audio_token,
-        output_type='segments from transcription',
+        output_type=output_type,
         result_key='subtitle_results',
         max_tries=max_tries,
         max_processing_time_s=max_processing_time_s,
