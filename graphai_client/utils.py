@@ -56,7 +56,7 @@ def get_video_link_and_size(video_url, retry=5, wait_retry=15):
         try:
             response = get(video_url, stream=True)
             if response.status_code == 200:
-                return response.url, response.headers['Content-length']
+                return response.url, int(response.headers['Content-length'])
             else:
                 status_msg(
                     f'{video_url} not reachable, error {response.status_code}: {response.reason}', color='yellow',
