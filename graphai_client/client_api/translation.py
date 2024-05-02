@@ -96,7 +96,7 @@ def translate_text_str(
         endpoint='/translation/translate',
         json={"text": text, "source": source_language, "target": target_language, "force": force},
         login_info=login_info,
-        token=source_language + ' text',
+        token=f'{source_language} text ({len(text)} characters)',
         output_type=target_language + ' translation',
         result_key='result',
         max_tries=max_tries,
@@ -162,7 +162,8 @@ def translate_text_list(
         return text
     # split in smaller lists if the list is too large
     lengths_text = [len(t) if t is not None else 0 for t in text]
-    if sum(lengths_text) > max_text_list_length:
+    total_text_length = sum(lengths_text)
+    if total_text_length > max_text_list_length:
         idx_start = 0
         sum_length = 0
         n_text_elems = len(text)
@@ -233,7 +234,7 @@ def translate_text_list(
         endpoint='/translation/translate',
         json={"text": text_to_translate, "source": source_language, "target": target_language, "force": force},
         login_info=login_info,
-        token=source_language + ' text',
+        token=f'{source_language} text ({total_text_length} characters in {len(text_to_translate)} elements)',
         output_type=target_language + ' translation',
         result_key='result',
         max_tries=max_tries,
