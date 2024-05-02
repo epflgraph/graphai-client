@@ -53,7 +53,7 @@ def translate_text(
 def translate_text_str(
         text: str, source_language, target_language, login_info,
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000,
-        max_tries=5, max_processing_time_s=3600, delay_retry=1
+        max_tries=5, max_processing_time_s=7200, delay_retry=1
 ) -> Optional[str]:
     """
     Translate the input text from the source language to the target language.
@@ -130,7 +130,7 @@ def translate_text_str(
 def translate_text_list(
         text: list, source_language, target_language, login_info,
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000,
-        max_tries=5, max_processing_time_s=3600, delay_retry=1
+        max_tries=5, max_processing_time_s=7200, delay_retry=1
 ) -> Optional[list]:
     """
     Translate the input text (as a list) from the source language to the target language.
