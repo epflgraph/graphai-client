@@ -128,7 +128,7 @@ def process_slides(
             )
             slides_language = 'en'
         status_msg(
-            f'translate text from {len(slides_text)} {slides_language} slides to {",".join(destination_languages)}',
+            f'translate text from {len(slides_text)} {slides_language} slides to {", ".join(destination_languages)}',
             color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
         )
         slides_text = translate_extracted_text(

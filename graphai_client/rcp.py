@@ -217,6 +217,7 @@ def process_videos_on_rcp(
                         slides_detected_language = video_information.get('slides_language', None)
                     if analyze_audio:
                         audio_fingerprint = video_information.get('audio_fingerprint', None)
+                piper_connection.ping(reconnect=True)
                 # update gen_kaltura with processed info
                 if analyze_slides and slides is not None:
                     slides_detection_time = str(datetime.now())
