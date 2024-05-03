@@ -201,7 +201,7 @@ def extract_slides(
         if task_result.get('fresh', None):
             status_msg(
                 f'Missing {num_missing_slides}/{len(task_result["slide_tokens"])} slide files from {video_token} '
-                f'while fresh, forcing extraction...', sections=list(sections) + ['INFO'], color='grey'
+                f'while fresh, forcing extraction...', sections=list(sections) + ['WARNING'], color='yellow'
             )
             return extract_slides(
                 video_token=video_token, login_info=login_info, recalculate_cached=False, force=True,
@@ -220,7 +220,7 @@ def extract_slides(
         status_msg(
             f'Missing {num_missing_slides}/{len(task_result["slide_tokens"])} slide files from {video_token}, '
             f'extracting slides according to the cache...',
-            sections=list(sections) + ['WARNING'], color='yellow'
+            sections=list(sections) + ['INFO'], color='grey'
         )
         return extract_slides(
             video_token=video_token, login_info=login_info, recalculate_cached=True, force=force,
