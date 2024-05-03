@@ -58,7 +58,7 @@ def get_video_token(
             raise RuntimeError(f'Missing downloaded file from {url_video} while forced')
         status_msg(
             f'Missing downloaded file from {url_video}, force downloading...',
-            sections=list(sections) + ['WARNING'], color='yellow'
+            sections=list(sections) + ['INFO'], color='grey'
         )
         return get_video_token(
             url_video=url_video, login_info=login_info, playlist=playlist, sections=sections, debug=debug,
@@ -146,7 +146,7 @@ def extract_audio(
             raise RuntimeError(f'Missing file for audio extracted from {video_token} while recalculated')
         status_msg(
             f'Missing file for audio extracted from {video_token}, extracting audio according to the cache...',
-            color='yellow', sections=list(sections) + ['WARNING']
+            color='grey', sections=list(sections) + ['INFO']
         )
         return extract_audio(
             video_token, login_info, recalculate_cached=True, force=force, sections=sections, debug=debug,
@@ -201,7 +201,7 @@ def extract_slides(
         if task_result.get('fresh', None):
             status_msg(
                 f'Missing {num_missing_slides}/{len(task_result["slide_tokens"])} slide files from {video_token} '
-                f'while fresh, forcing extraction...', sections=list(sections) + ['WARNING'], color='yellow'
+                f'while fresh, forcing extraction...', sections=list(sections) + ['INFO'], color='grey'
             )
             return extract_slides(
                 video_token=video_token, login_info=login_info, recalculate_cached=False, force=True,
