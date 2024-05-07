@@ -167,6 +167,7 @@ def execute_query(connection: MySQLConnection, sql_query, retry=5, multiple_stat
     with connection.cursor() as cursor:
         try:
             cursor.execute(sql_query, multi=multiple_statements)
+            return cursor.fetchall()
         except Exception as e:
             msg = 'Received exception: ' + str(e) + '\n'
             if retry > 0:
