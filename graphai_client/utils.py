@@ -221,7 +221,7 @@ def convert_subtitle_into_segments(caption_data, file_ext='srt', text_key='text'
     for line in caption_lines:
         if current_line_type == 'id':
             if line.strip():
-                segment_id = int(line) - 1
+                segment_id = int(line)
                 current_line_type = 'time'
         elif current_line_type == 'time':
             if not line.strip():
@@ -253,6 +253,12 @@ def convert_subtitle_into_segments(caption_data, file_ext='srt', text_key='text'
                     current_line_type = 'time'
     if text:
         segments.append({'id': segment_id, 'start': start, 'end': end, text_key: text})
+    # ensure the first segment id is 0
+    if segments:
+        first_segment_id = segments[0]['id']
+        if first_segment_id != 0:
+            for idx in range(len(segments)):
+                segments[idx]['id'] -= first_segment_id
     return segments
 
 
@@ -316,7 +322,7 @@ def harmonize_segments(precision_s=0.5, text_key='text', **kwargs):
         for lang_seg_idx, segment in enumerate(segments_lang):
             harmonized_segments_linked = []
             while harm_seg_idx < len(harmonized_segments) and \
-                    link_to_harmonized_segments[harm_seg_idx][lang] == lang_seg_idx:
+                    link_to_harmonized_segments[harm_seg_idx].get(lang, None) == lang_seg_idx:
                 harmonized_segments_linked.append(harm_seg_idx)
                 harm_seg_idx += 1
             num_linked_segments = len(harmonized_segments_linked)
