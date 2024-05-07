@@ -1,9 +1,7 @@
+from re import match
 from typing import Optional, Union
 from graphai_client.utils import status_msg
 from graphai_client.client_api.utils import call_async_endpoint
-
-error_too_long = 'Unpunctuated text too long (over 512 tokens), ' \
-                 'try adding punctuation or providing a smaller chunk of text.'
 
 
 def translate_text(
@@ -67,7 +65,7 @@ def translate_text_str(
     :param debug: if True additional information about each connection to the API is displayed.
     :param max_text_length: if not None, the text will be split in chunks smaller than max_text_length before being
         translated, it is glued together after translation. This happens automatically in case the API send a
-        `text too long error`.
+        `text too large error`.
     :param max_text_list_length: if not None and the input is a list, the list will be translated in chunks where the
         total number of characters do not exceed that value. The list is then reformed after translation.
     :param max_tries: the number of tries before giving up.
@@ -108,13 +106,13 @@ def translate_text_str(
     if task_result is None:
         return None
     # resubmit with a smaller value of max_text_length if we get a text_too_large error
-    if task_result['text_too_large'] or task_result['result'] == error_too_long:
-        if task_result['result'] == error_too_long:
-            force = True
+    if task_result['text_too_large']:
         if max_text_length is None:
-            max_text_length = 2000
+            max_text_length = min(1400, max(512, len(text) - 200))
         else:
             max_text_length = max_text_length - 200
+        if max_text_length < 0:
+            raise ValueError('unable to find a value of max_text_length which prevents a text_too_long error.')
         status_msg(
             f'text was too large to be translated, trying to split it up with max_text_length={max_text_length}...',
             color='yellow', sections=list(sections) + ['WARNING']
@@ -199,7 +197,7 @@ def translate_text_list(
                 )
                 idx_start += 1
                 sum_length = 0
-            # with the next element it is too large or we reached the end
+            # with the next element it is too large, or we reached the end
             elif sum_length + lengths_text[idx_end + 1] > max_text_list_length:
                 status_msg(
                     f'get part of the text (from {idx_start} to {idx_end}) as the full list is too long',
@@ -245,6 +243,28 @@ def translate_text_list(
     )
     if task_result is None:
         return None
+    # resubmit with a smaller value of max_text_length if we get a text_too_large error
+    if task_result.get('text_too_large', False):
+        match_indices = match(r'.*This happened for inputs at indices ((?:\d+, )*\d+)\.', task_result['result'])
+        if match_indices:
+            indices_text_too_long = [int(idx) for idx in match_indices.group(1).split(', ') if idx is not None]
+            max_text_length = min([len(text_to_translate[idx]) for idx in indices_text_too_long]) - 200
+        else:
+            if max_text_length is None:
+                max_text_length = min(1400, max(512, len(text) - 200))
+            else:
+                max_text_length = max_text_length - 200
+        if max_text_length < 0:
+            raise ValueError('unable to find a value of max_text_length which prevents a text_too_long error.')
+        status_msg(
+            f'text was too large to be translated, trying to split it up with max_text_length={max_text_length}...',
+            color='yellow', sections=list(sections) + ['WARNING']
+        )
+        return translate_text_list(
+            text, source_language, target_language, login_info, sections=sections,
+            force=True, debug=debug, max_text_length=max_text_length, max_text_list_length=max_text_list_length,
+            max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
+        )
     n_results = len(task_result['result'])
     if n_results != len(text_to_translate):
         if not force and not task_result.get('fresh', True):
@@ -263,26 +283,6 @@ def translate_text_list(
                 f'invalid result for translation: the length of the translation {n_results} does not match '
                 f'the length of the input {len(text_to_translate)}'
             )
-    # resubmit with a smaller value of max_text_length if we get a text_too_large error
-    any_text_too_large = False
-    for result_str in task_result['result']:
-        if result_str == error_too_long:
-            any_text_too_large = True
-    if any_text_too_large:
-        if max_text_length is None:
-            max_text_length = 2000
-        else:
-            max_text_length = max_text_length - 200
-        status_msg(
-            f'text was too large to be translated, trying to split it up with max_text_length={max_text_length}...',
-            color='yellow', sections=list(sections) + ['WARNING']
-        )
-        return translate_text_list(
-            text, source_language, target_language, login_info, sections=sections,
-            force=force, debug=debug, max_text_length=max_text_length, max_text_list_length=max_text_list_length,
-            max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
-        )
-
     # put back None in the output so the number of element is the same as in the input
     translated_text_full = [None] * len(text)
     for tr_line_idx, translated_line in enumerate(task_result['result']):

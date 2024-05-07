@@ -105,6 +105,8 @@ def call_async_endpoint(
                 sleep(delay_retry)
                 continue
             if not task_result.get('successful', True):
+                if task_result.get('text_too_large', False):
+                    return task_result
                 if not quiet or _tries == max_tries:
                     status_msg(
                         f'extraction of the {output_type} from {token} failed at try {_tries}/{max_tries}',
