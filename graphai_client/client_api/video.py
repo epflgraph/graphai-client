@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 from requests import post, Session
 from graphai_client.client_api.utils import call_async_endpoint, status_msg, _get_response
 
@@ -6,7 +6,7 @@ from graphai_client.client_api.utils import call_async_endpoint, status_msg, _ge
 def get_video_token(
         url_video: str, login_info: dict, playlist=False, sections=('GRAPHAI', 'DOWNLOAD VIDEO'),
         debug=False, force=False, max_tries=5, max_processing_time_s=900
-) -> Optional[str]:
+) -> Tuple[Optional[str], Optional[int]]:
     """
     Download a video and get a token.
 
@@ -18,7 +18,7 @@ def get_video_token(
     :param force: Should the cache be bypassed and the download forced.
     :param max_tries: the number of tries before giving up.
     :param max_processing_time_s: maximum number of seconds to download the video.
-    :return: the video token if successful, None otherwise.
+    :return: A tuple with the video token and the video size in octet if successful, (None, None) otherwise.
     """
     task_result = call_async_endpoint(
         endpoint='/video/retrieve_url',
@@ -37,14 +37,14 @@ def get_video_token(
             f'Empty video got for {url_video}',
             color='red', sections=list(sections) + ['WARNING']
         )
-        return None
+        return None, None
     token_size = task_result.get('token_size', 0)
     if token_size == 0:
         status_msg(
             f'Empty video got for {url_video}',
             color='yellow', sections=list(sections) + ['WARNING']
         )
-        return None
+        return None, None
     token_status = task_result.get('token_status', None)
     if not token_status:
         status_msg(
@@ -64,7 +64,7 @@ def get_video_token(
             url_video=url_video, login_info=login_info, playlist=playlist, sections=sections, debug=debug,
             force=True, max_tries=max_tries, max_processing_time_s=max_processing_time_s,
         )
-    return task_result['token']
+    return task_result['token'], token_size
 
 
 def fingerprint_video(
