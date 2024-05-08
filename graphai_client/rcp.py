@@ -81,13 +81,17 @@ def process_videos_on_rcp(
                     color='yellow', sections=['KALTURA', 'VIDEO', 'WARNING']
                 )
                 continue
-            kaltura_url, octet_size = get_video_link_and_size(kaltura_url_api)
-            if kaltura_url is None:
-                status_msg(
-                    f'The video at {kaltura_url_api} is not accessible',
-                    color='yellow', sections=['KALTURA', 'VIDEO', 'WARNING']
-                )
-                continue
+            if kaltura_url_api.startswith('https://www.youtube.com'):
+                kaltura_url = kaltura_url_api
+                octet_size = None
+            else:
+                kaltura_url, octet_size = get_video_link_and_size(kaltura_url_api)
+                if kaltura_url is None:
+                    status_msg(
+                        f'The video at {kaltura_url_api} is not accessible',
+                        color='yellow', sections=['KALTURA', 'VIDEO', 'WARNING']
+                    )
+                    continue
             slides = None
             subtitles = None
             # get details about the previous analysis if it exists
@@ -278,6 +282,10 @@ def process_videos_on_rcp(
                         'str', 'str', 'str'
                     ]
                 )
+            if analyze_audio and subtitles is None:
+                audio_transcription_time = str(datetime.now())
+                audio_detected_language = None
+            video_size = video_information.get('video_size', octet_size)
             execute_query(
                 piper_connection, f'DELETE FROM `gen_kaltura`.`Videos` WHERE kalturaVideoId="{kaltura_video_id}"'
             )
@@ -294,7 +302,7 @@ def process_videos_on_rcp(
                 [
                     kaltura_video_id, audio_fingerprint, kaltura_url, thumbnail_url, kaltura_creation_time,
                     kaltura_update_time, title, description, kaltura_owner, kaltura_creator, tags,
-                    categories, kaltura_entitled_editor, ms_duration, octet_size,
+                    categories, kaltura_entitled_editor, ms_duration, video_size,
                     slides_detected_language, audio_detected_language, switchtube_video_id,
                     slides_detection_time, audio_transcription_time,
                     slides_concept_extract_time, subtitles_concept_extract_time
@@ -730,7 +738,7 @@ def fingerprint_on_rcp(
                 existing_slides_fingerprint[slide_num] = slide_fingerprint
             num_existing_slides = len(existing_slides_timestamp)
             # extract slides fingerprint
-            video_token = get_video_token(
+            video_token, video_size = get_video_token(
                 video_url, login_info, force=force_download, sections=('KALTURA', 'DOWNLOAD VIDEO')
             )
             if not video_token:
