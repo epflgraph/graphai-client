@@ -365,7 +365,14 @@ def get_subtitles_from_kaltura(
                     sections=['GRAPHAI', 'GET SUBTITLES', 'WARNING'], color='yellow'
                 )
                 continue
-            segments = convert_subtitle_into_segments(caption_data, file_ext=file_ext)
+            try:
+                segments = convert_subtitle_into_segments(caption_data, file_ext=file_ext)
+            except Exception as e:
+                status_msg(
+                    f'Error parsing the {lang} subtitle for {kaltura_video_id}: {e}',
+                    sections=['GRAPHAI', 'GET SUBTITLES', 'WARNING'], color='yellow'
+                )
+                segments = None
             if segments and len(segments) == 1 and \
                     segments[0]['text'] == default_missing_transcript.get(lang, None):
                 continue
