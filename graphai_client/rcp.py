@@ -372,7 +372,7 @@ def get_subtitles_from_kaltura(
                     f'Error parsing the {lang} subtitle for {kaltura_video_id}: {e}',
                     sections=['GRAPHAI', 'GET SUBTITLES', 'WARNING'], color='yellow'
                 )
-                segments = None
+                continue
             if segments and len(segments) == 1 and \
                     segments[0]['text'] == default_missing_transcript.get(lang, None):
                 continue

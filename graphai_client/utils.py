@@ -288,8 +288,7 @@ def combine_language_segments(text_key='text', precision_s=0.5, **kwargs):
     n_segments = len(kwargs[languages[0]])
     for lang in languages[1:]:
         if len(kwargs[lang]) != n_segments:
-            segments_combined = harmonize_segments(text_key='text', precision_s=precision_s, **kwargs)
-            return segments_combined
+            return harmonize_segments(text_key='text', precision_s=precision_s, **kwargs)
     for lang, segments_lang in kwargs.items():
         for seg_idx, segment in enumerate(segments_lang):
             if len(segments_combined) <= seg_idx:
@@ -304,7 +303,7 @@ def combine_language_segments(text_key='text', precision_s=0.5, **kwargs):
                 segment_equiv = segments_combined[seg_idx]
                 if not -precision_s < segment['start'] - segment_equiv['start'] < precision_s or \
                         not -precision_s < segment['end'] - segment_equiv['end'] < precision_s:
-                    raise ValueError(f'{seg_idx}th segment timing are not the same for {languages[0]} and {lang}')
+                    return harmonize_segments(text_key='text', precision_s=precision_s, **kwargs)
                 segments_combined[seg_idx][lang] = segment[text_key]
     return segments_combined
 
