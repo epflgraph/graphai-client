@@ -3,6 +3,9 @@ from typing import Optional, Union
 from graphai_client.utils import status_msg
 from graphai_client.client_api.utils import call_async_endpoint
 
+MIN_TEXT_LENGTH_SPLIT = 500
+MAX_TEXT_LENGTH_SPLIT = 4000
+
 
 def translate_text(
         text: Union[str, list], source_language, target_language, login_info, sections=('GRAPHAI', 'TRANSLATE'),
@@ -108,7 +111,7 @@ def translate_text_str(
     # resubmit with a smaller value of max_text_length if we get a text_too_large error
     if task_result['text_too_large']:
         if max_text_length is None:
-            max_text_length = min(4000, max(512, len(text) - 200))
+            max_text_length = min(MAX_TEXT_LENGTH_SPLIT, max(MIN_TEXT_LENGTH_SPLIT, len(text) - 200))
         else:
             max_text_length = max_text_length - 200
         if max_text_length < 0:
@@ -245,14 +248,16 @@ def translate_text_list(
         return None
     # resubmit with a smaller value of max_text_length if we get a text_too_large error
     if task_result.get('text_too_large', False):
+        if max_text_length == MIN_TEXT_LENGTH_SPLIT:
+            raise ValueError(f'got a text_too_long error while max_text_length is at the min {MIN_TEXT_LENGTH_SPLIT}.')
         match_indices = match(r'.*This happened for inputs at indices ((?:\d+, )*\d+)\.', task_result['result'])
         if match_indices:
             indices_text_too_long = [int(idx) for idx in match_indices.group(1).split(', ') if idx is not None]
             length_too_long = min([len(text_to_translate[idx]) for idx in indices_text_too_long])
-            max_text_length = min(4000, max(512, length_too_long - 200))
+            max_text_length = min(MAX_TEXT_LENGTH_SPLIT, max(MIN_TEXT_LENGTH_SPLIT, length_too_long - 200))
         else:
             if max_text_length is None:
-                max_text_length = 4000
+                max_text_length = MAX_TEXT_LENGTH_SPLIT
             else:
                 max_text_length = max_text_length - 200
         if max_text_length < 0:
