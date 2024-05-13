@@ -340,18 +340,22 @@ def harmonize_segments(precision_s=0.5, text_key='text', **kwargs):
     return harmonized_segments
 
 
-def _split_text_in_intervals(text, split_intervals, split_characters=('\n', '.', ';', ',', ' ')):
+def _split_text_in_intervals(text, split_intervals, split_characters=('\n', r'\.', ';', ',', ' ')):
     split_text = []
     split_characters = list(split_characters)
     if len(split_characters) > 0:
         char = split_characters.pop(0)
-        for interval_or_list, split_text_partial in _split_text_in_intervals_partial(
+        interval_and_spit_text_current_char = _split_text_in_intervals_partial(
                 text, split_intervals, split_char=char
-        ):
+        )
+        for interval_or_list, split_text_partial in interval_and_spit_text_current_char:
             if isinstance(interval_or_list, tuple):
                 split_text.append(split_text_partial)
             else:
-                split_text.extend(_split_text_in_intervals(split_text_partial, interval_or_list, split_characters))
+                split_text_remaining_chars = _split_text_in_intervals(
+                    split_text_partial, interval_or_list, split_characters
+                )
+                split_text.extend(split_text_remaining_chars)
     else:
         length_full = split_intervals[-1][1] - split_intervals[0][0]
         end_intervals_fraction = [
@@ -391,13 +395,13 @@ def _split_text_in_intervals_partial(text, split_intervals, split_char='\n'):
                 returned_intervals_and_text.append(
                     (split_intervals[index_current_interval], split_text[index_current_split_text])
                 )
+                index_current_interval += 1
             else:
                 intervals_current_split_text = []
                 while index_current_interval <= index_interval_split:
                     intervals_current_split_text.append(split_intervals[index_current_interval])
                     index_current_interval += 1
                 returned_intervals_and_text.append((intervals_current_split_text, split_text[index_current_split_text]))
-            index_current_interval += 1
             index_current_split_text += 1
         if index_current_interval == len(split_intervals) - 1:
             returned_intervals_and_text.append(
@@ -505,8 +509,8 @@ def _harmonize_segments_interval(precision_s=0.5, **kwargs):
                         else:
                             if not -precision_s < current_harm_seg_end - seg['end'] < precision_s:
                                 status_msg(
-                                    f'end time of {lang} segment {seg_idx} do not match the harmonized segment '
-                                    f"{harmonized_segment_idx} ({current_harm_seg_end})",
+                                    f"end time of {lang} segment {seg_idx} ({seg['end']}) do not match "
+                                    f'the harmonized segment {harmonized_segment_idx} ({current_harm_seg_end})',
                                     color='yellow', sections=['KALTURA', 'HARMONIZE SEGMENTS', 'WARNING']
                                 )
                         link_to_language_segments[harmonized_segment_idx][lang] = seg_idx
@@ -524,8 +528,8 @@ def _harmonize_segments_interval(precision_s=0.5, **kwargs):
                                 break
                         if not found_matching_end:
                             status_msg(
-                                f'end time of {lang} segment {seg_idx} do not match the harmonized segment '
-                                f"{harmonized_segment_idx} ({current_harm_seg_end})",
+                                f"end time of {lang} segment {seg_idx} ({seg['end']}) do not match "
+                                f'the harmonized segment {harmonized_segment_idx} ({current_harm_seg_end})',
                                 color='yellow', sections=['KALTURA', 'HARMONIZE SEGMENTS', 'WARNING']
                             )
                             harmonized_segments[harmonized_segment_idx] = (
@@ -580,6 +584,7 @@ def add_initial_disclaimer(segments, disclaimer_per_language=None, restrict_lang
             first_segment[lang] = disclaimer_per_language.get(lang, '')
         modified_segments.append(first_segment)
     for idx, seg in enumerate(segments):
+        assert isinstance(seg, dict)
         seg_id = seg.get('id', idx)
         start = seg['start']
         end = seg['end']
