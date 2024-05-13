@@ -112,6 +112,8 @@ def translate_text_str(
     if task_result['text_too_large']:
         if max_text_length is None:
             max_text_length = min(MAX_TEXT_LENGTH_SPLIT, max(MIN_TEXT_LENGTH_SPLIT, len(text) - 200))
+        elif max_text_length == MIN_TEXT_LENGTH_SPLIT:
+            raise ValueError(f'got a text_too_long error while max_text_length is at the min {MIN_TEXT_LENGTH_SPLIT}.')
         else:
             max_text_length = max_text_length - 200
         if max_text_length < 0:
