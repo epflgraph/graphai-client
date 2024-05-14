@@ -193,7 +193,11 @@ def _check_result(
         return n_result, n_missing_token_status, n_active, n_fingerprinted
 
     device = task_result.get('device', None)
-    msg = f'{output_type} has been extracted from {token}'
+    token_size: int | None = task_result.get('token_size', None)
+    if token_size is not None:
+        msg = f'{output_type} ({round(token_size/1048576, 1)} MB) has been extracted from {token}'
+    else:
+        msg = f'{output_type} has been extracted from {token}'
     if device:
         msg += f' using {device}'
     if not task_result.get('fresh', True):

@@ -34,7 +34,7 @@ def get_video_token(
     )
     if task_result is None:
         status_msg(
-            f'Empty video got for {url_video}',
+            f'Failed to download the video {url_video}',
             color='red', sections=list(sections) + ['WARNING']
         )
         return None, None

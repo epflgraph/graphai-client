@@ -489,8 +489,8 @@ def detect_concept_on_rcp(
                     )
                     if segments_processed > 0:
                         status_msg(
-                            f'Concepts have been extracted from {segments_processed}/{len(segments_info)} '
-                            f'subtitles of {video_id}',
+                            f'{len(concepts_segments_data)} concepts have been extracted from '
+                            f'{segments_processed}/{len(segments_info)} subtitles of {video_id}',
                             color='green', sections=['KALTURA', 'CONCEPT DETECTION', 'SUBTITLES', 'SUCCESS']
                         )
                     else:
@@ -556,7 +556,7 @@ def detect_concept_on_rcp(
                     )
                     if slides_processed > 0:
                         status_msg(
-                            f'len{concepts_slides_data} concepts have been extracted '
+                            f'{len(concepts_slides_data)} concepts have been extracted '
                             f'from {slides_processed}/{len(slides_info)} slides of {video_id}',
                             color='green', sections=['KALTURA', 'CONCEPT DETECTION', 'SLIDES', 'SUCCESS']
                         )
