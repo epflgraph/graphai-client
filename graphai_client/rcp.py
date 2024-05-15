@@ -60,6 +60,8 @@ def process_videos_on_rcp(
                     k.creatorId AS kalturaCreator,
                     k.tags,
                     k.categories,
+                    k.startDate,
+                    k.endDate,
                     k.entitledUsersEdit AS kalturaEntitledEditors,
                     k.msDuration
                 FROM ca_kaltura.Videos AS k
@@ -73,7 +75,8 @@ def process_videos_on_rcp(
                 continue
             (
                 kaltura_url_api, thumbnail_url, kaltura_creation_time, kaltura_update_time, title,
-                description, kaltura_owner, kaltura_creator, tags, categories, kaltura_entitled_editor, ms_duration
+                description, kaltura_owner, kaltura_creator, tags, categories, start_date, end_date,
+                kaltura_entitled_editor, ms_duration
             ) = video_details[0]
             if not kaltura_url_api:
                 status_msg(
@@ -294,7 +297,7 @@ def process_videos_on_rcp(
                 [
                     'kalturaVideoId', 'audioFingerprint', 'kalturaUrl', 'thumbnailUrl', 'kalturaCreationTime',
                     'kalturaUpdateTime', 'title', 'description', 'kalturaOwner', 'kalturaCreator', 'tags',
-                    'categories', 'kalturaEntitledEditors', 'msDuration', 'octetSize',
+                    'categories', 'kalturaEntitledEditors', 'msDuration', 'octetSize', 'startDate', 'endDate',
                     'slidesDetectedLanguage', 'audioDetectedLanguage', 'switchVideoId',
                     'slidesDetectionTime', 'audioTranscriptionTime',
                     'slidesConceptExtractionTime', 'subtitlesConceptExtractionTime'
@@ -302,7 +305,7 @@ def process_videos_on_rcp(
                 [
                     kaltura_video_id, audio_fingerprint, kaltura_url, thumbnail_url, kaltura_creation_time,
                     kaltura_update_time, title, description, kaltura_owner, kaltura_creator, tags,
-                    categories, kaltura_entitled_editor, ms_duration, video_size,
+                    categories, kaltura_entitled_editor, ms_duration, video_size, start_date, end_date,
                     slides_detected_language, audio_detected_language, switchtube_video_id,
                     slides_detection_time, audio_transcription_time,
                     slides_concept_extract_time, subtitles_concept_extract_time
@@ -310,7 +313,7 @@ def process_videos_on_rcp(
                 [
                     'str', 'str', 'str', 'str', 'str',
                     'str', 'str', 'str', 'str', 'str', 'str',
-                    'str', 'str', 'int', 'int',
+                    'str', 'str', 'int', 'int', 'str', 'str',
                     'str', 'str', 'str',
                     'str', 'str',
                     'str', 'str'
