@@ -26,7 +26,7 @@ def transcribe_audio(
         and the detected language as key and the detected text  during that interval as value.
     """
     json_data = {"token": audio_token, "force": force, "strict": strict}
-    output_type = 'segments from transcription'
+    output_type = 'transcription'
     if force_lang is not None:
         json_data["force_lang"] = force_lang
         output_type = force_lang + ' ' + output_type
@@ -47,7 +47,7 @@ def transcribe_audio(
     if task_result['subtitle_results'] is None:
         segments = None
         status_msg(
-            f'No segments have been extracted from {audio_token}',
+            f'No transcription been extracted from {audio_token}',
             color='yellow', sections=list(sections) + ['WARNING']
         )
     else:

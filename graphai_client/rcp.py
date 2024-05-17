@@ -225,69 +225,70 @@ def process_videos_on_rcp(
                 if analyze_audio:
                     audio_fingerprint = video_information.get('audio_fingerprint', None)
             # update gen_kaltura with processed info
-            if analyze_slides and slides is not None:
+            if analyze_slides and (slides is not None or slides_detected_language is not None):
                 slides_detection_time = str(datetime.now())
-                data_slides = []
-                for slide_number, slide in enumerate(slides):
-                    slide_time = strfdelta(timedelta(seconds=slide['timestamp']), '{H:02}:{M:02}:{S:02}')
-                    data_slides.append(
+                if slides is not None:
+                    data_slides = []
+                    for slide_number, slide in enumerate(slides):
+                        slide_time = strfdelta(timedelta(seconds=slide['timestamp']), '{H:02}:{M:02}:{S:02}')
+                        data_slides.append(
+                            [
+                                kaltura_video_id, slide_number, slide['fingerprint'],
+                                slide['timestamp'], slide_time,
+                                slide.get('fr', None), slide.get('en', None), slide.get(slides_detected_language, None)
+                            ]
+                        )
+                    execute_query(
+                        piper_connection,
+                        f'DELETE FROM `gen_kaltura`.`Slides` WHERE kalturaVideoId="{kaltura_video_id}"'
+                    )
+                    insert_data_into_table_with_type(
+                        piper_connection, 'gen_kaltura', 'Slides',
                         [
-                            kaltura_video_id, slide_number, slide['fingerprint'],
-                            slide['timestamp'], slide_time,
-                            slide.get('fr', None), slide.get('en', None), slide.get(slides_detected_language, None)
+                            'kalturaVideoId', 'slideNumber', 'fingerprint',
+                            'timestamp', 'slideTime',
+                            'textFr', 'textEn', 'textOriginal'
+                        ],
+                        data_slides,
+                        [
+                            'str', 'int', 'str',
+                            'int', 'str',
+                            'str', 'str', 'str'
                         ]
                     )
-                execute_query(
-                    piper_connection, f'DELETE FROM `gen_kaltura`.`Slides` WHERE kalturaVideoId="{kaltura_video_id}"'
-                )
-                insert_data_into_table_with_type(
-                    piper_connection, 'gen_kaltura', 'Slides',
-                    [
-                        'kalturaVideoId', 'slideNumber', 'fingerprint',
-                        'timestamp', 'slideTime',
-                        'textFr', 'textEn', 'textOriginal'
-                    ],
-                    data_slides,
-                    [
-                        'str', 'int', 'str',
-                        'int', 'str',
-                        'str', 'str', 'str'
-                    ]
-                )
-            if analyze_audio and subtitles is not None:
+            if analyze_audio and (subtitles is not None or video_information.get('audio_language', None) is not None):
                 audio_transcription_time = str(datetime.now())
                 audio_detected_language = video_information.get('audio_language', None)
-                data_subtitles = []
-                for idx, segment in enumerate(subtitles):
-                    data_subtitles.append(
+                if subtitles is not None:
+                    data_subtitles = []
+                    for idx, segment in enumerate(subtitles):
+                        data_subtitles.append(
+                            [
+                                kaltura_video_id, idx, int(segment['start'] * 1000), int(segment['end'] * 1000),
+                                strfdelta(timedelta(seconds=segment['start']), '{H:02}:{M:02}:{S:02}.{m:03}'),
+                                strfdelta(timedelta(seconds=segment['end']), '{H:02}:{M:02}:{S:02}.{m:03}'),
+                                segment.get('fr', None), segment.get('en', None),
+                                segment.get(audio_detected_language, None)
+                            ]
+                        )
+                    execute_query(
+                        piper_connection,
+                        f'DELETE FROM `gen_kaltura`.`Subtitles` WHERE kalturaVideoId="{kaltura_video_id}"'
+                    )
+                    insert_data_into_table_with_type(
+                        piper_connection, 'gen_kaltura', 'Subtitles',
                         [
-                            kaltura_video_id, idx, int(segment['start'] * 1000), int(segment['end'] * 1000),
-                            strfdelta(timedelta(seconds=segment['start']), '{H:02}:{M:02}:{S:02}.{m:03}'),
-                            strfdelta(timedelta(seconds=segment['end']), '{H:02}:{M:02}:{S:02}.{m:03}'),
-                            segment.get('fr', None), segment.get('en', None),
-                            segment.get(audio_detected_language, None)
+                            'kalturaVideoId', 'segmentId', 'startMilliseconds', 'endMilliseconds',
+                            'startTime', 'endTime',
+                            'textFr', 'textEn', 'textOriginal'
+                        ],
+                        data_subtitles,
+                        [
+                            'str', 'int', 'int', 'int',
+                            'str', 'str',
+                            'str', 'str', 'str'
                         ]
                     )
-                execute_query(
-                    piper_connection, f'DELETE FROM `gen_kaltura`.`Subtitles` WHERE kalturaVideoId="{kaltura_video_id}"'
-                )
-                insert_data_into_table_with_type(
-                    piper_connection, 'gen_kaltura', 'Subtitles',
-                    [
-                        'kalturaVideoId', 'segmentId', 'startMilliseconds', 'endMilliseconds',
-                        'startTime', 'endTime',
-                        'textFr', 'textEn', 'textOriginal'
-                    ],
-                    data_subtitles,
-                    [
-                        'str', 'int', 'int', 'int',
-                        'str', 'str',
-                        'str', 'str', 'str'
-                    ]
-                )
-            if analyze_audio and subtitles is None:
-                audio_transcription_time = str(datetime.now())
-                audio_detected_language = None
             video_size = video_information.get('video_size', octet_size)
             execute_query(
                 piper_connection, f'DELETE FROM `gen_kaltura`.`Videos` WHERE kalturaVideoId="{kaltura_video_id}"'
@@ -748,7 +749,7 @@ def fingerprint_on_rcp(
                 existing_slides_fingerprint[slide_num] = slide_fingerprint
             num_existing_slides = len(existing_slides_timestamp)
             # extract slides fingerprint
-            video_token, video_size = get_video_token(
+            video_token, video_size, streams = get_video_token(
                 video_url, login_info, force=force_download, sections=('KALTURA', 'DOWNLOAD VIDEO')
             )
             if not video_token:
@@ -757,17 +758,24 @@ def fingerprint_on_rcp(
                     color='red', sections=['KALTURA', 'FINGERPRINT', 'FAILED']
                 )
                 continue
-            slides = extract_slides(
-                video_token, login_info, recalculate_cached=True, sections=('KALTURA', 'EXTRACT SLIDES')
-            )
-            if not slides:
+            if 'video' not in streams:
                 status_msg(
-                    'failed to extract slides based on cached results, forcing extraction',
-                    color='yellow', sections=['KALTURA', 'EXTRACT SLIDES', 'WARNING']
+                    f'Skipping slide fingerprinting for video {video_id} as it does not contains a video stream.',
+                    color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
                 )
+                slides = None
+            else:
                 slides = extract_slides(
-                    video_token, login_info, force=True, sections=('KALTURA', 'EXTRACT SLIDES')
+                    video_token, login_info, recalculate_cached=True, sections=('KALTURA', 'EXTRACT SLIDES')
                 )
+                if not slides:
+                    status_msg(
+                        'failed to extract slides based on cached results, forcing extraction',
+                        color='yellow', sections=['KALTURA', 'EXTRACT SLIDES', 'WARNING']
+                    )
+                    slides = extract_slides(
+                        video_token, login_info, force=True, sections=('KALTURA', 'EXTRACT SLIDES')
+                    )
             new_slides_fingerprint_per_timestamp = {}
             if slides:
                 num_slides_in_cache = len(slides)
@@ -816,18 +824,25 @@ def fingerprint_on_rcp(
                     color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
                 )
             # extract audio fingerprint
-            new_audio_fingerprint = None
-            audio_token = extract_audio(
-                video_token, login_info, recalculate_cached=True, sections=('KALTURA', 'EXTRACT AUDIO')
-            )
-            if not audio_token:
+            if 'audio' not in streams:
                 status_msg(
-                    'failed to extract audio based on cached result, forcing extraction',
-                    color='yellow', sections=['KALTURA', 'EXTRACT AUDIO', 'WARNING']
+                    f'Skipping audio fingerprinting for video {video_id} as it does not contains an audio stream.',
+                    color='yellow', sections=['KALTURA', 'FINGERPRINT', 'AUDIO', 'WARNING']
                 )
+                audio_token = None
+            else:
                 audio_token = extract_audio(
-                    video_token, login_info, force=True, sections=('KALTURA', 'EXTRACT AUDIO')
+                    video_token, login_info, recalculate_cached=True, sections=('KALTURA', 'EXTRACT AUDIO')
                 )
+                if not audio_token:
+                    status_msg(
+                        'failed to extract audio based on cached result, forcing extraction',
+                        color='yellow', sections=['KALTURA', 'EXTRACT AUDIO', 'WARNING']
+                    )
+                    audio_token = extract_audio(
+                        video_token, login_info, force=True, sections=('KALTURA', 'EXTRACT AUDIO')
+                    )
+            new_audio_fingerprint = None
             if audio_token:
                 new_audio_fingerprint = calculate_audio_fingerprint(
                     audio_token, login_info, sections=['KALTURA', 'FINGERPRINT', 'AUDIO']
@@ -838,8 +853,6 @@ def fingerprint_on_rcp(
                         f'in the database: {existing_audio_fingerprint} for video {video_id}',
                         color='yellow', sections=['KALTURA', 'FINGERPRINT', 'AUDIO', 'WARNING']
                     )
-            else:
-                new_audio_fingerprint = ''
             # update db
             if update_data_slides:
                 execute_many(

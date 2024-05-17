@@ -46,28 +46,42 @@ def process_video(
     else:
         _, octet_size = get_video_link_and_size(video_url)
         max_download_time = max(int(octet_size/1048576), 900)  # 15 min or 1MB/s download
-    video_token, video_size = get_video_token(
+    video_token, video_size, streams = get_video_token(
         video_url, login_info, debug=debug, force=force or force_download, max_processing_time_s=max_download_time
     )
     if video_token is None:
         return None
     if analyze_slides:
-        slides_language, slides = process_slides(
-            video_token, login_info, force=force, slides_language=slides_language,
-            destination_languages=destination_languages, debug=debug
-        )
+        if 'video' in streams:
+            slides_language, slides = process_slides(
+                video_token, login_info, force=force, slides_language=slides_language,
+                destination_languages=destination_languages, debug=debug
+            )
+        else:
+            slides_language = 'NA'
+            slides = None
     else:
         slides_language = None
         slides = None
     if analyze_audio:
-        audio_language, audio_fingerprint, segments = process_audio(
-            video_token, login_info, force=force, audio_language=audio_language,
-            destination_languages=destination_languages, debug=debug
-        )
+        if 'audio' in streams:
+            audio_language, audio_fingerprint, segments = process_audio(
+                video_token, login_info, force=force, audio_language=audio_language,
+                destination_languages=destination_languages, debug=debug
+            )
+        else:
+            audio_language = 'NA'
+            audio_fingerprint = None
+            segments = None
     elif detect_audio_language:
-        audio_language, audio_fingerprint, segments = process_audio(
-            video_token, login_info, force=force, audio_language=audio_language, only_detect_language=True, debug=debug
-        )
+        if 'audio' in streams:
+            audio_language, audio_fingerprint, segments = process_audio(
+                video_token, login_info, force=force, audio_language=audio_language, only_detect_language=True, debug=debug
+            )
+        else:
+            audio_language = 'NA'
+            audio_fingerprint = None
+            segments = None
     else:
         audio_language = None
         segments = None
