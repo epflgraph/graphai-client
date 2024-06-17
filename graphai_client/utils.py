@@ -4,11 +4,13 @@ from requests import get
 from datetime import datetime, timedelta
 from string import Formatter
 from numpy import isnan, isinf
-from re import compile, finditer
+from re import compile, finditer, findall
 from typing import Union, List
 from json import load as load_json
 from os.path import dirname, join
 from mysql.connector import MySQLConnection, connect as mysql_connect
+from googleapiclient.discovery import build as google_service_build, Resource as GoogleResource
+
 
 default_disclaimer = {
     'en': 'These subtitles have been generated automatically',
@@ -291,6 +293,7 @@ def combine_language_segments(text_key='text', precision_s=0.5, **kwargs):
             return harmonize_segments(text_key='text', precision_s=precision_s, **kwargs)
     for lang, segments_lang in kwargs.items():
         for seg_idx, segment in enumerate(segments_lang):
+            assert isinstance(segment, dict)
             if len(segments_combined) <= seg_idx:
                 segments_combined.append(
                     {
@@ -605,3 +608,44 @@ def add_initial_disclaimer(segments, disclaimer_per_language=None, restrict_lang
             modified_seg[lang] = seg.get(lang, None)
         modified_segments.append(modified_seg)
     return modified_segments
+
+
+def get_video_id_and_platform(video_url):
+    if video_url.startswith('http://'):
+        video_url = video_url[7:]
+    elif video_url.startswith('https://'):
+        video_url = video_url[8:]
+    if video_url.startswith('www.'):
+        video_url = video_url[4:]
+    if video_url.startswith('api.cast.switch.ch/'):
+        video_id, = findall(r'/entryId/(0_\w{8})/', video_url)
+        video_host = 'mediaspace'
+    elif video_url.startswith('tube.switch.ch/external/'):
+        video_id, = findall(r'tube.switch.ch/external/(\w{8,10})(?:$|/)', video_url)
+        video_host = 'switchtube (external)'
+    elif video_url.startswith('tube.switch.ch/download/'):
+        video_id, = findall(r'tube.switch.ch/download/video/(\w{8,10})(?:$|/)', video_url)
+        video_host = 'switchtube'
+    elif video_url.startswith('tube.switch.ch/videos/'):
+        video_id, = findall(r'tube.switch.ch/videos/(\w{8,10})(?:$|/)', video_url)
+        video_host = 'switchtube'
+    elif video_url.startswith('youtube.com') or video_url.startswith('youtu.be'):
+        video_id, = findall(r'/watch\?v=([\-\w]{11})(?:$|\?)', video_url)
+        video_host = 'youtube'
+    elif 'www.coursera.org/' in video_url:
+        video_id, = findall(r'/lecture/(\w{5})(?:$|/)', video_url)
+        video_host = 'coursera'
+    else:
+        video_host = None
+        video_id = None
+    return video_id, video_host
+
+
+def get_google_resource(service_name='youtube', version='v3', google_api_json=None) -> GoogleResource:
+    if google_api_json is None:
+        import graphai_client
+        google_api_json = join(dirname(graphai_client.__file__), 'config', 'google-api.json')
+    with open(google_api_json) as fp:
+        youtube_api_credentials = load_json(fp)
+    resource = google_service_build(service_name, version, **youtube_api_credentials)
+    return resource

@@ -1,10 +1,12 @@
 from datetime import timedelta, datetime
 from re import fullmatch
 from requests import Session
+from isodate import parse_duration
 from graphai_client.utils import (
     status_msg, get_video_link_and_size, strfdelta, insert_line_into_table_with_types, convert_subtitle_into_segments,
     combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript,
-    insert_data_into_table_with_type, execute_query, prepare_value_for_mysql, get_piper_connection, execute_many
+    insert_data_into_table_with_type, execute_query, prepare_value_for_mysql, get_piper_connection, execute_many,
+    get_video_id_and_platform, get_google_resource, GoogleResource
 )
 from graphai_client.client import (
     process_video, translate_extracted_text, translate_subtitles, get_fingerprint_of_slides
@@ -23,308 +25,417 @@ short_to_language = {v: k for k, v in language_to_short.items()}
 
 
 def process_videos_on_rcp(
-        kaltura_ids: list, analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'), force=False,
-        graph_api_json=None, login_info=None, debug=False, piper_mysql_json_file=None, force_download=False
+        video_urls: list, analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'), force=False,
+        graph_api_json=None, debug=False, piper_mysql_json_file=None, force_download=False, google_api_json=None
 ):
-    if login_info is None or 'token' not in login_info:
-        login_info = login(graph_api_json)
+    login_info = login(graph_api_json)
+    youtube_resource = get_google_resource('youtube', google_api_json=google_api_json)
     with get_piper_connection(piper_mysql_json_file) as piper_connection:
-        switch_slide_text_info = execute_query(
+        switch_video_channel_info = execute_query(
             piper_connection, 'SELECT DISTINCT SwitchVideoID, SwitchChannelID FROM gen_switchtube.Slide_Text;'
         )
-        switch_ids_to_channel_with_text_from_slides = {i[0]: i[1] for i in switch_slide_text_info}
+        switch_ids_to_channel = {v: c for v, c in switch_video_channel_info}
         kaltura_to_switch_info = execute_query(
             piper_connection, '''
-            SELECT 
-                k.kalturaVideoID,
-                m.switchtube_id
-            FROM ca_kaltura.Videos AS k 
-            LEFT JOIN man_kaltura.Mapping_Kaltura_Switchtube AS m ON m.kaltura_id=k.kalturaVideoId;
-        ''')
-        kaltura_to_switch_id = {i[0]: i[1] for i in kaltura_to_switch_info}
-        for kaltura_video_id in kaltura_ids:
-            status_msg(
-                f'Processing kaltura video {kaltura_video_id}',
-                color='grey', sections=['KALTURA', 'VIDEO', 'PROCESSING']
-            )
-            video_details = execute_query(
-                piper_connection, f'''
                 SELECT 
-                    k.downloadUrl AS kaltura_url,
-                    k.thumbnailUrl,
-                    k.createdAt AS kalturaCreationTime,
-                    k.UpdatedAt AS kalturaUpdateTime,
-                    k.name as title,
-                    k.description,
-                    k.userId AS kalturaOwner,
-                    k.creatorId AS kalturaCreator,
-                    k.tags,
-                    k.categories,
-                    k.startDate,
-                    k.endDate,
-                    k.entitledUsersEdit AS kalturaEntitledEditors,
-                    k.msDuration
-                FROM ca_kaltura.Videos AS k
-                WHERE k.kalturaVideoID="{kaltura_video_id}";'''
+                    k.kalturaVideoID,
+                    m.switchtube_id
+                FROM ca_kaltura.Videos AS k 
+                LEFT JOIN man_kaltura.Mapping_Kaltura_Switchtube AS m ON m.kaltura_id=k.kalturaVideoId;
+            ''')
+        kaltura_to_switch_id = {i[0]: i[1] for i in kaltura_to_switch_info}
+        for video_url in video_urls:
+            video_id, platform = get_video_id_and_platform(video_url)
+            switchtube_video_id = None
+            switchtube_channel = None
+            if platform == 'mediaspace':
+                switchtube_video_id = kaltura_to_switch_id.get(video_id, None)
+                switchtube_channel = switch_ids_to_channel.get(switchtube_video_id, None)
+            video_information = process_video_on_rcp(
+                login_info, piper_connection, youtube_resource,
+                platform, video_id, switchtube_video_id=switchtube_video_id, switch_channel=switchtube_channel,
+                analyze_audio=analyze_audio, analyze_slides=analyze_slides, destination_languages=destination_languages,
+                force=force, debug=debug, force_download=force_download,
             )
-            if len(video_details) == 0:
-                status_msg(
-                    f'Skipping video {kaltura_video_id} as it does not exists in ca_kaltura.Videos.',
-                    color='yellow', sections=['KALTURA', 'VIDEO', 'WARNING']
-                )
-                continue
-            (
-                kaltura_url_api, thumbnail_url, kaltura_creation_time, kaltura_update_time, title,
-                description, kaltura_owner, kaltura_creator, tags, categories, start_date, end_date,
-                kaltura_entitled_editor, ms_duration
-            ) = video_details[0]
-            if not kaltura_url_api:
-                status_msg(
-                    f'Skipping video {kaltura_video_id} which has no download link',
-                    color='yellow', sections=['KALTURA', 'VIDEO', 'WARNING']
-                )
-                continue
-            if kaltura_url_api.startswith('https://www.youtube.com'):
-                kaltura_url = kaltura_url_api
-                octet_size = None
-            else:
-                kaltura_url, octet_size = get_video_link_and_size(kaltura_url_api)
-                if kaltura_url is None:
-                    status_msg(
-                        f'The video at {kaltura_url_api} is not accessible',
-                        color='yellow', sections=['KALTURA', 'VIDEO', 'WARNING']
-                    )
-                    continue
-            slides = None
-            subtitles = None
-            # get details about the previous analysis if it exists
-            slides_detected_language = None
-            audio_detected_language = None
-            slides_detection_time = None
-            audio_transcription_time = None
-            audio_fingerprint = None
-            slides_concept_extract_time = None
-            subtitles_concept_extract_time = None
-            previous_analysis_info = execute_query(
-                piper_connection, f'''SELECT 
-                    slidesDetectedLanguage, 
-                    audioDetectedLanguage, 
-                    slidesDetectionTime, 
-                    audioTranscriptionTime,
-                    audioFingerprint,
-                    slidesConceptExtractionTime,
-                    subtitlesConceptExtractionTime
-                FROM `gen_kaltura`.`Videos` 
-                WHERE kalturaVideoId="{kaltura_video_id}"'''
+        if analyze_slides and (
+                video_information['slides'] is not None or video_information['slides_detected_language'] is not None
+        ):
+            video_information['slides_detection_time'] = str(datetime.now())
+            register_slides(
+                piper_connection, platform, video_id, video_information['slides'],
+                video_information['slides_detected_language']
             )
-            if previous_analysis_info:
-                (
-                    slides_detected_language, audio_detected_language, slides_detection_time,
-                    audio_transcription_time, audio_fingerprint,
-                    slides_concept_extract_time, subtitles_concept_extract_time
-                ) = previous_analysis_info[-1]
-            # skip OCR if the video was on switchtube and has already OCR results from there
-            switchtube_video_id = kaltura_to_switch_id.get(kaltura_video_id, None)
-            if switchtube_video_id is not None \
-                    and switchtube_video_id in switch_ids_to_channel_with_text_from_slides:
-                if analyze_slides:
-                    # switch video already processed, we can skip slide extraction and OCR
-                    status_msg(
-                        f'The video {kaltura_video_id} has been found on switchtube as {switchtube_video_id}, '
-                        'skipping slides detection', color='grey', sections=['KALTURA', 'VIDEO', 'PROCESSING']
-                    )
-                    switch_channel = switch_ids_to_channel_with_text_from_slides[switchtube_video_id]
-                    # get slide text (in english in gen_switchtube.Slide_Text) from analyzed switchtube video
-                    slides_text = []
-                    num_slides_languages = {'en': 0, 'fr': 0}
-                    slides_video_info = execute_query(
-                        piper_connection, f'''
-                        SELECT 
-                            t.SlideID,
-                            SUBSTRING(t.SlideID,LENGTH(t.SwitchChannelID) + LENGTH(t.SwitchVideoID) + 3), 
-                            t.SlideText,
-                            SUM(IF(o.DetectedLanguage='fr', 1, 0)) AS Nfr,
-                            SUM(IF(o.DetectedLanguage='en', 1, 0)) AS Nen
-                        FROM gen_switchtube.Slide_Text AS t
-                        LEFT JOIN gen_switchtube.Slide_OCR AS o ON o.SlideID=t.SlideID AND Method='google (dtd)'
-                        WHERE SwitchChannelID='{switch_channel}' AND SwitchVideoID='{switchtube_video_id}' 
-                        GROUP BY SlideID
-                        ORDER BY SlideNumber;'''
-                    )
-                    for slide_id, timestamp, slide_text, n_fr, n_en in slides_video_info:
-                        slides_text.append({
-                            'en': slide_text,
-                            'timestamp': int(timestamp)
-                        })
-                        if n_fr > n_en:
-                            num_slides_languages['fr'] += 1
-                        elif n_en > n_fr:
-                            num_slides_languages['en'] += 1
-                    if num_slides_languages['fr'] > num_slides_languages['en']:
-                        slides_detected_language = 'fr'
-                    elif num_slides_languages['en'] > num_slides_languages['fr']:
-                        slides_detected_language = 'en'
-                    else:
-                        slides_detected_language = None
-                    # translate slide text
-                    slides_text = translate_extracted_text(
-                        slides_text, login_info, source_language='en',
-                        destination_languages=destination_languages, force=force, debug=debug
-                    )
-                    slides = []
-                    for slide_idx, slide_text in enumerate(slides_text):
-                        slide = {
-                            'token': None,  # as we did not do slide detection we do not know the token
-                            'fingerprint': None,  # nor the fingerprint
-                            'timestamp': int(slide_text['timestamp']),
-                        }
-                        for k, v in slide_text.items():
-                            if k != 'timestamp':
-                                slide[k] = v
-                        slides.append(slide)
-                if analyze_audio:
-                    subtitles = get_subtitles_from_kaltura(
-                        kaltura_video_id, login_info, piper_connection=piper_connection, force=force,
-                        destination_languages=destination_languages, debug=debug
-                    )
-                    if subtitles:
-                        video_information = process_video(
-                            kaltura_url, analyze_audio=False, analyze_slides=False, force=force,
-                            detect_audio_language=True, audio_language=None,
-                            login_info=login_info, debug=debug, force_download=force_download
-                        )
-                    else:
-                        video_information = process_video(
-                            kaltura_url, analyze_audio=True, analyze_slides=False, force=force,
-                            destination_languages=destination_languages, audio_language=None,
-                            login_info=login_info, debug=debug, force_download=force_download
-                        )
-                        subtitles = video_information.get('subtitles', None)
-                    audio_fingerprint = video_information.get('audio_fingerprint', None)
-            else:  # full processing of the video
-                subtitles = get_subtitles_from_kaltura(
-                    kaltura_video_id, login_info, piper_connection=piper_connection, force=force,
-                    destination_languages=destination_languages, debug=debug
-                )
-                if subtitles and analyze_audio:
-                    video_information = process_video(
-                        kaltura_url, analyze_audio=False, analyze_slides=analyze_slides, force=force,
-                        detect_audio_language=True, audio_language=None,
-                        login_info=login_info, debug=debug, force_download=force_download
-                    )
-                else:
-                    video_information = process_video(
-                        kaltura_url, analyze_audio=analyze_audio, analyze_slides=analyze_slides, force=force,
-                        destination_languages=destination_languages, login_info=login_info, debug=debug,
-                        force_download=force_download
-                    )
-                    subtitles = video_information.get('subtitles', None)
-                slides = video_information.get('slides', None)
-                if analyze_slides:
-                    slides_detected_language = video_information.get('slides_language', None)
-                if analyze_audio:
-                    audio_fingerprint = video_information.get('audio_fingerprint', None)
-            # update gen_kaltura with processed info
-            if analyze_slides and (slides is not None or slides_detected_language is not None):
-                slides_detection_time = str(datetime.now())
-                if slides is not None:
-                    data_slides = []
-                    for slide_number, slide in enumerate(slides):
-                        slide_time = strfdelta(timedelta(seconds=slide['timestamp']), '{H:02}:{M:02}:{S:02}')
-                        data_slides.append(
-                            [
-                                kaltura_video_id, slide_number, slide['fingerprint'],
-                                slide['timestamp'], slide_time,
-                                slide.get('fr', None), slide.get('en', None), slide.get(slides_detected_language, None)
-                            ]
-                        )
-                    execute_query(
-                        piper_connection,
-                        f'DELETE FROM `gen_kaltura`.`Slides` WHERE kalturaVideoId="{kaltura_video_id}"'
-                    )
-                    insert_data_into_table_with_type(
-                        piper_connection, 'gen_kaltura', 'Slides',
-                        [
-                            'kalturaVideoId', 'slideNumber', 'fingerprint',
-                            'timestamp', 'slideTime',
-                            'textFr', 'textEn', 'textOriginal'
-                        ],
-                        data_slides,
-                        [
-                            'str', 'int', 'str',
-                            'int', 'str',
-                            'str', 'str', 'str'
-                        ]
-                    )
-            if analyze_audio and (subtitles is not None or video_information.get('audio_language', None) is not None):
-                audio_transcription_time = str(datetime.now())
-                audio_detected_language = video_information.get('audio_language', None)
-                if subtitles is not None:
-                    data_subtitles = []
-                    for idx, segment in enumerate(subtitles):
-                        data_subtitles.append(
-                            [
-                                kaltura_video_id, idx, int(segment['start'] * 1000), int(segment['end'] * 1000),
-                                strfdelta(timedelta(seconds=segment['start']), '{H:02}:{M:02}:{S:02}.{m:03}'),
-                                strfdelta(timedelta(seconds=segment['end']), '{H:02}:{M:02}:{S:02}.{m:03}'),
-                                segment.get('fr', None), segment.get('en', None),
-                                segment.get(audio_detected_language, None)
-                            ]
-                        )
-                    execute_query(
-                        piper_connection,
-                        f'DELETE FROM `gen_kaltura`.`Subtitles` WHERE kalturaVideoId="{kaltura_video_id}"'
-                    )
-                    insert_data_into_table_with_type(
-                        piper_connection, 'gen_kaltura', 'Subtitles',
-                        [
-                            'kalturaVideoId', 'segmentId', 'startMilliseconds', 'endMilliseconds',
-                            'startTime', 'endTime',
-                            'textFr', 'textEn', 'textOriginal'
-                        ],
-                        data_subtitles,
-                        [
-                            'str', 'int', 'int', 'int',
-                            'str', 'str',
-                            'str', 'str', 'str'
-                        ]
-                    )
-            video_size = video_information.get('video_size', octet_size)
-            execute_query(
-                piper_connection, f'DELETE FROM `gen_kaltura`.`Videos` WHERE kalturaVideoId="{kaltura_video_id}"'
+        if analyze_audio and (
+                video_information['subtitles'] is not None or video_information.get('audio_language', None) is not None
+        ):
+            video_information['audio_detected_language'] = video_information.get('audio_language', None)
+            video_information['audio_transcription_time'] = str(datetime.now())
+            register_subtitles(
+                piper_connection, platform, video_id, video_information['subtitles'],
+                video_information['audio_detected_language']
             )
-            insert_line_into_table_with_types(
-                piper_connection, 'gen_kaltura', 'Videos',
-                [
-                    'kalturaVideoId', 'audioFingerprint', 'kalturaUrl', 'thumbnailUrl', 'kalturaCreationTime',
-                    'kalturaUpdateTime', 'title', 'description', 'kalturaOwner', 'kalturaCreator', 'tags',
-                    'categories', 'kalturaEntitledEditors', 'msDuration', 'octetSize', 'startDate', 'endDate',
-                    'slidesDetectedLanguage', 'audioDetectedLanguage', 'switchVideoId',
-                    'slidesDetectionTime', 'audioTranscriptionTime',
-                    'slidesConceptExtractionTime', 'subtitlesConceptExtractionTime'
-                ],
-                [
-                    kaltura_video_id, audio_fingerprint, kaltura_url, thumbnail_url, kaltura_creation_time,
-                    kaltura_update_time, title, description, kaltura_owner, kaltura_creator, tags,
-                    categories, kaltura_entitled_editor, ms_duration, video_size, start_date, end_date,
-                    slides_detected_language, audio_detected_language, switchtube_video_id,
-                    slides_detection_time, audio_transcription_time,
-                    slides_concept_extract_time, subtitles_concept_extract_time
-                ],
-                [
-                    'str', 'str', 'str', 'str', 'str',
-                    'str', 'str', 'str', 'str', 'str', 'str',
-                    'str', 'str', 'int', 'int', 'str', 'str',
-                    'str', 'str', 'str',
-                    'str', 'str',
-                    'str', 'str'
-                ]
-            )
-            piper_connection.commit()
+        register_processed_video(piper_connection, platform, video_id, video_information)
+        piper_connection.commit()
+        status_msg(
+            f'The {platform} video {video_id} has been processed',
+            color='green', sections=['VIDEO', 'PROCESSING', 'SUCCESS']
+        )
+
+
+def process_video_on_rcp(
+        login_info: dict, piper_connection, youtube_resource: GoogleResource,
+        platform: str, video_id: str, switchtube_video_id=None, switch_channel=None,
+        analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'),
+        force=False, debug=False, force_download=False, sections=('VIDEO', 'PROCESSING')
+):
+    video_details = None
+    if platform == 'mediaspace':
+        video_details = get_kaltura_video_details(piper_connection, video_id)
+    elif platform == 'youtube':
+        video_details = get_youtube_video_details(youtube_resource, video_id)
+    if video_details is None:
+        status_msg(
+            f'Details for the video {video_id} could not be found on {platform}',
+            color='red', sections=list(sections) + ['ERROR']
+        )
+        return None
+    video_information = get_previous_analysis_info(piper_connection, platform, video_id)
+    video_information.update(video_details)
+    video_information['slides'] = None
+    video_information['subtitles'] = None
+    if analyze_slides:
+        if switchtube_video_id is not None and switch_channel is not None:
+            # switch video already processed, we can skip slide extraction and OCR
             status_msg(
-                f'The video {kaltura_video_id} has been processed',
-                color='green', sections=['KALTURA', 'VIDEO', 'SUCCESS']
+                f'The video {platform} {video_id} has been found on switchtube as {switchtube_video_id}, '
+                'skipping slides detection', color='grey', sections=list(sections) + ['PROCESSING']
             )
+            analyze_slides = False
+            video_information['slides_detected_language'], video_information['slides'] = get_slides_from_switchtube(
+                piper_connection, switch_channel, switchtube_video_id,
+                login_info, destination_languages, force, debug
+            )
+    detect_audio_language = False
+    if analyze_audio:
+        if platform == 'mediaspace':
+            video_information['subtitles'] = get_subtitles_from_kaltura(
+                video_id, login_info, piper_connection=piper_connection, force=force,
+                destination_languages=destination_languages, debug=debug
+            )
+        elif platform == 'youtube' and video_information['youtube_caption']:
+            # no caption download using the API key, need Oath2
+            # video_information['subtitles'] = get_subtitles_from_youtube(video_id, youtube_resource)
+            pass
+        if video_information['subtitles']:
+            status_msg(
+                f'Subtitles for the {platform} video {video_id} are present on the platform, '
+                'skipping transcription', color='grey', sections=list(sections) + ['PROCESSING']
+            )
+            analyze_audio = False
+            detect_audio_language = True
+    new_video_information = process_video(
+        video_information['url'], analyze_audio=analyze_audio, analyze_slides=analyze_slides,
+        detect_audio_language=detect_audio_language, destination_languages=destination_languages,
+        login_info=login_info, force=force, debug=debug, force_download=force_download
+    )
+    video_information['video_size'] = new_video_information['video_size']
+    if analyze_audio:
+        video_information['subtitles'] = new_video_information.get('subtitles', None)
+    if analyze_audio or detect_audio_language:
+        video_information['audio_language'] = new_video_information['audio_language']
+        video_information['audio_fingerprint'] = new_video_information['audio_fingerprint']
+    if analyze_slides:
+        video_information['slides_detected_language'] = new_video_information.get('slides_language', None)
+        video_information['slides'] = new_video_information.get('slides', None)
+    return video_information
+
+
+def get_kaltura_video_details(db, kaltura_video_id):
+    video_details = execute_query(
+        db, f'''
+            SELECT 
+                k.downloadUrl AS kaltura_url,
+                k.thumbnailUrl,
+                k.createdAt AS kalturaCreationTime,
+                k.UpdatedAt AS kalturaUpdateTime,
+                k.name as title,
+                k.description,
+                k.userId AS kalturaOwner,
+                k.creatorId AS kalturaCreator,
+                k.tags,
+                k.startDate,
+                k.endDate,
+                k.msDuration
+            FROM ca_kaltura.Videos AS k
+            WHERE k.kalturaVideoID="{kaltura_video_id}";'''
+    )
+    if len(video_details) == 0:
+        status_msg(
+            f'Skipping video {kaltura_video_id} as it does not exists in ca_kaltura.Videos.',
+            color='yellow', sections=['KALTURA', 'VIDEO', 'WARNING']
+        )
+        return None
+    (
+        kaltura_url_api, thumbnail_url, kaltura_creation_time, kaltura_update_time, title,
+        description, kaltura_owner, kaltura_creator, tags, start_date, end_date, ms_duration
+    ) = video_details[0]
+    if not kaltura_url_api:
+        status_msg(
+            f'Skipping video {kaltura_video_id} which has no download link',
+            color='yellow', sections=['KALTURA', 'VIDEO', 'WARNING']
+        )
+        return None
+    if kaltura_url_api.startswith('https://www.youtube.com') \
+            or kaltura_url_api.startswith('https://www.youtu.be'):
+        kaltura_url = kaltura_url_api
+        octet_size = None
+    else:
+        kaltura_url, octet_size = get_video_link_and_size(kaltura_url_api)
+        if kaltura_url is None:
+            status_msg(
+                f'The video at {kaltura_url_api} is not accessible',
+                color='yellow', sections=['KALTURA', 'VIDEO', 'WARNING']
+            )
+            return None
+    return dict(
+        platform='mediaspace', video_id=kaltura_video_id, url=kaltura_url, thumbnail_url=thumbnail_url,
+        video_creation_time=kaltura_creation_time, video_update_time=kaltura_update_time, title=title,
+        description=description, owner=kaltura_owner, creator=kaltura_creator, tags=tags,
+        ms_duration=ms_duration, video_size=octet_size, start_date=start_date, end_date=end_date,
+    )
+
+
+def get_youtube_video_details(youtube_resource: GoogleResource, youtube_video_id):
+    videos = youtube_resource.videos()
+    channels = youtube_resource.channels()
+    # see https://developers.google.com/youtube/v3/docs/videos/list for the list of properties
+    video_request = videos.list(id=youtube_video_id, part='snippet,contentDetails,status')
+    video_info_items = video_request.execute()['items']
+    assert len(video_info_items) == 1
+    video_info = video_info_items[0]
+    video_snippet = video_info['snippet']
+    video_content_details = video_info['contentDetails']
+    video_url = 'https://youtube.com/watch?v=' + youtube_video_id
+    try:
+        thumbnail_url = video_snippet['thumbnails']['maxres']['url']
+    except KeyError:
+        thumbnail_url = None
+    video_creation_time = datetime.fromisoformat(video_snippet.get('publishedAt').replace('Z', '+00:00'))
+    title = video_snippet.get('title', None)
+    description = video_snippet.get('description')
+    tags = video_snippet.get('tags', None)
+    if tags:
+        tags = ','.join([f'"{tag}"' for tag in tags])
+    duration = video_content_details.get('duration', None)
+    if duration:
+        ms_duration = int(parse_duration(duration).total_seconds() * 1000)
+    else:
+        ms_duration = None
+    youtube_caption = True if video_content_details.get('caption', 'false') == 'true' else False
+    video_channel_id = video_snippet.get('channelId', None)
+    if video_channel_id:
+        channel_request = channels.list(id=video_channel_id, part='snippet')
+        channel_info_items = channel_request.execute()['items']
+        assert len(channel_info_items) == 1
+        channel_info = channel_info_items[0]
+        video_owner = channel_info['snippet'].get('customUrl', None)
+    else:
+        video_owner = None
+    return dict(
+        platform='youtube', video_id=youtube_video_id, url=video_url, thumbnail_url=thumbnail_url,
+        video_creation_time=video_creation_time, video_update_time=video_creation_time, title=title,
+        description=description, owner=video_owner, creator=video_owner, tags=tags,
+        ms_duration=ms_duration, video_size=None, start_date=None, end_date=None, youtube_caption=youtube_caption
+    )
+
+
+def get_slides_from_switchtube(db, switch_channel, switch_video_id, login_info, destination_languages, force, debug):
+    # get slide text (in english in gen_switchtube.Slide_Text) from analyzed switchtube video
+    slides_text = []
+    num_slides_languages = {'en': 0, 'fr': 0}
+    slides_video_info = execute_query(
+        db, f'''
+            SELECT 
+                t.SlideID,
+                SUBSTRING(t.SlideID,LENGTH(t.SwitchChannelID) + LENGTH(t.SwitchVideoID) + 3), 
+                t.SlideText,
+                SUM(IF(o.DetectedLanguage='fr', 1, 0)) AS Nfr,
+                SUM(IF(o.DetectedLanguage='en', 1, 0)) AS Nen
+            FROM gen_switchtube.Slide_Text AS t
+            LEFT JOIN gen_switchtube.Slide_OCR AS o ON o.SlideID=t.SlideID AND Method='google (dtd)'
+            WHERE SwitchChannelID='{switch_channel}' AND SwitchVideoID='{switch_video_id}' 
+            GROUP BY SlideID
+            ORDER BY SlideNumber;'''
+    )
+    for slide_id, timestamp, slide_text, n_fr, n_en in slides_video_info:
+        slides_text.append({
+            'en': slide_text,
+            'timestamp': int(timestamp)
+        })
+        if n_fr > n_en:
+            num_slides_languages['fr'] += 1
+        elif n_en > n_fr:
+            num_slides_languages['en'] += 1
+    if num_slides_languages['fr'] > num_slides_languages['en']:
+        slides_detected_language = 'fr'
+    elif num_slides_languages['en'] > num_slides_languages['fr']:
+        slides_detected_language = 'en'
+    else:
+        slides_detected_language = None
+    # translate slide text
+    slides_text = translate_extracted_text(
+        slides_text, login_info, source_language='en',
+        destination_languages=destination_languages, force=force, debug=debug
+    )
+    slides = []
+    for slide_idx, slide_text in enumerate(slides_text):
+        slide = {
+            'token': None,  # as we did not do slide detection we do not know the token
+            'fingerprint': None,  # nor the fingerprint
+            'timestamp': int(slide_text['timestamp']),
+        }
+        for k, v in slide_text.items():
+            if k != 'timestamp':
+                slide[k] = v
+        slides.append(slide)
+    return slides_detected_language, slides
+
+
+def register_subtitles(db, platform, video_id, subtitles, audio_detected_language):
+    if subtitles is None:
+        return
+    data_subtitles = []
+    for idx, segment in enumerate(subtitles):
+        data_subtitles.append(
+            [
+                platform, video_id, idx, int(segment['start'] * 1000), int(segment['end'] * 1000),
+                strfdelta(timedelta(seconds=segment['start']), '{H:02}:{M:02}:{S:02}.{m:03}'),
+                strfdelta(timedelta(seconds=segment['end']), '{H:02}:{M:02}:{S:02}.{m:03}'),
+                segment.get('fr', None), segment.get('en', None), segment.get(audio_detected_language, None)
+            ]
+        )
+    execute_query(
+        db,
+        f'DELETE FROM `gen_video`.`Subtitles` WHERE platform="{platform}" AND videoId="{video_id}"'
+    )
+    insert_data_into_table_with_type(
+        db, 'gen_video', 'Subtitles',
+        [
+            'platform', 'videoId', 'segmentId', 'startMilliseconds', 'endMilliseconds',
+            'startTime', 'endTime', 'textFr', 'textEn', 'textOriginal'
+        ],
+        data_subtitles,
+        [
+            'str', 'str', 'int', 'int', 'int',
+            'str', 'str', 'str', 'str', 'str'
+        ]
+    )
+
+
+def register_slides(db, platform, video_id, slides, slides_detected_language):
+    if slides is None:
+        return
+    data_slides = []
+    for slide_number, slide in enumerate(slides):
+        slide_time = strfdelta(timedelta(seconds=slide['timestamp']), '{H:02}:{M:02}:{S:02}')
+        data_slides.append(
+            [
+                platform, video_id, slide_number, slide['fingerprint'], slide['timestamp'], slide_time,
+                slide.get('fr', None), slide.get('en', None), slide.get(slides_detected_language, None)
+            ]
+        )
+    execute_query(
+        db, f'DELETE FROM `gen_video`.`Slides` WHERE platform="{platform}" AND videoId="{video_id}"'
+    )
+    insert_data_into_table_with_type(
+        db, 'gen_video', 'Slides',
+        [
+            'platform', 'videoId', 'slideNumber', 'fingerprint', 'timestamp', 'slideTime',
+            'textFr', 'textEn', 'textOriginal'
+        ],
+        data_slides,
+        [
+            'str', 'str', 'int', 'str', 'int', 'str',
+            'str', 'str', 'str'
+        ]
+    )
+
+
+def register_processed_video(db, platform, video_id, video_info):
+    execute_query(
+        db, f'DELETE FROM `gen_video`.`Videos` WHERE platform="{platform}"AND videoId="{video_id}"'
+    )
+    insert_line_into_table_with_types(
+        db, 'gen_video', 'Videos',
+        [
+            'platform', 'videoId', 'audioFingerprint', 'videoUrl', 'thumbnailUrl',
+            'videoCreationTime', 'videoUpdateTime',
+            'title', 'description', 'owner', 'creator',
+            'tags', 'msDuration', 'octetSize',
+            'startDate', 'endDate',
+            'slidesDetectedLanguage', 'audioDetectedLanguage',
+            'slidesDetectionTime', 'audioTranscriptionTime',
+            'slidesConceptExtractionTime', 'subtitlesConceptExtractionTime'
+        ],
+        [
+            platform, video_id, video_info['audio_fingerprint'], video_info['url'], video_info['thumbnail_url'],
+            video_info['video_creation_time'], video_info['video_update_time'],
+            video_info['title'], video_info['description'], video_info['owner'], video_info['creator'],
+            video_info['tags'], video_info['ms_duration'], video_info['video_size'],
+            video_info['start_date'], video_info['end_date'],
+            video_info['slides_detected_language'], video_info['audio_detected_language'],
+            video_info['slides_detection_time'], video_info['audio_transcription_time'],
+            video_info['slides_concept_extract_time'], video_info['subtitles_concept_extract_time']
+        ],
+        [
+            'str', 'str', 'str', 'str', 'str',
+            'str', 'str',
+            'str', 'str', 'str', 'str',
+            'str', 'int', 'int',
+            'str', 'str',
+            'str', 'str',
+            'str', 'str',
+            'str', 'str'
+        ]
+    )
+
+
+def get_previous_analysis_info(db, platform, video_id):
+    # get details about the previous analysis if it exists
+    slides_detected_language = None
+    audio_detected_language = None
+    slides_detection_time = None
+    audio_transcription_time = None
+    audio_fingerprint = None
+    slides_concept_extract_time = None
+    subtitles_concept_extract_time = None
+    previous_analysis_info = execute_query(
+        db, f'''SELECT 
+            slidesDetectedLanguage, 
+            audioDetectedLanguage, 
+            slidesDetectionTime, 
+            audioTranscriptionTime,
+            audioFingerprint,
+            slidesConceptExtractionTime,
+            subtitlesConceptExtractionTime
+        FROM `gen_video`.`Videos` 
+        WHERE platform="{platform}" AND videoId="{video_id}"'''
+    )
+    if previous_analysis_info:
+        (
+            slides_detected_language, audio_detected_language, slides_detection_time,
+            audio_transcription_time, audio_fingerprint,
+            slides_concept_extract_time, subtitles_concept_extract_time
+        ) = previous_analysis_info[-1]
+    return dict(
+        slides_detected_language=slides_detected_language,
+        audio_detected_language=audio_detected_language,
+        slides_detection_time=slides_detection_time,
+        audio_transcription_time=audio_transcription_time,
+        audio_fingerprint=audio_fingerprint,
+        slides_concept_extract_time=slides_concept_extract_time,
+        subtitles_concept_extract_time=subtitles_concept_extract_time,
+    )
 
 
 def get_subtitles_from_kaltura(
@@ -427,6 +538,21 @@ def get_subtitles_from_kaltura(
     if close_connection:
         piper_connection.close()
     return subtitles
+
+
+def get_subtitles_from_youtube(video_id: str, youtube_resource: GoogleResource):
+    captions = youtube_resource.captions()
+    captions_request = captions.list(part='snippet,id', videoId=video_id)
+    for captions_item in captions_request.execute()['items']:
+        captions_snippet = captions_item['snippet']
+        if captions_snippet['trackKind'].lower() == 'asr':
+            continue
+        caption_dl_request = captions.download(id=captions_item['id'])
+        caption_dl_response = caption_dl_request.execute()
+        print(caption_dl_response)
+    subtitles = None
+    return subtitles
+
 
 
 def detect_concept_on_rcp(
