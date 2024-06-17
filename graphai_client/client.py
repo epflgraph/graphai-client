@@ -1,6 +1,6 @@
 from multiprocessing import Pool
 from typing import Tuple, Dict, Optional, Any
-from graphai_client.utils import status_msg, add_initial_disclaimer, get_video_link_and_size
+from graphai_client.utils import status_msg, add_initial_disclaimer, get_video_link_and_size, get_video_id_and_platform
 from graphai_client.client_api.utils import login
 from graphai_client.client_api.image import (
     extract_text_from_slide, calculate_fingerprint as calculate_slide_fingerprint
@@ -41,7 +41,8 @@ def process_video(
     """
     if login_info is None or 'token'not in login_info:
         login_info = login(graph_api_json)
-    if video_url.startswith('https://www.youtube.com'):
+    _, platform = get_video_id_and_platform(video_url)
+    if platform in ('youtube', ):
         max_download_time = 900
     else:
         _, octet_size = get_video_link_and_size(video_url)
@@ -51,6 +52,7 @@ def process_video(
     )
     if video_token is None:
         return None
+    slides = None
     if analyze_slides:
         if 'video' in streams:
             slides_language, slides = process_slides(
@@ -59,10 +61,8 @@ def process_video(
             )
         else:
             slides_language = 'NA'
-            slides = None
-    else:
-        slides_language = None
-        slides = None
+    segments = None
+    audio_fingerprint = None
     if analyze_audio:
         if 'audio' in streams:
             audio_language, audio_fingerprint, segments = process_audio(
@@ -71,21 +71,14 @@ def process_video(
             )
         else:
             audio_language = 'NA'
-            audio_fingerprint = None
-            segments = None
     elif detect_audio_language:
         if 'audio' in streams:
-            audio_language, audio_fingerprint, segments = process_audio(
-                video_token, login_info, force=force, audio_language=audio_language, only_detect_language=True, debug=debug
+            audio_language, audio_fingerprint, _ = process_audio(
+                video_token, login_info, force=force, audio_language=audio_language, only_detect_language=True,
+                debug=debug
             )
         else:
             audio_language = 'NA'
-            audio_fingerprint = None
-            segments = None
-    else:
-        audio_language = None
-        segments = None
-        audio_fingerprint = None
     return dict(
         url=video_url,
         video_size=video_size,
