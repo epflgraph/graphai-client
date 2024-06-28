@@ -54,6 +54,7 @@ It includes:
     - language detection `graphai_client.client_api.translation.detect_language()`
     - translation `graphai_client.client_api.translation.translate_text()`
     - concept extraction `graphai_client.client_api.text.extract_concepts_from_text()`
+    - keyword detection `graphai_client.client_api.text.extract_concepts_from_keywords()`
 - for videos:
     - video downloading `graphai_client.client_api.video.get_video_token()`
     - video fingerprinting `graphai_client.client_api.video.fingerprint_video()`
@@ -132,7 +133,8 @@ The path to this JSON file can be passed as the `piper_mysql_json_file` argument
 from graphai_client.rcp import process_videos_on_rcp
 
 process_videos_on_rcp(
-    ['0_00gdquzv'], analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'),
+    ['http://api.cast.switch.ch/p/113/sp/11300/serveFlavor/entryId/0_00gdquzv/v/2/ev/3/flavorId/0_i0v49s5y/forceproxy/true/name/a.mp4'], 
+    analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'),
     graph_api_json='config/graphai-api.json', piper_mysql_json_file='config/piper_db.json'
 )
 ```
