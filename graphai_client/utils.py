@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from string import Formatter
 from numpy import isnan, isinf
 from re import compile, finditer, findall
-from typing import Union, List
+from typing import Union, List, Tuple, Optional
 from json import load as load_json
 from os.path import dirname, join
 from mysql.connector import MySQLConnection, connect as mysql_connect
@@ -156,12 +156,40 @@ def insert_line_into_table_with_types(
     execute_query(connection, sql_query, retry=retry)
 
 
-def insert_data_into_table_with_type(connection: MySQLConnection, schema, table_name, columns, data, types, retry=5):
-    format_values = ', '.join(['%s' for _ in types])
+def insert_data_into_table(connection: MySQLConnection, schema, table_name, columns, data, retry=5):
+    format_values = ', '.join(['%s' for _ in columns])
     sql_query = f"""
         INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
         VALUES ({format_values});
     """
+    execute_many(connection, sql_query, data, retry=retry)
+
+
+def update_data_into_table(
+        connection: MySQLConnection, schema, table_name, columns, pk_columns, data: List[Tuple], retry=5
+):
+    """
+    Update the table with the given data.
+    data must be a list of tuples starting with the data to be updated (in the same order as columns) then the values
+    of the pk (in the same order as in pk_columns).
+    :param connection: a MySQLConnection object
+    :param schema: name of the schema where the table is located
+    :param table_name: name of the table to update
+    :param columns: name of the columns to update
+    :param pk_columns: name of the columns used to identify a row
+    :param data: list of N-tuples containing the data to be updated and the values to identify the row to be updated.
+        The order of the data must be the same as in columns and in pk_columns.
+    :param retry: number of time to retry in case of error.
+    """
+    if len(data) == 0 or len(columns) == 0:
+        return
+    if len(columns) + len(pk_columns) != len(data[0]):
+        raise ValueError('the data argument must be a list of N-tuple where N = len(columns) + len(pk_columns)')
+    sql_query = f"""
+            UPDATE `{schema}`.`{table_name}`
+            SET {', '.join([f'{col}=%s' for col in columns])}
+            WHERE {' AND '.join([f'{pk_col}=%s' for pk_col in pk_columns])};
+        """
     execute_many(connection, sql_query, data, retry=retry)
 
 
@@ -183,7 +211,7 @@ def execute_query(connection: MySQLConnection, sql_query, retry=5, multiple_stat
                 raise e
 
 
-def execute_many(connection: MySQLConnection, sql_query, data_str, retry=5, delay_s=30):
+def execute_many(connection: MySQLConnection, sql_query: str, data_str, retry=5, delay_s=30):
     with connection.cursor() as cursor:
         try:
             cursor.executemany(sql_query, data_str)
@@ -621,19 +649,22 @@ def get_video_id_and_platform(video_url):
         video_id, = findall(r'/entryId/(0_\w{8})/', video_url)
         video_host = 'mediaspace'
     elif video_url.startswith('tube.switch.ch/external/'):
-        video_id, = findall(r'tube.switch.ch/external/(\w{8,10})(?:$|/)', video_url)
+        video_id, = findall(r'^tube.switch.ch/external/(\w{8,10})(?:$|/)', video_url)
         video_host = 'switchtube (external)'
     elif video_url.startswith('tube.switch.ch/download/'):
-        video_id, = findall(r'tube.switch.ch/download/video/(\w{8,10})(?:$|/)', video_url)
+        video_id, = findall(r'^tube.switch.ch/download/video/(\w{8,10})(?:$|/)', video_url)
         video_host = 'switchtube'
     elif video_url.startswith('tube.switch.ch/videos/'):
-        video_id, = findall(r'tube.switch.ch/videos/(\w{8,10})(?:$|/)', video_url)
+        video_id, = findall(r'^tube.switch.ch/videos/(\w{8,10})(?:$|/)', video_url)
         video_host = 'switchtube'
-    elif video_url.startswith('youtube.com') or video_url.startswith('youtu.be'):
-        video_id, = findall(r'/watch\?v=([\-\w]{11})(?:$|\?)', video_url)
+    elif video_url.startswith('youtube.com'):
+        video_id, = findall(r'^youtube.com/watch\?v=([\-\w]{11})(?:$|\?)', video_url)
         video_host = 'youtube'
-    elif 'www.coursera.org/' in video_url:
-        video_id, = findall(r'/lecture/(\w{5})(?:$|/)', video_url)
+    elif video_url.startswith('youtu.be'):
+        video_id, = findall(r'^youtu.be/([\-\w]{11})(?:$|\?)', video_url)
+        video_host = 'youtube'
+    elif video_url.startswith('coursera.org/'):
+        video_id, = findall(r'^coursera.org/lecture/(\w{5})(?:$|/)', video_url)
         video_host = 'coursera'
     else:
         video_host = None
@@ -649,3 +680,60 @@ def get_google_resource(service_name='youtube', version='v3', google_api_json=No
         youtube_api_credentials = load_json(fp)
     resource = google_service_build(service_name, version, **youtube_api_credentials)
     return resource
+
+
+def insert_keywords_and_concepts(
+        piper_connection: MySQLConnection, pk: tuple, keywords_and_concepts: dict,
+        schemas_keyword, table_keywords, pk_columns_keywords: Tuple,
+        schemas_concepts, table_concepts, pk_columns_concepts: Tuple,
+        column_keywords='keywords', key_concepts: Optional[Tuple] = None,
+        columns_concept: Optional[Tuple] = None, retry=5
+):
+    """
+    Insert keywords and concepts into the tables specified in arguments.
+    The keywords are stored as text using ';' as separator updating a column given as argument.
+    The concepts and associated scores are inserted into the table specified.
+    :param piper_connection: MySQLConnection object.
+    :param pk: value of the primary key for the node whose keywords and concepts have been extracted.
+    :param keywords_and_concepts: result of
+        graphai_client.client_api.text.clean_text_translate_extract_keywords_and_concepts().
+    :param schemas_keyword: schema containing the table where the keywords will be stored.
+    :param table_keywords: the table where the keywords will be stored.
+    :param pk_columns_keywords: name of the columns identifying a row in the table where the keywords will be stored.
+    :param schemas_concepts: schema containing the table where the concepts and scores will be stored.
+    :param table_concepts: the table where the concepts and scores will be stored.
+    :param pk_columns_concepts: name of the columns identifying a row in the table where the concepts will be stored.
+    :param column_keywords: name of the column where the keywords will be stored ('keywords' by default).
+    :param key_concepts: if set, allows to filter the scores which will be inserted in the specified table.
+    :param columns_concept: name of the column where the keywords will be stored.
+        Defaults to key_concepts if given or otherwise all values returned by concept detection.
+    :param retry: number of times to retry in case of error.
+    """
+    assert len(pk) == len(pk_columns_keywords) == len(pk_columns_concepts)
+    update_data_into_table(
+        piper_connection, schemas_keyword, table_keywords, columns=(column_keywords,), pk_columns=pk_columns_keywords,
+        data=[(';'.join(keywords_and_concepts['keywords']),  *pk)], retry=retry
+    )
+    concepts_and_scores = keywords_and_concepts['concepts_and_scores']
+    if len(concepts_and_scores) == 0:
+        return
+    if key_concepts is None:
+        if columns_concept is not None:
+            raise ValueError('key_concepts must be specified if columns_concept is given.')
+        key_concepts = tuple(concepts_and_scores[0].keys())
+    if columns_concept is None:
+        columns_concept = key_concepts
+    assert len(columns_concept) == len(key_concepts)
+    data_columns_concept = pk_columns_concepts + columns_concept
+    data_concepts_and_scores = [
+        pk + tuple(concept_scores[k] for k in key_concepts) for concept_scores in concepts_and_scores
+    ]
+    execute_query(
+        piper_connection,
+        f'''DELETE FROM `{schemas_concepts}`.`{table_concepts}` 
+        WHERE {' AND '.join([f'{c_pk}="{val_pk}"' for c_pk, val_pk in zip(pk_columns_concepts, pk)])};'''
+    )
+    insert_data_into_table(
+        piper_connection, schemas_concepts, table_concepts, data_columns_concept, data_concepts_and_scores, retry=retry
+    )
+    piper_connection.commit()
