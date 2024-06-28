@@ -18,7 +18,8 @@ classifiers = [
 ]
 dependencies = [
   'termcolor',
-  'mysql-connector-python'
+  'mysql-connector-python',
+  'isodate'
 ]
 
 [project.urls]
