@@ -47,6 +47,12 @@ def process_videos_on_rcp(
         kaltura_to_switch_id = {i[0]: i[1] for i in kaltura_to_switch_info}
         for video_url in video_urls:
             video_id, platform = get_video_id_and_platform(video_url)
+            if video_id is None or platform is None:
+                status_msg(
+                    f'Could not extract the video platform and id from video url: {video_url}',
+                    color='red', sections=['VIDEO', 'PROCESSING', 'ERROR']
+                )
+                continue
             switchtube_video_id = None
             switchtube_channel = None
             if platform == 'mediaspace':
