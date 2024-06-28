@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "graphai_client"
 version = "1.14.0"
 authors = [
-  { name="Renier Yves", email="yves.renier@epfl.ch" },
+    { name="Renier Yves", email="yves.renier@epfl.ch" },
 ]
 description = "A client library to access the graphai services"
 readme = "README.md"
@@ -17,9 +17,10 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-  'termcolor',
-  'mysql-connector-python',
-  'isodate'
+    'termcolor',
+    'mysql-connector-python',
+    'isodate',
+    'google-api-python-client'
 ]
 
 [project.urls]
@@ -28,12 +29,12 @@ dependencies = [
 
 [tool.hatch.build.targets.sdist]
 include = [
-  "graphai_client/",
+    "graphai_client/",
 ]
 exclude = [
-  "/config/",
-  "/venv/",
-  "__pycache__/",
+    "/config/",
+    "/venv/",
+    "__pycache__/",
 ]
 
 [tool.hatch.build.targets.wheel]
