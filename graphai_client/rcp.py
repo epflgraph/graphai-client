@@ -64,6 +64,8 @@ def process_videos_on_rcp(
                 analyze_audio=analyze_audio, analyze_slides=analyze_slides, destination_languages=destination_languages,
                 force=force, debug=debug, force_download=force_download,
             )
+            if video_information is None:
+                continue
         if analyze_slides and (
                 video_information['slides'] is not None or video_information['slides_detected_language'] is not None
         ):
@@ -145,6 +147,12 @@ def process_video_on_rcp(
         detect_audio_language=detect_audio_language, destination_languages=destination_languages,
         login_info=login_info, force=force, debug=debug, force_download=force_download
     )
+    if new_video_information is None:
+        status_msg(
+            f'processing of video {video_id} on {platform} failed',
+            color='red', sections=list(sections) + ['ERROR']
+        )
+        return None
     video_information['video_size'] = new_video_information['video_size']
     if analyze_audio:
         video_information['subtitles'] = new_video_information.get('subtitles', None)
@@ -308,19 +316,34 @@ def get_slides_from_switchtube(db, switch_channel, switch_video_id, login_info, 
     return slides_detected_language, slides
 
 
-def register_subtitles(db, platform, video_id, subtitles, audio_detected_language):
+def register_subtitles(
+        db, platform, video_id, subtitles, audio_detected_language,
+        sections=('VIDEO', 'PROCESSING', 'REGISTER SUBTITLES')
+):
     if subtitles is None:
         return
     data_subtitles = []
+    num_segment_orig = 0
+    num_segment_french = 0
+    num_segment_english = 0
     for idx, segment in enumerate(subtitles):
+        segment_orig = segment.get(audio_detected_language, None)
+        segment_french = segment.get('fr', None)
+        segment_english = segment.get('en', None)
         data_subtitles.append(
             [
                 platform, video_id, idx, int(segment['start'] * 1000), int(segment['end'] * 1000),
                 strfdelta(timedelta(seconds=segment['start']), '{H:02}:{M:02}:{S:02}.{m:03}'),
                 strfdelta(timedelta(seconds=segment['end']), '{H:02}:{M:02}:{S:02}.{m:03}'),
-                segment.get('fr', None), segment.get('en', None), segment.get(audio_detected_language, None)
+                segment_french, segment_english, segment_orig
             ]
         )
+        if segment_orig:
+            num_segment_orig += 1
+        if segment_french:
+            num_segment_french += 1
+        if segment_english:
+            num_segment_english += 1
     execute_query(
         db,
         f'DELETE FROM `gen_video`.`Subtitles` WHERE platform="{platform}" AND videoId="{video_id}"'
@@ -333,20 +356,48 @@ def register_subtitles(db, platform, video_id, subtitles, audio_detected_languag
         ],
         data_subtitles
     )
+    msg = f'registered {num_segment_orig} subtitles in {audio_detected_language}'
+    translations = []
+    if num_segment_french > 0 and audio_detected_language != 'fr':
+        translations.append(
+            f'French{" (" + str(num_segment_french) + ")" if num_segment_french != num_segment_orig else ""}'
+        )
+    if num_segment_english > 0 and audio_detected_language != 'en':
+        translations.append(
+            f'English{" (" + str(num_segment_english) + ")" if num_segment_english != num_segment_orig else ""}'
+        )
+    if translations:
+        msg += f' and the translation in {" and ".join(translations)}'
+    msg += f' for video {video_id} on {platform}'
+    status_msg(msg, color='green', sections=list(sections) + ['SUCCESS'])
 
 
-def register_slides(db, platform, video_id, slides, slides_detected_language):
+def register_slides(
+        db, platform, video_id, slides, slides_detected_language, sections=('VIDEO', 'PROCESSING', 'REGISTER SLIDES')
+):
     if slides is None:
         return
     data_slides = []
+    num_slide_orig = 0
+    num_slide_french = 0
+    num_slide_english = 0
     for slide_number, slide in enumerate(slides):
         slide_time = strfdelta(timedelta(seconds=slide['timestamp']), '{H:02}:{M:02}:{S:02}')
+        slide_orig = slide.get(slides_detected_language, None)
+        slide_french = slide.get('fr', None)
+        slide_english = slide.get('en', None)
         data_slides.append(
             [
                 platform, video_id, slide_number, slide['fingerprint'], slide['timestamp'], slide_time,
-                slide.get('fr', None), slide.get('en', None), slide.get(slides_detected_language, None)
+                slide_french, slide_english, slide_orig
             ]
         )
+        if slide_orig:
+            num_slide_orig += 1
+        if slide_french:
+            num_slide_french += 1
+        if slide_english:
+            num_slide_english += 1
     execute_query(
         db, f'DELETE FROM `gen_video`.`Slides` WHERE platform="{platform}" AND videoId="{video_id}"'
     )
@@ -358,13 +409,27 @@ def register_slides(db, platform, video_id, slides, slides_detected_language):
         ],
         data_slides
     )
+    msg = f'registered {num_slide_orig} slides in {slides_detected_language}'
+    translations = []
+    if num_slide_french > 0 and slides_detected_language != 'fr':
+        translations.append(
+            f'French{" (" + str(num_slide_french) + ")" if num_slide_french != num_slide_orig else ""}'
+        )
+    if num_slide_english > 0 and slides_detected_language != 'en':
+        translations.append(
+            f'English{" (" + str(num_slide_english) + ")" if num_slide_english != num_slide_orig else ""}'
+        )
+    if translations:
+        msg += f' and the translation in {" and ".join(translations)}'
+    msg += f' for video {video_id} on {platform}'
+    status_msg(msg, color='green', sections=list(sections) + ['SUCCESS'])
 
 
-def register_processed_video(db, platform, video_id, video_info):
+def register_processed_video(db, platform, video_id, video_info, sections=('VIDEO', 'PROCESSING', 'REGISTER VIDEO')):
     execute_query(
         db, f'DELETE FROM `gen_video`.`Videos` WHERE platform="{platform}"AND videoId="{video_id}"'
     )
-    insert_line_into_table_with_types(
+    insert_data_into_table(
         db, 'gen_video', 'Videos',
         [
             'platform', 'videoId', 'audioFingerprint', 'videoUrl', 'thumbnailUrl',
@@ -376,7 +441,7 @@ def register_processed_video(db, platform, video_id, video_info):
             'slidesDetectionTime', 'audioTranscriptionTime',
             'slidesConceptExtractionTime', 'subtitlesConceptExtractionTime'
         ],
-        [
+        [(
             platform, video_id, video_info['audio_fingerprint'], video_info['url'], video_info['thumbnail_url'],
             video_info['video_creation_time'], video_info['video_update_time'],
             video_info['title'], video_info['description'], video_info['owner'], video_info['creator'],
@@ -385,17 +450,10 @@ def register_processed_video(db, platform, video_id, video_info):
             video_info['slides_detected_language'], video_info['audio_detected_language'],
             video_info['slides_detection_time'], video_info['audio_transcription_time'],
             video_info['slides_concept_extract_time'], video_info['subtitles_concept_extract_time']
-        ],
-        [
-            'str', 'str', 'str', 'str', 'str',
-            'str', 'str',
-            'str', 'str', 'str', 'str',
-            'str', 'int', 'int',
-            'str', 'str',
-            'str', 'str',
-            'str', 'str',
-            'str', 'str'
-        ]
+        )]
+    )
+    status_msg(
+        f'Register video info for {video_id} on {platform}', color='green', sections=list(sections) + ['SUCCESS']
     )
 
 
