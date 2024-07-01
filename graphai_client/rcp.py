@@ -66,29 +66,29 @@ def process_videos_on_rcp(
             )
             if video_information is None:
                 continue
-        if analyze_slides and (
-                video_information['slides'] is not None or video_information['slides_detected_language'] is not None
-        ):
-            video_information['slides_detection_time'] = str(datetime.now())
-            register_slides(
-                piper_connection, platform, video_id, video_information['slides'],
-                video_information['slides_detected_language']
+            if analyze_slides and (
+                    video_information['slides'] is not None or video_information['slides_detected_language'] is not None
+            ):
+                video_information['slides_detection_time'] = str(datetime.now())
+                register_slides(
+                    piper_connection, platform, video_id, video_information['slides'],
+                    video_information['slides_detected_language']
+                )
+            if analyze_audio and (
+                    video_information['subtitles'] is not None or video_information.get('audio_language', None) is not None
+            ):
+                video_information['audio_detected_language'] = video_information.get('audio_language', None)
+                video_information['audio_transcription_time'] = str(datetime.now())
+                register_subtitles(
+                    piper_connection, platform, video_id, video_information['subtitles'],
+                    video_information['audio_detected_language']
+                )
+            register_processed_video(piper_connection, platform, video_id, video_information)
+            piper_connection.commit()
+            status_msg(
+                f'The {platform} video {video_id} has been processed',
+                color='green', sections=['VIDEO', 'PROCESSING', 'SUCCESS']
             )
-        if analyze_audio and (
-                video_information['subtitles'] is not None or video_information.get('audio_language', None) is not None
-        ):
-            video_information['audio_detected_language'] = video_information.get('audio_language', None)
-            video_information['audio_transcription_time'] = str(datetime.now())
-            register_subtitles(
-                piper_connection, platform, video_id, video_information['subtitles'],
-                video_information['audio_detected_language']
-            )
-        register_processed_video(piper_connection, platform, video_id, video_information)
-        piper_connection.commit()
-        status_msg(
-            f'The {platform} video {video_id} has been processed',
-            color='green', sections=['VIDEO', 'PROCESSING', 'SUCCESS']
-        )
 
 
 def process_video_on_rcp(
