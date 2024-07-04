@@ -144,18 +144,6 @@ def prepare_value_for_mysql(value: Union[str, int, float], value_type: str, enco
         raise ValueError('types must be a list of either "str", "int" or "float".')
 
 
-def insert_line_into_table_with_types(
-        connection: MySQLConnection, schema, table_name, columns: List[str], values: list,
-        types: List[str], encoding='utf8', retry=5
-):
-    values_str = prepare_values_for_mysql(values, types, encoding=encoding)
-    sql_query = f"""
-        INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
-        VALUES ({', '.join(values_str)});
-    """
-    execute_query(connection, sql_query, retry=retry)
-
-
 def insert_data_into_table(connection: MySQLConnection, schema, table_name, columns, data, retry=5):
     format_values = ', '.join(['%s' for _ in columns])
     sql_query = f"""
@@ -710,30 +698,36 @@ def insert_keywords_and_concepts(
     :param retry: number of times to retry in case of error.
     """
     assert len(pk) == len(pk_columns_keywords) == len(pk_columns_concepts)
-    update_data_into_table(
-        piper_connection, schemas_keyword, table_keywords, columns=(column_keywords,), pk_columns=pk_columns_keywords,
-        data=[(';'.join(keywords_and_concepts['keywords']),  *pk)], retry=retry
-    )
-    concepts_and_scores = keywords_and_concepts['concepts_and_scores']
-    if len(concepts_and_scores) == 0:
-        return
-    if key_concepts is None:
-        if columns_concept is not None:
-            raise ValueError('key_concepts must be specified if columns_concept is given.')
-        key_concepts = tuple(concepts_and_scores[0].keys())
-    if columns_concept is None:
-        columns_concept = key_concepts
-    assert len(columns_concept) == len(key_concepts)
-    data_columns_concept = pk_columns_concepts + columns_concept
-    data_concepts_and_scores = [
-        pk + tuple(concept_scores[k] for k in key_concepts) for concept_scores in concepts_and_scores
-    ]
     execute_query(
         piper_connection,
         f'''DELETE FROM `{schemas_concepts}`.`{table_concepts}` 
         WHERE {' AND '.join([f'{c_pk}="{val_pk}"' for c_pk, val_pk in zip(pk_columns_concepts, pk)])};'''
     )
-    insert_data_into_table(
-        piper_connection, schemas_concepts, table_concepts, data_columns_concept, data_concepts_and_scores, retry=retry
-    )
+    if keywords_and_concepts is None:
+        update_data_into_table(
+            piper_connection, schemas_keyword, table_keywords, columns=(column_keywords,),
+            pk_columns=pk_columns_keywords, data=[(None, *pk)], retry=retry
+        )
+    else:
+        update_data_into_table(
+            piper_connection, schemas_keyword, table_keywords, columns=(column_keywords,),
+            pk_columns=pk_columns_keywords, data=[(';'.join(keywords_and_concepts['keywords']),  *pk)], retry=retry
+        )
+        concepts_and_scores = keywords_and_concepts['concepts_and_scores']
+        if len(concepts_and_scores) == 0:
+            return
+        if key_concepts is None:
+            if columns_concept is not None:
+                raise ValueError('key_concepts must be specified if columns_concept is given.')
+            key_concepts = tuple(concepts_and_scores[0].keys())
+        if columns_concept is None:
+            columns_concept = key_concepts
+        assert len(columns_concept) == len(key_concepts)
+        data_columns_concept = pk_columns_concepts + columns_concept
+        data_concepts_and_scores = [
+            pk + tuple(concept_scores[k] for k in key_concepts) for concept_scores in concepts_and_scores
+        ]
+        insert_data_into_table(
+            piper_connection, schemas_concepts, table_concepts, data_columns_concept, data_concepts_and_scores, retry=retry
+        )
     piper_connection.commit()
