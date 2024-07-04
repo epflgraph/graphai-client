@@ -2,9 +2,9 @@ from datetime import timedelta, datetime
 from re import fullmatch
 from requests import Session
 from isodate import parse_duration
-from typing import List
+from typing import List, Tuple
 from graphai_client.utils import (
-    status_msg, get_video_link_and_size, strfdelta, insert_line_into_table_with_types, convert_subtitle_into_segments,
+    status_msg, get_video_link_and_size, strfdelta, convert_subtitle_into_segments,
     combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript,
     insert_data_into_table, update_data_into_table, execute_query, prepare_value_for_mysql,
     get_piper_connection, get_video_id_and_platform, get_google_resource, GoogleResource, insert_keywords_and_concepts
@@ -13,7 +13,9 @@ from graphai_client.client import (
     process_video, translate_extracted_text, translate_subtitles, get_fingerprint_of_slides
 )
 from graphai_client.client_api.utils import login
-from graphai_client.client_api.text import extract_keywords_from_text, extract_concepts_from_keywords, clean_text_translate_extract_keywords_and_concepts
+from graphai_client.client_api.text import (
+    extract_keywords_from_text, extract_concepts_from_keywords, clean_text_translate_extract_keywords_and_concepts
+)
 from graphai_client.client_api.translation import translate_text
 
 language_to_short = {
@@ -75,7 +77,8 @@ def process_videos_on_rcp(
                     video_information['slides_detected_language']
                 )
             if analyze_audio and (
-                    video_information['subtitles'] is not None or video_information.get('audio_language', None) is not None
+                    video_information['subtitles'] is not None
+                    or video_information.get('audio_language', None) is not None
             ):
                 video_information['audio_detected_language'] = video_information.get('audio_language', None)
                 video_information['audio_transcription_time'] = str(datetime.now())
@@ -612,174 +615,104 @@ def get_subtitles_from_youtube(video_id: str, youtube_resource: GoogleResource):
 
 
 def detect_concept_from_videos_on_rcp(
-        kaltura_ids: list, analyze_subtitles=False, analyze_slides=True, graph_api_json=None, login_info=None,
-        piper_mysql_json_file=None
+        videos_platform_and_id: List[Tuple[str, str]], analyze_subtitles=False, analyze_slides=True,
+        graph_api_json=None, login_info=None, piper_mysql_json_file=None
 ):
     if login_info is None or 'token' not in login_info:
         login_info = login(graph_api_json)
     with Session() as session:
         with get_piper_connection(piper_mysql_json_file) as piper_connection:
-            for video_id in kaltura_ids:
+            for platform, video_id in videos_platform_and_id:
                 status_msg(
-                    f'Processing kaltura video {video_id}',
-                    color='grey', sections=['KALTURA', 'CONCEPT DETECTION', 'PROCESSING']
+                    f'Processing video {video_id} on {platform}',
+                    color='grey', sections=['GRAPHAI', 'CONCEPT DETECTION', 'PROCESSING']
                 )
                 if analyze_subtitles:
                     segments_info = execute_query(
                         piper_connection, f'''
-                        SELECT 
-                            segmentId,
-                            textEn
-                        FROM gen_kaltura.Subtitles WHERE kalturaVideoId="{video_id}";
+                        SELECT segmentId, textEn 
+                        FROM gen_video.Subtitles 
+                        WHERE platform="{platform}" AND videoId="{video_id}";
                     ''')
                     status_msg(
-                        f'Extracting concepts from {len(segments_info)} subtitles of video {video_id}',
-                        color='grey', sections=['KALTURA', 'SUBTITLES', 'CONCEPT DETECTION', 'PROCESSING']
+                        f'Extracting concepts from {len(segments_info)} subtitles of video {video_id} on {platform}',
+                        color='grey', sections=['GRAPHAI', 'SUBTITLES', 'CONCEPT DETECTION', 'PROCESSING']
                     )
-                    execute_query(
-                        piper_connection,
-                        f'DELETE FROM `gen_kaltura`.`Subtitle_Concepts` WHERE kalturaVideoId="{video_id}";'
-                    )
-                    segments_processed = 0
-                    concepts_segments_data = []
-                    keywords_segments_data = []
+                    num_segments_with_keywords = 0
+                    num_concepts = 0
                     for segment_id, segment_text in segments_info:
-                        if not segment_text:
-                            continue
-                        segment_keywords = extract_keywords_from_text(
-                            segment_text, login_info, sections=['KALTURA', 'SUBTITLES', 'KEYWORD EXTRACTION'],
-                            session=session
+                        if segment_id == 0 and \
+                                segment_text.startswith('These subtitles have been generated automatically'):
+                            segment_text = segment_text.replace('These subtitles have been generated automatically', '')
+                        keywords_and_concepts = clean_text_translate_extract_keywords_and_concepts(
+                            text_data=(segment_text,), login_info=login_info, session=session
                         )
-                        if not segment_keywords:
-                            continue
-                        keywords_segments_data.extend([
-                            (';'.join(segment_keywords), video_id, segment_id)
-                        ])
-                        segment_scores = extract_concepts_from_keywords(
-                            segment_keywords, login_info, sections=['KALTURA', 'SUBTITLES', 'CONCEPT DETECTION'],
-                            session=session
-                        )
-                        segments_processed += 1
-                        if segment_scores is not None:
-                            concepts_segments_data.extend([
-                                (
-                                    video_id, segment_id, scores['PageID'], scores['PageTitle'], scores['SearchScore'],
-                                    scores['LevenshteinScore'], scores['GraphScore'], scores['OntologyLocalScore'],
-                                    scores['OntologyGlobalScore'], scores['KeywordsScore'], scores['MixedScore']
-                                ) for scores in segment_scores
-                            ])
-                    update_data_into_table(
-                        piper_connection, schema='gen_kaltura', table_name='Subtitles',
-                        columns=['keywords'], pk_columns=['kalturaVideoId', 'segmentId'],
-                        data=keywords_segments_data
-                    )
-                    insert_data_into_table(
-                        piper_connection, schema='gen_kaltura', table_name='Subtitle_Concepts',
-                        columns=(
-                            'kalturaVideoId', 'segmentId', 'PageId', 'PageTitle', 'SearchScore',
-                            'LevenshteinScore', 'GraphScore', 'OntologyLocalScore',
-                            'OntologyGlobalScore', 'KeywordsScore', 'MixedScore'
-                        ),
-                        data=concepts_segments_data
-                    )
-                    if segments_processed > 0:
-                        status_msg(
-                            f'{len(concepts_segments_data)} concepts have been extracted from '
-                            f'{segments_processed}/{len(segments_info)} subtitles of {video_id}',
-                            color='green', sections=['KALTURA', 'SUBTITLES', 'CONCEPT DETECTION', 'SUCCESS']
-                        )
-                    else:
-                        status_msg(
-                            f'No usable subtitles found for video {video_id}',
-                            color='yellow', sections=['KALTURA', 'SUBTITLES', 'CONCEPT DETECTION', 'WARNING']
+                        if keywords_and_concepts:
+                            num_segments_with_keywords += 1
+                            num_concepts += len(keywords_and_concepts['concepts_and_scores'])
+                        insert_keywords_and_concepts(
+                            piper_connection, pk=(platform, video_id, segment_id),
+                            keywords_and_concepts=keywords_and_concepts,
+                            schemas_keyword='gen_video', table_keywords='Subtitles',
+                            pk_columns_keywords=('platform', 'videoId', 'segmentId'), schemas_concepts='gen_video',
+                            table_concepts='Subtitle_Concepts', pk_columns_concepts=('platform', 'videoId', 'segmentId')
                         )
                     now = str(datetime.now())
                     execute_query(
                         piper_connection,
-                        f'''UPDATE `gen_kaltura`.`Videos` 
-                        SET `subtitlesConceptExtractionTime`="{now}" 
-                        WHERE kalturaVideoId="{video_id}"'''
+                        f'''UPDATE `gen_video`.`Videos` 
+                        SET `subtitlesConceptExtractionTime`="{now}"  
+                        WHERE platform="{platform}" AND videoId="{video_id}"'''
                     )
                     piper_connection.commit()
+                    status_msg(
+                        f'Extracted {num_concepts} concepts from {num_segments_with_keywords}/{len(segments_info)} '
+                        f'subtitles of video {video_id} on {platform}',
+                        color='green', sections=['GRAPHAI', 'SUBTITLES', 'CONCEPT DETECTION', 'SUCCESS']
+                    )
                 if analyze_slides:
                     slides_info = execute_query(
                         piper_connection, f'''
-                        SELECT 
-                            slideNumber,
-                            textEn
-                        FROM gen_kaltura.Slides WHERE kalturaVideoId="{video_id}";
+                        SELECT slideNumber, textEn
+                        FROM gen_video.Slides 
+                        WHERE platform="{platform}" AND videoId="{video_id}";
                     ''')
                     status_msg(
-                        f'Extracting concepts from {len(slides_info)} slides of video {video_id}',
-                        color='grey', sections=['KALTURA', 'SLIDES', 'CONCEPT DETECTION', 'PROCESSING']
+                        f'Extracting concepts from {len(slides_info)} slides of video {video_id} on {platform}',
+                        color='grey', sections=['GRAPHAI', 'SLIDES', 'CONCEPT DETECTION', 'PROCESSING']
                     )
-                    execute_query(
-                        piper_connection,
-                        f'DELETE FROM `gen_kaltura`.`Slide_Concepts` WHERE kalturaVideoId="{video_id}";'
-                    )
-                    slides_processed = 0
-                    concepts_slides_data = []
-                    keywords_slides_data = []
+                    num_slides_with_keywords = 0
+                    num_concepts = 0
                     for slide_number, slide_text in slides_info:
-                        if not slide_text:
-                            continue
-                        slide_keywords = extract_keywords_from_text(
-                            slide_text, login_info, sections=['KALTURA', 'SLIDES', 'KEYWORDS EXTRACTION']
+                        keywords_and_concepts = clean_text_translate_extract_keywords_and_concepts(
+                            text_data=(slide_text,), login_info=login_info, session=session
                         )
-                        if not slide_keywords:
-                            continue
-                        keywords_slides_data.extend([
-                            (';'.join(slide_keywords), video_id, slide_number)
-                        ])
-                        slide_scores = extract_concepts_from_keywords(
-                            slide_keywords, login_info, sections=['KALTURA', 'SLIDES', 'CONCEPT DETECTION']
-                        )
-                        slides_processed += 1
-                        if slide_scores is None:
-                            continue
-                        concepts_slides_data.extend([
-                            (
-                                video_id, slide_number, scores['PageID'], scores['PageTitle'], scores['SearchScore'],
-                                scores['LevenshteinScore'], scores['GraphScore'], scores['OntologyLocalScore'],
-                                scores['OntologyGlobalScore'], scores['KeywordsScore'], scores['MixedScore']
-                            ) for scores in slide_scores
-                        ])
-                    update_data_into_table(
-                        piper_connection, schema='gen_kaltura', table_name='Slides',
-                        columns=['keywords'], pk_columns=['kalturaVideoId', 'slideNumber'],
-                        data=keywords_slides_data
-                    )
-                    insert_data_into_table(
-                        piper_connection, schema='gen_kaltura', table_name='Slide_Concepts',
-                        columns=(
-                            'kalturaVideoId', 'slideNumber', 'PageId', 'PageTitle', 'SearchScore',
-                            'LevenshteinScore', 'GraphScore', 'OntologyLocalScore',
-                            'OntologyGlobalScore', 'KeywordsScore', 'MixedScore'
-                        ),
-                        data=concepts_slides_data
-                    )
-                    if slides_processed > 0:
-                        status_msg(
-                            f'{len(concepts_slides_data)} concepts have been extracted '
-                            f'from {slides_processed}/{len(slides_info)} slides of {video_id}',
-                            color='green', sections=['KALTURA', 'SLIDES', 'CONCEPT DETECTION', 'SUCCESS']
-                        )
-                    else:
-                        status_msg(
-                            f'No usable slides found for video {video_id}',
-                            color='yellow', sections=['KALTURA', 'SLIDES', 'CONCEPT DETECTION', 'WARNING']
+                        if keywords_and_concepts:
+                            num_slides_with_keywords += 1
+                            num_concepts += len(keywords_and_concepts['concepts_and_scores'])
+                        insert_keywords_and_concepts(
+                            piper_connection, pk=(platform, video_id, slide_number),
+                            keywords_and_concepts=keywords_and_concepts,
+                            schemas_keyword='gen_video', table_keywords='Slides',
+                            pk_columns_keywords=('platform', 'videoId', 'slideNumber'), schemas_concepts='gen_video',
+                            table_concepts='Slide_Concepts', pk_columns_concepts=('platform', 'videoId', 'slideNumber')
                         )
                     now = str(datetime.now())
                     execute_query(
                         piper_connection,
-                        f'''UPDATE `gen_kaltura`.`Videos` 
-                            SET `slidesConceptExtractionTime`="{now}" 
-                            WHERE kalturaVideoId="{video_id}";'''
+                        f'''UPDATE `gen_video`.`Videos` 
+                        SET `slidesConceptExtractionTime`="{now}"  
+                        WHERE platform="{platform}" AND videoId="{video_id}"'''
                     )
                     piper_connection.commit()
+                    status_msg(
+                        f'Extracted {num_concepts} concepts from {num_slides_with_keywords}/{len(slides_info)} '
+                        f'slides of video {video_id} on {platform}',
+                        color='green', sections=['GRAPHAI', 'SLIDES', 'CONCEPT DETECTION', 'SUCCESS']
+                    )
                 status_msg(
-                    f'The video {video_id} has been processed',
-                    color='green', sections=['KALTURA', 'CONCEPT DETECTION', 'SUCCESS']
+                    f'The video {video_id} on {platform} has been processed',
+                    color='green', sections=['GRAPHAI', 'CONCEPT DETECTION', 'SUCCESS']
                 )
 
 
