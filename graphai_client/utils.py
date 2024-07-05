@@ -652,7 +652,7 @@ def get_video_id_and_platform(video_url):
         video_id, = findall(r'^youtu.be/([\-\w]{11})(?:$|\?)', video_url)
         video_host = 'youtube'
     elif video_url.startswith('coursera.org/'):
-        video_id, = findall(r'^coursera.org/lecture/(\w{5})(?:$|/)', video_url)
+        video_id, = findall(r'^coursera.org/learn/[^/]+/lecture/(\w{5})(?:$|/)', video_url)
         video_host = 'coursera'
     else:
         video_host = None

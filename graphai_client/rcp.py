@@ -13,9 +13,7 @@ from graphai_client.client import (
     process_video, translate_extracted_text, translate_subtitles, get_fingerprint_of_slides
 )
 from graphai_client.client_api.utils import login
-from graphai_client.client_api.text import (
-    extract_keywords_from_text, extract_concepts_from_keywords, clean_text_translate_extract_keywords_and_concepts
-)
+from graphai_client.client_api.text import clean_text_translate_extract_keywords_and_concepts
 from graphai_client.client_api.translation import translate_text
 
 language_to_short = {
