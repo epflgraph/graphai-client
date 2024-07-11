@@ -1,11 +1,11 @@
 from re import match
 from typing import Optional, Union
 from graphai_client.utils import status_msg
-from graphai_client.client_api.utils import call_async_endpoint
+from graphai_client.client_api.utils import call_async_endpoint, get_next_text_length_for_split, split_text
 
-MIN_TEXT_LENGTH_SPLIT = 500
-MAX_TEXT_LENGTH_SPLIT = 4000
-
+MIN_TEXT_LENGTH = 500
+DEFAULT_MAX_TEXT_LENGTH_IF_TEXT_TOO_LONG = 4000
+STEP_AUTO_DECREASE_TEXT_LENGTH = 200
 
 def translate_text(
         text: Union[str, list], source_language, target_language, login_info, sections=('GRAPHAI', 'TRANSLATE'),
@@ -58,6 +58,7 @@ def translate_text_str(
 ) -> Optional[str]:
     """
     Translate the input text from the source language to the target language.
+    Split the text into a list of string if the input is too long
 
     :param text: text to translate.
     :param source_language: language of `text`.
@@ -110,14 +111,11 @@ def translate_text_str(
         return None
     # resubmit with a smaller value of max_text_length if we get a text_too_large error
     if task_result['text_too_large']:
-        if max_text_length is None:
-            max_text_length = min(MAX_TEXT_LENGTH_SPLIT, max(MIN_TEXT_LENGTH_SPLIT, len(text) - 200))
-        elif max_text_length == MIN_TEXT_LENGTH_SPLIT:
-            raise ValueError(f'got a text_too_long error while max_text_length is at the min {MIN_TEXT_LENGTH_SPLIT}.')
-        else:
-            max_text_length = max_text_length - 200
-        if max_text_length < 0:
-            raise ValueError('unable to find a value of max_text_length which prevents a text_too_long error.')
+        max_text_length = get_next_text_length_for_split(
+            len(text), previous_text_length=max_text_length, text_length_min=MIN_TEXT_LENGTH,
+            max_text_length_default=DEFAULT_MAX_TEXT_LENGTH_IF_TEXT_TOO_LONG,
+            text_length_steps=STEP_AUTO_DECREASE_TEXT_LENGTH
+        )
         status_msg(
             f'text was too large to be translated, trying to split it up with max_text_length={max_text_length}...',
             color='yellow', sections=list(sections) + ['WARNING']
@@ -136,7 +134,7 @@ def translate_text_list(
         max_tries=5, max_processing_time_s=3600, delay_retry=1
 ) -> Optional[list]:
     """
-    Translate the input text (as a list) from the source language to the target language.
+    Translate the list of text from the source language to the target language.
 
     :param text: list of text to translate.
     :param source_language: language of `text`.
@@ -250,20 +248,22 @@ def translate_text_list(
         return None
     # resubmit with a smaller value of max_text_length if we get a text_too_large error
     if task_result.get('text_too_large', False):
-        if max_text_length == MIN_TEXT_LENGTH_SPLIT:
-            raise ValueError(f'got a text_too_long error while max_text_length is at the min {MIN_TEXT_LENGTH_SPLIT}.')
         match_indices = match(r'.*This happened for inputs at indices ((?:\d+, )*\d+)\.', task_result['result'])
         if match_indices:
             indices_text_too_long = [int(idx) for idx in match_indices.group(1).split(', ') if idx is not None]
             length_too_long = min([len(text_to_translate[idx]) for idx in indices_text_too_long])
-            max_text_length = min(MAX_TEXT_LENGTH_SPLIT, max(MIN_TEXT_LENGTH_SPLIT, length_too_long - 200))
+            max_text_length = get_next_text_length_for_split(
+                length_too_long, previous_text_length=max_text_length, text_length_min=MIN_TEXT_LENGTH,
+                max_text_length_default=DEFAULT_MAX_TEXT_LENGTH_IF_TEXT_TOO_LONG,
+                text_length_steps=STEP_AUTO_DECREASE_TEXT_LENGTH
+            )
         else:
-            if max_text_length is None:
-                max_text_length = MAX_TEXT_LENGTH_SPLIT
-            else:
-                max_text_length = max_text_length - 200
-        if max_text_length < 0:
-            raise ValueError('unable to find a value of max_text_length which prevents a text_too_long error.')
+            max_text_length = get_next_text_length_for_split(
+                DEFAULT_MAX_TEXT_LENGTH_IF_TEXT_TOO_LONG, previous_text_length=max_text_length,
+                text_length_min=MIN_TEXT_LENGTH,
+                max_text_length_default=DEFAULT_MAX_TEXT_LENGTH_IF_TEXT_TOO_LONG,
+                text_length_steps=STEP_AUTO_DECREASE_TEXT_LENGTH
+            )
         status_msg(
             f'text was too large to be translated, trying to split it up with max_text_length={max_text_length}...',
             color='yellow', sections=list(sections) + ['WARNING']
@@ -335,21 +335,3 @@ def detect_language(
     if task_result is None:
         return None
     return task_result['language']
-
-
-def split_text(text: str, max_length: int, split_characters=('\n', '.', ';', ',', ' ')):
-    result = []
-    assert max_length > 0
-    while len(text) > max_length:
-        for split_char in split_characters:
-            pos = text[:max_length].rfind(split_char)
-            if pos > 0:
-                result.append(text[:pos+1])
-                text = text[pos+1:]
-                break
-        if len(text) > max_length:
-            result.append(text[:max_length])
-            text = text[max_length:]
-    if len(text) > 0:
-        result.append(text)
-    return result

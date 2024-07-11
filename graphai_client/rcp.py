@@ -15,6 +15,7 @@ from graphai_client.client import (
 from graphai_client.client_api.utils import login
 from graphai_client.client_api.text import clean_text_translate_extract_keywords_and_concepts
 from graphai_client.client_api.translation import translate_text
+from graphai_client.client_api.embedding import embed_text
 
 language_to_short = {
     'french': 'fr',
@@ -1109,3 +1110,4 @@ def fingerprint_on_rcp(
                     f'Fingerprinting of slides and audio failed for video {video_id}',
                     color='red', sections=['KALTURA', 'FINGERPRINT', 'FAILED']
                 )
+

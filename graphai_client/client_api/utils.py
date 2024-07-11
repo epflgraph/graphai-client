@@ -3,13 +3,14 @@ from os.path import normpath, join, dirname
 from time import sleep
 from datetime import datetime, timedelta
 from requests import get, post, Response
-from typing import Callable, Dict, Optional, Tuple
+from re import match
+from typing import Callable, Dict, Optional, Tuple, List
 from graphai_client.utils import status_msg
 
 
 def call_async_endpoint(
-        endpoint, json, login_info, token, output_type, result_key=None, max_processing_time_s=6000,
-        max_tries=5, delay_retry=1, sections=(), debug=False, quiet=False, _tries=1,
+        endpoint, json, login_info, token, output_type, result_key=None, max_processing_time_s=6000, max_tries=5,
+        delay_retry=1, sections=(), debug=False, quiet=False, _tries=1
 ):
     """
     Helper for asynchronous API endpoints. It first sends json data to the endpoint, get the task_id from the response
@@ -21,7 +22,7 @@ def call_async_endpoint(
     :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
     :param token: label of the input, this parameter is only used for logs.
     :param output_type: type of output, this parameter is only used for logs.
-    :param result_key: key of the main result, this parameter is only used for logs.
+    :param result_key: key of the main result, this parameter is only used for logs or if the input text is too long.
     :param max_processing_time_s: maximum number of seconds to wait for a successful task status after starting a task.
     :param max_tries: maximum number of time the task should be tried.
     :param delay_retry: time waited between status checks and before a new trial after an error.
@@ -106,7 +107,7 @@ def call_async_endpoint(
                 continue
             if not task_result.get('successful', True):
                 if task_result.get('text_too_large', False):
-                    return task_result
+                    return task_result  # text too large to be handled by calling function
                 if not quiet or _tries == max_tries:
                     status_msg(
                         f'extraction of the {output_type} from {token} failed at try {_tries}/{max_tries}',
@@ -146,6 +147,41 @@ def call_async_endpoint(
         msg = f'Unknown failure for {endpoint} with the following json data: \n{json}'
     status_msg(msg, color='yellow', sections=list(sections) + ['WARNING'])
     return None
+
+
+def get_next_text_length_for_split(
+        text_length: int, previous_text_length=None, text_length_min=400, max_text_length_default=4000, text_length_steps=200
+):
+    if previous_text_length == text_length_min:
+        raise ValueError(
+            f'Got a text_too_long error while max_text_length is at the min: {text_length_min}.'
+        )
+    if previous_text_length is None:
+        text_length = min(
+            max_text_length_default,
+            max(text_length_min, text_length - text_length_steps)
+        )
+    else:
+        text_length = max(previous_text_length - text_length_steps, text_length_min)
+    return text_length
+
+
+def split_text(text: str, max_length: int, split_characters=('\n', '.', ';', ',', ' ')) -> List[str]:
+    result = []
+    assert max_length > 0
+    while len(text) > max_length:
+        for split_char in split_characters:
+            pos = text[:max_length].rfind(split_char)
+            if pos > 0:
+                result.append(text[:pos+1])
+                text = text[pos+1:]
+                break
+        if len(text) > max_length:
+            result.append(text[:max_length])
+            text = text[max_length:]
+    if len(text) > 0:
+        result.append(text)
+    return result
 
 
 def _check_result(
