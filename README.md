@@ -55,6 +55,7 @@ It includes:
     - translation `graphai_client.client_api.translation.translate_text()`
     - concept extraction `graphai_client.client_api.text.extract_concepts_from_text()`
     - keyword detection `graphai_client.client_api.text.extract_concepts_from_keywords()`
+    - embeding `graphai_client.client_api.embedding.embed_text()`
 - for videos:
     - video downloading `graphai_client.client_api.video.get_video_token()`
     - video fingerprinting `graphai_client.client_api.video.fingerprint_video()`
