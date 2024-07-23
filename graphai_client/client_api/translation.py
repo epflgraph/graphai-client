@@ -1,16 +1,19 @@
 from re import match
-from typing import Optional, Union
+from typing import Optional, Union, Dict, List
 from graphai_client.utils import status_msg
-from graphai_client.client_api.utils import call_async_endpoint, get_next_text_length_for_split, split_text
+from graphai_client.client_api.utils import (
+    call_async_endpoint, get_next_text_length_for_split, split_text, limit_length_list_of_texts, recombine_split_list_of_texts
+)
 
 MIN_TEXT_LENGTH = 500
 DEFAULT_MAX_TEXT_LENGTH_IF_TEXT_TOO_LONG = 4000
 STEP_AUTO_DECREASE_TEXT_LENGTH = 200
 
+
 def translate_text(
-        text: Union[str, list], source_language, target_language, login_info, sections=('GRAPHAI', 'TRANSLATE'),
-        **kwargs
-) -> Optional[Union[str, list]]:
+        text: Union[str, List[Optional[str]]], source_language, target_language, login_info,
+        sections=('GRAPHAI', 'TRANSLATE'), **kwargs
+) -> Optional[Union[str, List[Optional[str]]]]:
     """
     Translate the input text from the source language to the target language.
 
@@ -82,16 +85,12 @@ def translate_text_str(
         return text
     # split text into a list of string if the input is a too long string
     if max_text_length and len(text) > max_text_length:
-        translated_line_to_original_mapping = {}
-        text_to_translate = []
-        text_portions = split_text(text, max_text_length)
-        for text_portion in text_portions:
-            translated_line_to_original_mapping[len(text_to_translate)] = 0
-            text_to_translate.append(text_portion)
+        text_to_translate = split_text(text, max_text_length)
         translated_list = translate_text_list(
             text_to_translate, source_language, target_language, login_info, sections=sections, force=force,
             debug=debug, max_text_length=max_text_length,  max_text_list_length=max_text_list_length,
-            max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
+            max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry,
+            mapping_from_split_to_original={i: 0 for i in range(len(text_to_translate))}
         )
         return ''.join(translated_list)
     task_result = call_async_endpoint(
@@ -131,7 +130,8 @@ def translate_text_str(
 def translate_text_list(
         text: list, source_language, target_language, login_info,
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000,
-        max_tries=5, max_processing_time_s=3600, delay_retry=1
+        max_tries=5, max_processing_time_s=3600, delay_retry=1,
+        mapping_from_split_to_original: Optional[Dict[int, int]] = None
 ) -> Optional[list]:
     """
     Translate the list of text from the source language to the target language.
@@ -151,6 +151,7 @@ def translate_text_list(
     :param max_tries: the number of tries before giving up.
     :param max_processing_time_s: maximum number of seconds to perform the translation.
     :param delay_retry: time to wait before retrying after an error
+    :param mapping_from_split_to_original: mapping in case the input list of text has been previously split
     :return: the translated text if successful, None otherwise. The length of the returned list is the same as for text
     """
     # check for list of empty text
@@ -181,7 +182,8 @@ def translate_text_list(
                     text[idx_start:], source_language, target_language, login_info,
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
                     max_text_list_length=max_text_list_length, max_tries=max_tries,
-                    max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
+                    max_processing_time_s=max_processing_time_s, delay_retry=delay_retry,
+                    mapping_from_split_to_original=mapping_from_split_to_original
                 )
                 if translated_text_part is None:
                     return None
@@ -210,7 +212,8 @@ def translate_text_list(
                     text[idx_start:idx_end + 1], source_language, target_language, login_info,
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
                     max_text_list_length=max_text_list_length, max_tries=max_tries,
-                    max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
+                    max_processing_time_s=max_processing_time_s, delay_retry=delay_retry,
+                    mapping_from_split_to_original=mapping_from_split_to_original
                 )
                 if translated_text_part is None:
                     return None
@@ -219,18 +222,9 @@ def translate_text_list(
                 sum_length = 0
         return translated_text_full
     # get rid of None in list input and split text too long
-    text_to_translate = []
-    translated_line_to_original_mapping = {}
-    for line_idx, line in enumerate(text):
-        if isinstance(line, str):
-            if max_text_length and len(line) > max_text_length:
-                split_line = split_text(line, max_text_length)
-                for line_portion in split_line:
-                    translated_line_to_original_mapping[len(text_to_translate)] = line_idx
-                    text_to_translate.append(line_portion)
-            else:
-                translated_line_to_original_mapping[len(text_to_translate)] = line_idx
-                text_to_translate.append(line)
+    text_to_translate, translated_line_to_original_mapping = limit_length_list_of_texts(
+        text, max_text_length, mapping_from_split_to_original
+    )
     task_result = call_async_endpoint(
         endpoint='/translation/translate',
         json={"text": text_to_translate, "source": source_language, "target": target_language, "force": force},
@@ -252,18 +246,13 @@ def translate_text_list(
         if match_indices:
             indices_text_too_long = [int(idx) for idx in match_indices.group(1).split(', ') if idx is not None]
             length_too_long = min([len(text_to_translate[idx]) for idx in indices_text_too_long])
-            max_text_length = get_next_text_length_for_split(
-                length_too_long, previous_text_length=max_text_length, text_length_min=MIN_TEXT_LENGTH,
-                max_text_length_default=DEFAULT_MAX_TEXT_LENGTH_IF_TEXT_TOO_LONG,
-                text_length_steps=STEP_AUTO_DECREASE_TEXT_LENGTH
-            )
         else:
-            max_text_length = get_next_text_length_for_split(
-                DEFAULT_MAX_TEXT_LENGTH_IF_TEXT_TOO_LONG, previous_text_length=max_text_length,
-                text_length_min=MIN_TEXT_LENGTH,
-                max_text_length_default=DEFAULT_MAX_TEXT_LENGTH_IF_TEXT_TOO_LONG,
-                text_length_steps=STEP_AUTO_DECREASE_TEXT_LENGTH
-            )
+            length_too_long = DEFAULT_MAX_TEXT_LENGTH_IF_TEXT_TOO_LONG
+        max_text_length = get_next_text_length_for_split(
+            length_too_long, previous_text_length=max_text_length, text_length_min=MIN_TEXT_LENGTH,
+            max_text_length_default=DEFAULT_MAX_TEXT_LENGTH_IF_TEXT_TOO_LONG,
+            text_length_steps=STEP_AUTO_DECREASE_TEXT_LENGTH
+        )
         status_msg(
             f'text was too large to be translated, trying to split it up with max_text_length={max_text_length}...',
             color='yellow', sections=list(sections) + ['WARNING']
@@ -271,7 +260,8 @@ def translate_text_list(
         return translate_text_list(
             text, source_language, target_language, login_info, sections=sections,
             force=True, debug=debug, max_text_length=max_text_length, max_text_list_length=max_text_list_length,
-            max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
+            max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry,
+            mapping_from_split_to_original=mapping_from_split_to_original
         )
     n_results = len(task_result['result'])
     if n_results != len(text_to_translate):
@@ -284,7 +274,8 @@ def translate_text_list(
             return translate_text_list(
                 text, source_language, target_language, login_info, sections=sections,
                 force=True, debug=debug, max_text_length=max_text_length, max_text_list_length=max_text_list_length,
-                max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
+                max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry,
+                mapping_from_split_to_original=mapping_from_split_to_original
             )
         else:
             raise RuntimeError(
@@ -292,14 +283,9 @@ def translate_text_list(
                 f'the length of the input {len(text_to_translate)}'
             )
     # put back None in the output so the number of element is the same as in the input
-    translated_text_full = [None] * len(text)
-    for tr_line_idx, translated_line in enumerate(task_result['result']):
-        original_line_idx = translated_line_to_original_mapping[tr_line_idx]
-        if translated_text_full[original_line_idx] is None:
-            translated_text_full[original_line_idx] = translated_line
-        else:
-            translated_text_full[original_line_idx] += translated_line
-    return translated_text_full
+    return recombine_split_list_of_texts(
+        task_result['result'], translated_line_to_original_mapping, output_length=len(text)
+    )
 
 
 def detect_language(
