@@ -4,6 +4,7 @@ from time import sleep
 from datetime import datetime, timedelta
 from requests import get, post, Response
 from re import match
+from numpy import array
 from typing import Callable, Dict, Optional, Tuple, List
 from graphai_client.utils import status_msg
 
@@ -43,7 +44,7 @@ def call_async_endpoint(
         request_func=post,
         headers={'Content-Type': 'application/json'},
         json=json,
-        max_tries=5,
+        max_tries=max_tries,
         timeout=60,
         sections=sections,
         debug=debug,
@@ -65,7 +66,7 @@ def call_async_endpoint(
             login_info=login_info,
             request_func=get,
             headers={'Content-Type': 'application/json'},
-            max_tries=5,
+            max_tries=max_tries,
             timeout=60,
             sections=sections,
             debug=debug,
@@ -95,7 +96,7 @@ def call_async_endpoint(
             sleep(1)
         elif task_status == 'SUCCESS':
             task_result = response_status_json.get('task_result', None)
-            if task_result is None or not isinstance(task_result, dict):
+            if task_result is None or (not isinstance(task_result, dict) and not isinstance(task_result, list)):
                 if not quiet or _tries == max_tries:
                     status_msg(
                         f'Bad task result "{task_result}" while extracting {output_type} from {token} '
@@ -105,6 +106,32 @@ def call_async_endpoint(
                 _tries += 1
                 sleep(delay_retry)
                 continue
+            if isinstance(task_result, list):
+                indices_not_successful = []
+                indices_text_too_large = []
+                for index_result, task_result_item in enumerate(task_result):
+                    assert isinstance(task_result_item, dict)
+                    if not task_result_item.get('successful', True):
+                        if task_result_item.get('text_too_large', False):
+                            indices_text_too_large.append(index_result)
+                            continue
+                        indices_not_successful.append(index_result)
+                if indices_text_too_large:
+                    return task_result  # text too large to be handled by calling function
+                if indices_not_successful:
+                    if not quiet or _tries == max_tries:
+                        status_msg(
+                            f'extraction of the {output_type} from {token} failed at try {_tries}/{max_tries}',
+                            color='yellow', sections=list(sections) + ['WARNING']
+                        )
+                    sleep(delay_retry)
+                    return call_async_endpoint(
+                        endpoint, json, login_info, token, output_type, max_processing_time_s=max_processing_time_s,
+                        _tries=_tries + 1, max_tries=max_tries, delay_retry=delay_retry,
+                        sections=sections, debug=debug, quiet=quiet
+                    )
+                return task_result
+            assert isinstance(task_result, dict)
             if not task_result.get('successful', True):
                 if task_result.get('text_too_large', False):
                     return task_result  # text too large to be handled by calling function
@@ -119,7 +146,7 @@ def call_async_endpoint(
                     _tries=_tries + 1, max_tries=max_tries, delay_retry=delay_retry,
                     sections=sections, debug=debug, quiet=quiet
                 )
-            _check_result(task_result, result_key, token, output_type, list(sections), quiet)
+            display_status_for_task_result(task_result, result_key, token, output_type, list(sections), quiet)
             return task_result
         elif task_status == 'FAILURE':
             if not quiet or _tries == max_tries:
@@ -149,8 +176,107 @@ def call_async_endpoint(
     return None
 
 
+def limit_total_length_list_of_text(
+        list_of_texts: List[str], max_total_text_length: Optional[int] = None,
+        mapping_from_split_to_original: Optional[Dict[int, int]] = None
+):
+    if mapping_from_split_to_original is None:
+        mapping_from_split_to_original = {i: i for i in range(len(list_of_texts))}
+    lengths_text = [len(t) if t is not None else 0 for t in list_of_texts]
+    total_text_length = sum(lengths_text)
+    if total_text_length > max_total_text_length:
+        idx_start = 0
+        sum_length = 0
+        n_text_elems = len(list_of_texts)
+        for idx_end in range(n_text_elems):
+            sum_length += lengths_text[idx_end]
+            # we reached the end
+            if idx_end + 1 == n_text_elems:
+                yield (
+                    list_of_texts[idx_start:],
+                    {
+                        split_idx: mapping_from_split_to_original[split_idx]
+                        for split_idx in range(idx_start, n_text_elems)
+                    }
+                )
+                return
+            # one element is already too large
+            elif lengths_text[idx_start] > max_total_text_length:
+                yield [list_of_texts[idx_start]], {idx_start: mapping_from_split_to_original[idx_start]}
+                idx_start += 1
+                sum_length = 0
+            # with the next element the list becomes too large
+            elif sum_length + lengths_text[idx_end + 1] > max_total_text_length:
+                yield (
+                    list_of_texts[idx_start:idx_end + 1],
+                    {
+                        split_idx: mapping_from_split_to_original[split_idx]
+                        for split_idx in range(idx_start, idx_end + 1)
+                    }
+                )
+                idx_start = idx_end + 1
+                sum_length = 0
+    else:
+        yield list_of_texts, mapping_from_split_to_original
+
+
+def limit_length_list_of_texts(
+        list_of_texts: List[str], max_text_length: Optional[int] = None,
+        mapping_from_split_to_original: Optional[Dict[int, int]] = None,
+        split_characters=('\n', '.', ';', ',', ' ')
+) -> Tuple[List[str], Dict[int, int]]:
+    if mapping_from_split_to_original is None:
+        mapping_from_split_to_original = {i: i for i in range(len(list_of_texts))}
+    if max_text_length is None:
+        return list_of_texts, mapping_from_split_to_original
+    new_mapping_from_split_to_original = {}
+    list_of_texts_split = []
+    # for original_line_idx, text in enumerate(list_of_texts):
+    for original_line_idx in sorted(set(mapping_from_split_to_original.values())):
+        # get the split lines corresponding to the original line
+        split_line_indices = sorted([
+            split_idx for split_idx, orig_idx in mapping_from_split_to_original.items() if orig_idx == original_line_idx
+        ])
+        # check if any is too long
+        is_too_long = False
+        for split_idx in split_line_indices:
+            if len(list_of_texts[split_idx]) > max_text_length:
+                is_too_long = True
+                break
+        # if any is too long, we recombine the original text and split it with the given max_text_length
+        if is_too_long:
+            text = ''.join([list_of_texts[idx] for idx in split_line_indices])
+            split_line = split_text(text, max_text_length, split_characters=split_characters)
+            for line_portion in split_line:
+                new_mapping_from_split_to_original[len(list_of_texts_split)] = original_line_idx
+                list_of_texts_split.append(line_portion)
+        # otherwise we just append those lines to the result
+        else:
+            for split_idx in split_line_indices:
+                new_mapping_from_split_to_original[len(list_of_texts_split)] = original_line_idx
+                list_of_texts_split.append(list_of_texts[split_idx])
+    return list_of_texts_split, new_mapping_from_split_to_original
+
+
+def recombine_split_list_of_texts(
+        list_of_texts_split: List[str], mapping_from_split_to_original: Dict[int, int],
+        output_length: Optional[int] = None
+) -> List[Optional[str]]:
+    if output_length is None:
+        output_length = max(mapping_from_split_to_original.values()) + 1
+    recombined_list_of_texts: List[Optional[str]] = [None] * output_length
+    for tr_line_idx, translated_line in enumerate(list_of_texts_split):
+        original_line_idx = mapping_from_split_to_original[tr_line_idx]
+        if recombined_list_of_texts[original_line_idx] is None:
+            recombined_list_of_texts[original_line_idx] = translated_line
+        else:
+            recombined_list_of_texts[original_line_idx] += translated_line
+    return recombined_list_of_texts
+
+
 def get_next_text_length_for_split(
-        text_length: int, previous_text_length=None, text_length_min=400, max_text_length_default=4000, text_length_steps=200
+        text_length: int, previous_text_length=None, text_length_min=400, max_text_length_default=4000,
+        text_length_steps=200
 ):
     if previous_text_length == text_length_min:
         raise ValueError(
@@ -184,7 +310,7 @@ def split_text(text: str, max_length: int, split_characters=('\n', '.', ';', ','
     return result
 
 
-def _check_result(
+def display_status_for_task_result(
         task_result: dict, result_key: str, token: str, output_type: str, sections: list, quiet: bool
 ) -> None:
     def _incr_active_and_fingerprinted(
