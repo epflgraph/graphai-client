@@ -104,6 +104,8 @@ def process_video_on_rcp(
         video_details = get_kaltura_video_details(piper_connection, video_id)
     elif platform == 'youtube':
         video_details = get_youtube_video_details(youtube_resource, video_id)
+    elif platform == 'switchtube (external)':
+        video_details = get_switchtube_external_video_details(video_id)
     if video_details is None:
         status_msg(
             f'Details for the video {video_id} could not be found on {platform}',
@@ -263,6 +265,15 @@ def get_youtube_video_details(youtube_resource: GoogleResource, youtube_video_id
         video_creation_time=video_creation_time, video_update_time=video_creation_time, title=title,
         description=description, owner=video_owner, creator=video_owner, tags=tags,
         ms_duration=ms_duration, video_size=None, start_date=None, end_date=None, youtube_caption=youtube_caption
+    )
+
+
+def get_switchtube_external_video_details(video_id: str):
+    video_url, video_size = get_video_link_and_size(f'https://tube.switch.ch/external/{video_id}')
+    return dict(
+        platform='switchtube (external)', video_id=video_id, url=video_url, thumbnail_url=None,
+        video_creation_time=None, video_update_time=None, title=None, description=None, owner=None, creator=None,
+        tags=None, ms_duration=None, video_size=video_size, start_date=None, end_date=None
     )
 
 
@@ -1110,4 +1121,3 @@ def fingerprint_on_rcp(
                     f'Fingerprinting of slides and audio failed for video {video_id}',
                     color='red', sections=['KALTURA', 'FINGERPRINT', 'FAILED']
                 )
-
