@@ -232,6 +232,8 @@ def get_youtube_video_details(youtube_resource: GoogleResource, youtube_video_id
     # see https://developers.google.com/youtube/v3/docs/videos/list for the list of properties
     video_request = videos.list(id=youtube_video_id, part='snippet,contentDetails,status')
     video_info_items = video_request.execute()['items']
+    if len(video_info_items) == 0:
+        return None
     assert len(video_info_items) == 1
     video_info = video_info_items[0]
     video_snippet = video_info['snippet']
@@ -281,18 +283,23 @@ def get_switchtube_external_video_details(video_id: str):
     )
 
 
-def get_switchtube_video_details(video_id: str):
-    video_url, video_size = get_video_link_and_size(f'https://tube.switch.ch/download/video/{video_id}')
-    if video_url is None:
-        video_url, video_size = get_video_link_and_size(f'https://tube.switch.ch/videos/{video_id}')
-        if video_url is None:
-            return None
-    return dict(
-        platform='switchtube', video_id=video_id, url=video_url, thumbnail_url=None,
-        video_creation_time=None, video_update_time=None, title=None, description=None, owner=None, creator=None,
-        tags=None, ms_duration=None, video_size=video_size, start_date=None, end_date=None
+def get_switchtube_video_details(db, video_id: str):
+    kaltura_video_info = execute_query(
+        db, f'SELECT kalturaVideoId FROM ca_kaltura.Videos WHERE referenceId="{video_id}";'
     )
-
+    if len(kaltura_video_info) == 0:
+        video_url, video_size = get_video_link_and_size(f'https://tube.switch.ch/download/video/{video_id}')
+        if video_url is None:
+            video_url, video_size = get_video_link_and_size(f'https://tube.switch.ch/videos/{video_id}')
+            if video_url is None:
+                return None
+        return dict(
+            platform='switchtube', video_id=video_id, url=video_url, thumbnail_url=None,
+            video_creation_time=None, video_update_time=None, title=None, description=None, owner=None, creator=None,
+            tags=None, ms_duration=None, video_size=video_size, start_date=None, end_date=None
+        )
+    return get_kaltura_video_details(db, kaltura_video_info[0][0])
+    
 
 def get_slides_from_switchtube(db, switch_channel, switch_video_id, login_info, destination_languages, force, debug):
     # get slide text (in english in gen_switchtube.Slide_Text) from analyzed switchtube video
