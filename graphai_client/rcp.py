@@ -104,6 +104,8 @@ def process_video_on_rcp(
         video_details = get_kaltura_video_details(piper_connection, video_id)
     elif platform == 'youtube':
         video_details = get_youtube_video_details(youtube_resource, video_id)
+    elif platform == 'switchtube':
+        video_details = get_switchtube_video_details(video_id)
     elif platform == 'switchtube (external)':
         video_details = get_switchtube_external_video_details(video_id)
     if video_details is None:
@@ -270,8 +272,23 @@ def get_youtube_video_details(youtube_resource: GoogleResource, youtube_video_id
 
 def get_switchtube_external_video_details(video_id: str):
     video_url, video_size = get_video_link_and_size(f'https://tube.switch.ch/external/{video_id}')
+    if video_url is None:
+        return None
     return dict(
         platform='switchtube (external)', video_id=video_id, url=video_url, thumbnail_url=None,
+        video_creation_time=None, video_update_time=None, title=None, description=None, owner=None, creator=None,
+        tags=None, ms_duration=None, video_size=video_size, start_date=None, end_date=None
+    )
+
+
+def get_switchtube_video_details(video_id: str):
+    video_url, video_size = get_video_link_and_size(f'https://tube.switch.ch/download/video/{video_id}')
+    if video_url is None:
+        video_url, video_size = get_video_link_and_size(f'https://tube.switch.ch/videos/{video_id}')
+        if video_url is None:
+            return None
+    return dict(
+        platform='switchtube', video_id=video_id, url=video_url, thumbnail_url=None,
         video_creation_time=None, video_update_time=None, title=None, description=None, owner=None, creator=None,
         tags=None, ms_duration=None, video_size=video_size, start_date=None, end_date=None
     )
