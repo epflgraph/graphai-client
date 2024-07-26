@@ -234,7 +234,8 @@ def get_youtube_video_details(youtube_resource: GoogleResource, youtube_video_id
     video_info_items = video_request.execute()['items']
     if len(video_info_items) == 0:
         return None
-    assert len(video_info_items) == 1
+    if len(video_info_items) > 1:
+        raise RuntimeError(f'got several videos info for youtube video {youtube_video_id}: {video_info_items}')
     video_info = video_info_items[0]
     video_snippet = video_info['snippet']
     video_content_details = video_info['contentDetails']
@@ -299,7 +300,7 @@ def get_switchtube_video_details(db, video_id: str):
             tags=None, ms_duration=None, video_size=video_size, start_date=None, end_date=None
         )
     return get_kaltura_video_details(db, kaltura_video_info[0][0])
-    
+
 
 def get_slides_from_switchtube(db, switch_channel, switch_video_id, login_info, destination_languages, force, debug):
     # get slide text (in english in gen_switchtube.Slide_Text) from analyzed switchtube video
