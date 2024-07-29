@@ -53,7 +53,7 @@ def process_videos_on_rcp(
                     f'Could not extract the video platform and id from video url: {video_url}',
                     color='red', sections=['VIDEO', 'PROCESSING', 'ERROR']
                 )
-                continue
+                # continue
             switchtube_video_id = None
             switchtube_channel = None
             if platform == 'mediaspace':
@@ -105,16 +105,18 @@ def process_video_on_rcp(
     elif platform == 'youtube':
         video_details = get_youtube_video_details(youtube_resource, video_id)
     elif platform == 'switchtube':
-        video_details = get_switchtube_video_details(video_id)
+        video_details = get_switchtube_video_details(piper_connection, video_id)
     elif platform == 'switchtube (external)':
-        video_details = get_switchtube_external_video_details(video_id)
+        video_details = get_downloadable_video_details(
+            f'https://tube.switch.ch/external/{video_id}', [], 'switchtube (external)', video_id
+        )
     if video_details is None:
         status_msg(
             f'Details for the video {video_id} could not be found on {platform}',
             color='red', sections=list(sections) + ['ERROR']
         )
         return None
-    video_information = get_previous_analysis_info(piper_connection, platform, video_id)
+    video_information = get_info_previous_video_processing(piper_connection, platform, video_id)
     video_information.update(video_details)
     video_information['slides'] = None
     video_information['subtitles'] = None
@@ -175,6 +177,7 @@ def get_kaltura_video_details(db, kaltura_video_id):
     video_details = execute_query(
         db, f'''
             SELECT 
+                k.parentEntryId,
                 k.downloadUrl AS kaltura_url,
                 k.thumbnailUrl,
                 k.createdAt AS kalturaCreationTime,
@@ -197,7 +200,7 @@ def get_kaltura_video_details(db, kaltura_video_id):
         )
         return None
     (
-        kaltura_url_api, thumbnail_url, kaltura_creation_time, kaltura_update_time, title,
+        parent_video_id, kaltura_url_api, thumbnail_url, kaltura_creation_time, kaltura_update_time, title,
         description, kaltura_owner, kaltura_creator, tags, start_date, end_date, ms_duration
     ) = video_details[0]
     if not kaltura_url_api:
@@ -219,9 +222,9 @@ def get_kaltura_video_details(db, kaltura_video_id):
             )
             return None
     return dict(
-        platform='mediaspace', video_id=kaltura_video_id, url=kaltura_url, thumbnail_url=thumbnail_url,
-        video_creation_time=kaltura_creation_time, video_update_time=kaltura_update_time, title=title,
-        description=description, owner=kaltura_owner, creator=kaltura_creator, tags=tags,
+        platform='mediaspace', video_id=kaltura_video_id, parent_video_id=parent_video_id, url=kaltura_url,
+        thumbnail_url=thumbnail_url, video_creation_time=kaltura_creation_time, video_update_time=kaltura_update_time,
+        title=title, description=description, owner=kaltura_owner, creator=kaltura_creator, tags=tags,
         ms_duration=ms_duration, video_size=octet_size, start_date=start_date, end_date=end_date,
     )
 
@@ -266,22 +269,24 @@ def get_youtube_video_details(youtube_resource: GoogleResource, youtube_video_id
     else:
         video_owner = None
     return dict(
-        platform='youtube', video_id=youtube_video_id, url=video_url, thumbnail_url=thumbnail_url,
+        platform='youtube', video_id=youtube_video_id, parent_video_id=None, url=video_url, thumbnail_url=thumbnail_url,
         video_creation_time=video_creation_time, video_update_time=video_creation_time, title=title,
         description=description, owner=video_owner, creator=video_owner, tags=tags,
         ms_duration=ms_duration, video_size=None, start_date=None, end_date=None, youtube_caption=youtube_caption
     )
 
 
-def get_switchtube_external_video_details(video_id: str):
-    video_url, video_size = get_video_link_and_size(f'https://tube.switch.ch/external/{video_id}')
-    if video_url is None:
-        return None
-    return dict(
-        platform='switchtube (external)', video_id=video_id, url=video_url, thumbnail_url=None,
-        video_creation_time=None, video_update_time=None, title=None, description=None, owner=None, creator=None,
-        tags=None, ms_duration=None, video_size=video_size, start_date=None, end_date=None
-    )
+def get_downloadable_video_details(url, alternate_urls=(), platform=None, video_id=None):
+    for u in (url,) + alternate_urls:
+        video_url, video_size = get_video_link_and_size(u)
+        if video_url is not None:
+            return dict(
+                platform=platform, video_id=video_id, parent_video_id=None, url=video_url, thumbnail_url=None,
+                video_creation_time=None, video_update_time=None, title=None, description=None, owner=None,
+                creator=None,
+                tags=None, ms_duration=None, video_size=video_size, start_date=None, end_date=None
+            )
+    return None
 
 
 def get_switchtube_video_details(db, video_id: str):
@@ -289,15 +294,10 @@ def get_switchtube_video_details(db, video_id: str):
         db, f'SELECT kalturaVideoId FROM ca_kaltura.Videos WHERE referenceId="{video_id}";'
     )
     if len(kaltura_video_info) == 0:
-        video_url, video_size = get_video_link_and_size(f'https://tube.switch.ch/download/video/{video_id}')
-        if video_url is None:
-            video_url, video_size = get_video_link_and_size(f'https://tube.switch.ch/videos/{video_id}')
-            if video_url is None:
-                return None
-        return dict(
-            platform='switchtube', video_id=video_id, url=video_url, thumbnail_url=None,
-            video_creation_time=None, video_update_time=None, title=None, description=None, owner=None, creator=None,
-            tags=None, ms_duration=None, video_size=video_size, start_date=None, end_date=None
+        return get_downloadable_video_details(
+            f'https://tube.switch.ch/download/video/{video_id}',
+            [f'https://tube.switch.ch/videos/{video_id}'],
+            platform='switchtube', video_id=video_id
         )
     return get_kaltura_video_details(db, kaltura_video_info[0][0])
 
@@ -470,7 +470,7 @@ def register_processed_video(db, platform, video_id, video_info, sections=('VIDE
     insert_data_into_table(
         db, 'gen_video', 'Videos',
         [
-            'platform', 'videoId', 'audioFingerprint', 'videoUrl', 'thumbnailUrl',
+            'platform', 'videoId', 'parentVideoId', 'audioFingerprint', 'videoUrl', 'thumbnailUrl',
             'videoCreationTime', 'videoUpdateTime',
             'title', 'description', 'owner', 'creator',
             'tags', 'msDuration', 'octetSize',
@@ -480,7 +480,8 @@ def register_processed_video(db, platform, video_id, video_info, sections=('VIDE
             'slidesConceptExtractionTime', 'subtitlesConceptExtractionTime'
         ],
         [(
-            platform, video_id, video_info['audio_fingerprint'], video_info['url'], video_info['thumbnail_url'],
+            platform, video_id, video_info['parent_video_id'], video_info['audio_fingerprint'], video_info['url'],
+            video_info['thumbnail_url'],
             video_info['video_creation_time'], video_info['video_update_time'],
             video_info['title'], video_info['description'], video_info['owner'], video_info['creator'],
             video_info['tags'], video_info['ms_duration'], video_info['video_size'],
@@ -495,8 +496,9 @@ def register_processed_video(db, platform, video_id, video_info, sections=('VIDE
     )
 
 
-def get_previous_analysis_info(db, platform, video_id):
+def get_info_previous_video_processing(db, platform, video_id):
     # get details about the previous analysis if it exists
+    parent_video_id = None
     slides_detected_language = None
     audio_detected_language = None
     slides_detection_time = None
@@ -506,6 +508,7 @@ def get_previous_analysis_info(db, platform, video_id):
     subtitles_concept_extract_time = None
     previous_analysis_info = execute_query(
         db, f'''SELECT 
+            parentVideoId,
             slidesDetectedLanguage, 
             audioDetectedLanguage, 
             slidesDetectionTime, 
@@ -518,11 +521,12 @@ def get_previous_analysis_info(db, platform, video_id):
     )
     if previous_analysis_info:
         (
-            slides_detected_language, audio_detected_language, slides_detection_time,
+            parent_video_id, slides_detected_language, audio_detected_language, slides_detection_time,
             audio_transcription_time, audio_fingerprint,
             slides_concept_extract_time, subtitles_concept_extract_time
         ) = previous_analysis_info[-1]
     return dict(
+        parent_video_id=parent_video_id,
         slides_detected_language=slides_detected_language,
         audio_detected_language=audio_detected_language,
         slides_detection_time=slides_detection_time,
@@ -1146,3 +1150,7 @@ def fingerprint_on_rcp(
                     f'Fingerprinting of slides and audio failed for video {video_id}',
                     color='red', sections=['KALTURA', 'FINGERPRINT', 'FAILED']
                 )
+
+
+if __name__ == '__main__':
+    process_videos_on_rcp(['https://d2f1egay8yehza.cloudfront.net/EPFGROUN2018-V007700/EPFGROUN2018-V007700.m3u8'])
