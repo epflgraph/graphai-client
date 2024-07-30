@@ -4,7 +4,7 @@ from numpy import array
 from graphai_client.utils import status_msg
 from graphai_client.client_api.utils import (
     call_async_endpoint, split_text, get_next_text_length_for_split, limit_length_list_of_texts,
-    limit_total_length_list_of_text
+    limit_total_length_list_of_text, clean_list_of_texts
 )
 
 MIN_TEXT_LENGTH = 200
@@ -54,6 +54,7 @@ def embed_text_str(
     :param max_tries: the number of tries before giving up.
     :param max_processing_time_s: maximum number of seconds to perform the text extraction.
     :param split_characters: list of characters ordered by priority (first=highest prio.) where the text can be split.
+    :param max_text_list_length: the maximum cumulative length of the text list before the list is split.
     :return: the embedding as a list of float.
     """
     text_length = len(text)
@@ -69,7 +70,7 @@ def embed_text_str(
             text_portions, login_info=login_info, model=model, force=force, sections=sections,
             max_text_length=max_text_length, debug=debug, max_tries=max_tries,
             max_processing_time_s=max_processing_time_s, split_characters=split_characters,
-            mapping_from_split_to_original={i: 0 for i in range(len(text_portions))},
+            mapping_from_cleaned_to_original={i: 0 for i in range(len(text_portions))},
             num_output=1, max_text_list_length=max_text_list_length
         )
         return array(embedding_portions)[0]
@@ -101,7 +102,7 @@ def embed_text_str(
                 text_length_steps=STEP_AUTO_DECREASE_TEXT_LENGTH
             )
             status_msg(
-                f'text was too large to be embded, trying to split it up with max_text_length={max_text_length}...',
+                f'text was too large to be embed, trying to split it up with max_text_length={max_text_length}...',
                 color='yellow', sections=list(sections) + ['WARNING']
             )
             return embed_text_str(
@@ -129,15 +130,15 @@ def get_weights_embeddings(embeddings_to_original_mapping, length_of_texts_to_em
 
 
 def embed_text_list(
-        text_list: List[str], login_info: dict, model: str = None, force=False, sections=('GRAPHAI', 'EMBEDDING'),
+        list_of_texts: List[Optional[str]], login_info: dict, model: str = None, force=False,
         max_text_length=None, debug=False, max_tries=5, max_processing_time_s=600, quiet=False,
-        split_characters=('\n', '.', ';', ',', ' '), mapping_from_split_to_original: Optional[Dict[int, int]] = None,
-        num_output: Optional[int] = None, max_text_list_length=20000
+        split_characters=('\n', '.', ';', ',', ' '), mapping_from_input_to_original: Optional[Dict[int, int]] = None,
+        num_output: Optional[int] = None, max_text_list_length: Optional[int] = 20000, sections=('GRAPHAI', 'EMBEDDING')
 ) -> Optional[List[Optional[List[float]]]]:
     """
     Embed text using the specified model.
 
-    :param text_list: text to embed.
+    :param list_of_texts: text to embed.
     :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json).
     :param model: model to use for embedding ("all-MiniLM-L12-v2" by default).
     :param force: Should the cache be bypassed and the embedding forced.
@@ -149,27 +150,29 @@ def embed_text_list(
     :param max_tries: the number of tries before giving up.
     :param max_processing_time_s: maximum number of seconds to perform the text extraction.
     :param split_characters: list of characters ordered by priority (first=highest prio.) where the text can be split.
-    :param mapping_from_split_to_original: mapping in case the input list of text has been previously split
+    :param mapping_from_input_to_original: mapping in case the input list of text has been previously split
     :param num_output: number of encoding to return. If None it will be determined by mapping_from_split_to_original
         or by the number of input.
     :param max_text_list_length: if not None, the list will be split in chunks where the total number of characters
     do not exceed that value. The list is then reformed after embedding.
     :return: the embedding as a list of float.
     """
-    length_of_input_texts = [len(text) for text in text_list]
+    # get rid of None in list input
+    cleaned_text, mapping_from_cleaned_to_original = clean_list_of_texts(list_of_texts, mapping_from_input_to_original)
+    length_of_input_texts = [len(text) for text in cleaned_text]
     embeddings_to_original_mapping = {}
     embeddings = []
     length_of_texts_to_embed = []
     if max_text_list_length is not None and sum(length_of_input_texts) > max_text_list_length:
         for text_list_split, mapping_after_list_split in limit_total_length_list_of_text(
-                text_list, max_text_list_length, mapping_from_split_to_original
+                cleaned_text, max_text_list_length, mapping_from_cleaned_to_original
         ):
             length_of_texts_to_embed.extend([len(text) for text in text_list_split])
             embedding_list_split = embed_text_list(
                 text_list_split, login_info, model=model, sections=sections,
                 force=True, debug=debug, max_text_length=max_text_length,
                 max_tries=max_tries, max_processing_time_s=max_processing_time_s,
-                mapping_from_split_to_original=None, num_output=len(text_list_split),
+                mapping_from_cleaned_to_original=None, num_output=len(text_list_split),
                 max_text_list_length=max_text_list_length
             )
             embeddings.extend(embedding_list_split)
@@ -180,9 +183,9 @@ def embed_text_list(
         return recombine_embeddings(
             embeddings, embeddings_to_original_mapping, output_length=num_output, weights=weights_embeddings
         )
-    # get rid of None in list input and split text too long
+    # split text too long
     texts_to_embed, embeddings_to_original_mapping = limit_length_list_of_texts(
-        text_list, max_text_length, mapping_from_split_to_original, split_characters=split_characters
+        cleaned_text, max_text_length, mapping_from_cleaned_to_original, split_characters=split_characters
     )
     # compute embeddings weights
     if num_output is None:
@@ -225,14 +228,14 @@ def embed_text_list(
                 color='yellow', sections=list(sections) + ['WARNING']
             )
         text_list_too_long = [
-            text_list[embeddings_to_original_mapping[too_long_embed_idx]]
+            cleaned_text[embeddings_to_original_mapping[too_long_embed_idx]]
             for too_long_embed_idx in indices_text_too_long
         ]
         embedding_texts_too_long = embed_text_list(
             text_list_too_long, login_info, model=model, sections=sections,
             force=True, debug=debug, max_text_length=max_text_length,
             max_tries=max_tries, max_processing_time_s=max_processing_time_s,
-            mapping_from_split_to_original=None, num_output=len(text_list_too_long),
+            mapping_from_cleaned_to_original=None, num_output=len(text_list_too_long),
             max_text_list_length=max_text_list_length
         )
         result = [
@@ -253,10 +256,10 @@ def embed_text_list(
                 color='yellow', sections=list(sections) + ['WARNING']
             )
             return embed_text_list(
-                text_list, login_info, model=model, sections=sections,
+                cleaned_text, login_info, model=model, sections=sections,
                 force=True, debug=debug, max_text_length=max_text_length,
                 max_tries=max_tries, max_processing_time_s=max_processing_time_s,
-                mapping_from_split_to_original=mapping_from_split_to_original, num_output=num_output,
+                mapping_from_cleaned_to_original=mapping_from_cleaned_to_original, num_output=num_output,
                 max_text_list_length=max_text_list_length
             )
         else:
@@ -288,5 +291,3 @@ def recombine_embeddings(
         for group_of_embeddings_of_original_text in grouped_embeddings
     ]
     return recombined_embeddings
-
-

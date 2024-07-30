@@ -3,8 +3,6 @@ from os.path import normpath, join, dirname
 from time import sleep
 from datetime import datetime, timedelta
 from requests import get, post, Response
-from re import match
-from numpy import array
 from typing import Callable, Dict, Optional, Tuple, List
 from graphai_client.utils import status_msg
 
@@ -221,7 +219,7 @@ def limit_total_length_list_of_text(
 
 
 def limit_length_list_of_texts(
-        list_of_texts: List[str], max_text_length: Optional[int] = None,
+        list_of_texts: List[Optional[str]], max_text_length: Optional[int] = None,
         mapping_from_split_to_original: Optional[Dict[int, int]] = None,
         split_characters=('\n', '.', ';', ',', ' ')
 ) -> Tuple[List[str], Dict[int, int]]:
@@ -256,6 +254,22 @@ def limit_length_list_of_texts(
                 new_mapping_from_split_to_original[len(list_of_texts_split)] = original_line_idx
                 list_of_texts_split.append(list_of_texts[split_idx])
     return list_of_texts_split, new_mapping_from_split_to_original
+
+
+def clean_list_of_texts(
+        list_of_texts: List[Optional[str]], mapping_from_input_to_original: Optional[Dict[int, int]] = None
+) -> Tuple[List[str], Dict[int, int]]:
+    if mapping_from_input_to_original is None:
+        mapping_from_input_to_original = {i: i for i in range(len(list_of_texts))}
+    indices_to_keep = [
+        idx for idx in range(len(list_of_texts))
+        if (list_of_texts[idx] is not None and isinstance(list_of_texts[idx], str) and len(list_of_texts[idx]) > 0)
+    ]
+    cleaned_list_of_texts = [list_of_texts[idx] for idx in indices_to_keep]
+    mapping_from_clean_to_original = {
+        pos: mapping_from_input_to_original[idx_to_keep] for pos, idx_to_keep in enumerate(indices_to_keep)
+    }
+    return cleaned_list_of_texts, mapping_from_clean_to_original
 
 
 def recombine_split_list_of_texts(
