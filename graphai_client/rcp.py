@@ -2,7 +2,7 @@ from datetime import timedelta, datetime
 from re import fullmatch
 from requests import Session
 from isodate import parse_duration
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from graphai_client.utils import (
     status_msg, get_video_link_and_size, strfdelta, convert_subtitle_into_segments,
     combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript,
@@ -51,22 +51,27 @@ def process_videos_on_rcp(
             if video_id is None or platform is None:
                 status_msg(
                     f'Could not extract the video platform and id from video url: {video_url}',
-                    color='red', sections=['VIDEO', 'PROCESSING', 'ERROR']
+                    color='yellow', sections=['VIDEO', 'PROCESSING', 'WARNING']
                 )
-                # continue
             switchtube_video_id = None
             switchtube_channel = None
             if platform == 'mediaspace':
                 switchtube_video_id = kaltura_to_switch_id.get(video_id, None)
                 switchtube_channel = switch_ids_to_channel.get(switchtube_video_id, None)
+            elif platform == 'switchtube':
+                switchtube_video_id = video_id
+                switchtube_channel = switch_ids_to_channel.get(switchtube_video_id, None)
             video_information = process_video_on_rcp(
-                login_info, piper_connection, youtube_resource,
-                platform, video_id, switchtube_video_id=switchtube_video_id, switch_channel=switchtube_channel,
+                login_info, piper_connection, youtube_resource, platform, video_id, video_url,
+                switchtube_video_id=switchtube_video_id, switch_channel=switchtube_channel,
                 analyze_audio=analyze_audio, analyze_slides=analyze_slides, destination_languages=destination_languages,
                 force=force, debug=debug, force_download=force_download,
             )
             if video_information is None:
                 continue
+            if platform is None and video_id is None:
+                platform = 'other'
+                video_id = video_information['video_token']
             if analyze_slides and (
                     video_information['slides'] is not None or video_information['slides_detected_language'] is not None
             ):
@@ -95,12 +100,19 @@ def process_videos_on_rcp(
 
 def process_video_on_rcp(
         login_info: dict, piper_connection, youtube_resource: GoogleResource,
-        platform: str, video_id: str, switchtube_video_id=None, switch_channel=None,
+        platform: Optional[str] = None, video_id: Optional[str] = None, video_url=None,
+        switchtube_video_id=None, switch_channel=None,
         analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'),
         force=False, debug=False, force_download=False, sections=('VIDEO', 'PROCESSING')
 ):
     video_details = None
-    if platform == 'mediaspace':
+    if platform is None or video_id is None:
+        if video_url is None:
+            ValueError(f'either both platform and video_id or video_url must be given as argument.')
+        video_details = get_downloadable_video_details(
+            video_url, [], platform, video_id
+        )
+    elif platform == 'mediaspace':
         video_details = get_kaltura_video_details(piper_connection, video_id)
     elif platform == 'youtube':
         video_details = get_youtube_video_details(youtube_resource, video_id)
@@ -110,6 +122,7 @@ def process_video_on_rcp(
         video_details = get_downloadable_video_details(
             f'https://tube.switch.ch/external/{video_id}', [], 'switchtube (external)', video_id
         )
+
     if video_details is None:
         status_msg(
             f'Details for the video {video_id} could not be found on {platform}',
@@ -162,6 +175,7 @@ def process_video_on_rcp(
         )
         return None
     video_information['video_size'] = new_video_information['video_size']
+    video_information['video_token'] = new_video_information['video_token']
     if analyze_audio:
         video_information['subtitles'] = new_video_information.get('subtitles', None)
     if analyze_audio or detect_audio_language:
@@ -277,7 +291,7 @@ def get_youtube_video_details(youtube_resource: GoogleResource, youtube_video_id
 
 
 def get_downloadable_video_details(url, alternate_urls=(), platform=None, video_id=None):
-    for u in (url,) + alternate_urls:
+    for u in [url] + list(alternate_urls):
         video_url, video_size = get_video_link_and_size(u)
         if video_url is not None:
             return dict(
@@ -1150,7 +1164,3 @@ def fingerprint_on_rcp(
                     f'Fingerprinting of slides and audio failed for video {video_id}',
                     color='red', sections=['KALTURA', 'FINGERPRINT', 'FAILED']
                 )
-
-
-if __name__ == '__main__':
-    process_videos_on_rcp(['https://d2f1egay8yehza.cloudfront.net/EPFGROUN2018-V007700/EPFGROUN2018-V007700.m3u8'])

@@ -83,8 +83,8 @@ def call_async_endpoint(
         if not isinstance(response_status_json, dict):
             if not quiet or _tries == max_tries:
                 status_msg(
-                    f'Got unexpected response_status: {response_status_json} while extracting {output_type} from {token} '
-                    f'at try {_tries}/{max_tries}', color='yellow', sections=list(sections) + ['WARNING']
+                    f'Got unexpected response_status: {response_status_json} while extracting {output_type} '
+                    f'from {token} at try {_tries}/{max_tries}', color='yellow', sections=list(sections) + ['WARNING']
                 )
             _tries += 1
             sleep(delay_retry)
@@ -273,7 +273,7 @@ def clean_list_of_texts(
 
 
 def recombine_split_list_of_texts(
-        list_of_texts_split: List[str], mapping_from_split_to_original: Dict[int, int],
+        list_of_texts_split: List[Optional[str]], mapping_from_split_to_original: Dict[int, int],
         output_length: Optional[int] = None
 ) -> List[Optional[str]]:
     if output_length is None:

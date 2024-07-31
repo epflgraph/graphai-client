@@ -132,7 +132,7 @@ def translate_text_list(
         list_of_texts: List[Optional[str]], source_language: str, target_language: str, login_info: dict,
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000,
         max_tries=5, max_processing_time_s=3600, delay_retry=1,
-        mapping_from_input_to_original: Optional[Dict[int, int]] = None
+        mapping_from_input_to_original: Optional[Dict[int, int]] = None, num_output: Optional[int] = None
 ) -> Optional[list]:
     """
     Translate the list of text from the sourc
@@ -156,8 +156,12 @@ def translate_text_list(
     :param mapping_from_input_to_original: mapping in case the input list of text has been previously split
     :return: the translated text if successful, None otherwise. The length of the returned list is the same as for text
     """
+    if mapping_from_input_to_original is None and num_output is None:
+        num_output = len(list_of_texts)
     # get rid of None in list input
     cleaned_texts, mapping_from_cleaned_to_original = clean_list_of_texts(list_of_texts, mapping_from_input_to_original)
+    if num_output is None:
+        max(mapping_from_cleaned_to_original.values()) + 1
     # check for list of empty text
     is_empty = True
     for line in cleaned_texts:
@@ -187,7 +191,7 @@ def translate_text_list(
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
                     max_text_list_length=max_text_list_length, max_tries=max_tries,
                     max_processing_time_s=max_processing_time_s, delay_retry=delay_retry,
-                    mapping_from_input_to_original=mapping_from_cleaned_to_original
+                    mapping_from_input_to_original=None
                 )
                 if translated_text_part is None:
                     return None
@@ -217,14 +221,16 @@ def translate_text_list(
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
                     max_text_list_length=max_text_list_length, max_tries=max_tries,
                     max_processing_time_s=max_processing_time_s, delay_retry=delay_retry,
-                    mapping_from_input_to_original=mapping_from_cleaned_to_original
+                    mapping_from_input_to_original=None
                 )
                 if translated_text_part is None:
                     return None
                 translated_text_full[idx_start:idx_end + 1] = translated_text_part
                 idx_start = idx_end + 1
                 sum_length = 0
-        return translated_text_full
+        return recombine_split_list_of_texts(
+            translated_text_full, mapping_from_input_to_original, output_length=num_output
+        )
     # split text too long
     text_to_translate, translated_line_to_original_mapping = limit_length_list_of_texts(
         cleaned_texts, max_text_length, mapping_from_cleaned_to_original
@@ -288,7 +294,7 @@ def translate_text_list(
             )
     # put back None in the output so the number of element is the same as in the input
     return recombine_split_list_of_texts(
-        task_result['result'], translated_line_to_original_mapping, output_length=len(cleaned_texts)
+        task_result['result'], translated_line_to_original_mapping, output_length=num_output
     )
 
 

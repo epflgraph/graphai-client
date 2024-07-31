@@ -70,7 +70,7 @@ def embed_text_str(
             text_portions, login_info=login_info, model=model, force=force, sections=sections,
             max_text_length=max_text_length, debug=debug, max_tries=max_tries,
             max_processing_time_s=max_processing_time_s, split_characters=split_characters,
-            mapping_from_cleaned_to_original={i: 0 for i in range(len(text_portions))},
+            mapping_from_input_to_original={i: 0 for i in range(len(text_portions))},
             num_output=1, max_text_list_length=max_text_list_length
         )
         return array(embedding_portions)[0]
@@ -157,6 +157,8 @@ def embed_text_list(
     do not exceed that value. The list is then reformed after embedding.
     :return: the embedding as a list of float.
     """
+    if mapping_from_input_to_original is None and num_output is None:
+        num_output = len(list_of_texts)
     # get rid of None in list input
     cleaned_text, mapping_from_cleaned_to_original = clean_list_of_texts(list_of_texts, mapping_from_input_to_original)
     length_of_input_texts = [len(text) for text in cleaned_text]
@@ -172,7 +174,7 @@ def embed_text_list(
                 text_list_split, login_info, model=model, sections=sections,
                 force=True, debug=debug, max_text_length=max_text_length,
                 max_tries=max_tries, max_processing_time_s=max_processing_time_s,
-                mapping_from_cleaned_to_original=None, num_output=len(text_list_split),
+                mapping_from_input_to_original=None, num_output=len(text_list_split),
                 max_text_list_length=max_text_list_length
             )
             embeddings.extend(embedding_list_split)
@@ -235,7 +237,7 @@ def embed_text_list(
             text_list_too_long, login_info, model=model, sections=sections,
             force=True, debug=debug, max_text_length=max_text_length,
             max_tries=max_tries, max_processing_time_s=max_processing_time_s,
-            mapping_from_cleaned_to_original=None, num_output=len(text_list_too_long),
+            mapping_from_input_to_original=None, num_output=len(text_list_too_long),
             max_text_list_length=max_text_list_length
         )
         result = [
@@ -259,7 +261,7 @@ def embed_text_list(
                 cleaned_text, login_info, model=model, sections=sections,
                 force=True, debug=debug, max_text_length=max_text_length,
                 max_tries=max_tries, max_processing_time_s=max_processing_time_s,
-                mapping_from_cleaned_to_original=mapping_from_cleaned_to_original, num_output=num_output,
+                mapping_from_input_to_original=mapping_from_cleaned_to_original, num_output=num_output,
                 max_text_list_length=max_text_list_length
             )
         else:
