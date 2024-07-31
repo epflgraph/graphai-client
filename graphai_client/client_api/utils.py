@@ -273,9 +273,11 @@ def clean_list_of_texts(
 
 
 def recombine_split_list_of_texts(
-        list_of_texts_split: List[Optional[str]], mapping_from_split_to_original: Dict[int, int],
+        list_of_texts_split: List[Optional[str]], mapping_from_split_to_original: Optional[Dict[int, int]],
         output_length: Optional[int] = None
 ) -> List[Optional[str]]:
+    if mapping_from_split_to_original is None:
+        mapping_from_split_to_original = {i: i for i in range(len(list_of_texts_split))}
     if output_length is None:
         output_length = max(mapping_from_split_to_original.values()) + 1
     recombined_list_of_texts: List[Optional[str]] = [None] * output_length
