@@ -1,6 +1,7 @@
 from json import loads, JSONDecodeError
 from typing import Optional, List, Dict, Union
 from numpy import array
+from numpy.linalg import norm
 from graphai_client.utils import status_msg
 from graphai_client.client_api.utils import (
     call_async_endpoint, split_text, get_next_text_length_for_split, limit_length_list_of_texts,
@@ -289,7 +290,10 @@ def recombine_embeddings(
             embedding *= weights[embedding_line]
         grouped_embeddings[original_line].insert(embedding_line, embedding)
     recombined_embeddings = [
-        array(group_of_embeddings_of_original_text).sum(axis=0).tolist()
+        array(group_of_embeddings_of_original_text).sum(axis=0)
         for group_of_embeddings_of_original_text in grouped_embeddings
     ]
-    return recombined_embeddings
+    recombined_embeddings_normalized = [
+        (embedding / norm(embedding)).tolist() for embedding in recombined_embeddings
+    ]
+    return recombined_embeddings_normalized
