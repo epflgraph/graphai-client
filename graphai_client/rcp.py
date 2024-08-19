@@ -1177,7 +1177,3 @@ def fingerprint_on_rcp(
                     f'Fingerprinting of slides and audio failed for video {video_id}',
                     color='red', sections=['KALTURA', 'FINGERPRINT', 'FAILED']
                 )
-
-
-if __name__ == '__main__':
-    get_downloadable_video_details('https://d2f1egay8yehza.cloudfront.net/EPFGROUN2018-V007700/EPFGROUN2018-V007700.m3u8')
