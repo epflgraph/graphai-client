@@ -1,6 +1,6 @@
 from time import sleep
 from termcolor import cprint
-from requests import get
+from requests import get, head
 from datetime import datetime, timedelta
 from string import Formatter
 from numpy import isnan, isinf
@@ -73,6 +73,11 @@ def get_video_link_and_size(video_url, retry=5, wait_retry=15):
             )
             sleep(wait_retry)
     return None, None
+
+
+def get_http_header(url):
+    response = head(url)
+    return dict(response.headers)
 
 
 def strfdelta(time_delta: timedelta, fmt='{H:02}:{M:02}:{S:02},{m:03}'):
@@ -728,6 +733,7 @@ def insert_keywords_and_concepts(
             pk + tuple(concept_scores[k] for k in key_concepts) for concept_scores in concepts_and_scores
         ]
         insert_data_into_table(
-            piper_connection, schemas_concepts, table_concepts, data_columns_concept, data_concepts_and_scores, retry=retry
+            piper_connection, schemas_concepts, table_concepts, data_columns_concept, data_concepts_and_scores,
+            retry=retry
         )
     piper_connection.commit()

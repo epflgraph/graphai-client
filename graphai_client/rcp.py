@@ -2,9 +2,10 @@ from datetime import timedelta, datetime
 from re import fullmatch
 from requests import Session
 from isodate import parse_duration
+from email.utils import parsedate_to_datetime
 from typing import List, Tuple, Optional
 from graphai_client.utils import (
-    status_msg, get_video_link_and_size, strfdelta, convert_subtitle_into_segments,
+    status_msg, get_video_link_and_size, get_http_header, strfdelta, convert_subtitle_into_segments,
     combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript,
     insert_data_into_table, update_data_into_table, execute_query, prepare_value_for_mysql,
     get_piper_connection, get_video_id_and_platform, get_google_resource, GoogleResource, insert_keywords_and_concepts
@@ -130,7 +131,10 @@ def process_video_on_rcp(
         )
         return None
     video_information = get_info_previous_video_processing(piper_connection, platform, video_id)
-    video_information.update(video_details)
+    for k, v in video_details.items():
+        if v is None and video_information[k] is not None:
+            pass
+        video_information[k] = v
     video_information['slides'] = None
     video_information['subtitles'] = None
     if analyze_slides:
@@ -293,11 +297,17 @@ def get_youtube_video_details(youtube_resource: GoogleResource, youtube_video_id
 def get_downloadable_video_details(url, alternate_urls=(), platform=None, video_id=None):
     for u in [url] + list(alternate_urls):
         video_url, video_size = get_video_link_and_size(u)
+        headers = get_http_header(u)
+        video_update_time = None
+        if headers:
+            video_update_time_str = headers.get('Last-Modified', None)
+            if video_update_time_str:
+                video_update_time = parsedate_to_datetime(video_update_time_str)
         if video_url is not None:
             return dict(
                 platform=platform, video_id=video_id, parent_video_id=None, url=video_url, thumbnail_url=None,
-                video_creation_time=None, video_update_time=None, title=None, description=None, owner=None,
-                creator=None,
+                video_creation_time=video_update_time, video_update_time=video_update_time,
+                title=None, description=None, owner=None, creator=None,
                 tags=None, ms_duration=None, video_size=video_size, start_date=None, end_date=None
             )
     return None
@@ -484,7 +494,8 @@ def register_processed_video(db, platform, video_id, video_info, sections=('VIDE
     insert_data_into_table(
         db, 'gen_video', 'Videos',
         [
-            'platform', 'videoId', 'parentVideoId', 'audioFingerprint', 'videoUrl', 'thumbnailUrl',
+            'platform', 'videoId', 'parentVideoId', 'videoToken',
+            'audioFingerprint', 'videoUrl', 'thumbnailUrl',
             'videoCreationTime', 'videoUpdateTime',
             'title', 'description', 'owner', 'creator',
             'tags', 'msDuration', 'octetSize',
@@ -494,8 +505,8 @@ def register_processed_video(db, platform, video_id, video_info, sections=('VIDE
             'slidesConceptExtractionTime', 'subtitlesConceptExtractionTime'
         ],
         [(
-            platform, video_id, video_info['parent_video_id'], video_info['audio_fingerprint'], video_info['url'],
-            video_info['thumbnail_url'],
+            platform, video_id, video_info['parent_video_id'], video_info['video_token'],
+            video_info['audio_fingerprint'], video_info['url'], video_info['thumbnail_url'],
             video_info['video_creation_time'], video_info['video_update_time'],
             video_info['title'], video_info['description'], video_info['owner'], video_info['creator'],
             video_info['tags'], video_info['ms_duration'], video_info['video_size'],
@@ -520,9 +531,11 @@ def get_info_previous_video_processing(db, platform, video_id):
     audio_fingerprint = None
     slides_concept_extract_time = None
     subtitles_concept_extract_time = None
+    video_token = None
     previous_analysis_info = execute_query(
         db, f'''SELECT 
             parentVideoId,
+            videoToken,
             slidesDetectedLanguage, 
             audioDetectedLanguage, 
             slidesDetectionTime, 
@@ -535,12 +548,12 @@ def get_info_previous_video_processing(db, platform, video_id):
     )
     if previous_analysis_info:
         (
-            parent_video_id, slides_detected_language, audio_detected_language, slides_detection_time,
-            audio_transcription_time, audio_fingerprint,
-            slides_concept_extract_time, subtitles_concept_extract_time
+            parent_video_id, video_token, slides_detected_language, audio_detected_language, slides_detection_time,
+            audio_transcription_time, audio_fingerprint, slides_concept_extract_time, subtitles_concept_extract_time
         ) = previous_analysis_info[-1]
     return dict(
         parent_video_id=parent_video_id,
+        video_token=video_token,
         slides_detected_language=slides_detected_language,
         audio_detected_language=audio_detected_language,
         slides_detection_time=slides_detection_time,
@@ -1164,3 +1177,7 @@ def fingerprint_on_rcp(
                     f'Fingerprinting of slides and audio failed for video {video_id}',
                     color='red', sections=['KALTURA', 'FINGERPRINT', 'FAILED']
                 )
+
+
+if __name__ == '__main__':
+    get_downloadable_video_details('https://d2f1egay8yehza.cloudfront.net/EPFGROUN2018-V007700/EPFGROUN2018-V007700.m3u8')
