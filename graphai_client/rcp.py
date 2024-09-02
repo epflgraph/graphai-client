@@ -721,7 +721,22 @@ def detect_concept_from_videos_on_rcp(
                             keywords_and_concepts=keywords_and_concepts,
                             schemas_keyword='gen_video', table_keywords='Subtitles',
                             pk_columns_keywords=('platform', 'videoId', 'segmentId'), schemas_concepts='gen_video',
-                            table_concepts='Subtitle_Concepts', pk_columns_concepts=('platform', 'videoId', 'segmentId')
+                            table_concepts='Subtitle_Concepts',
+                            pk_columns_concepts=('platform', 'videoId', 'segmentId'),
+                            key_concepts=(
+                                'concept_id', 'concept_name', 'search_score', 'levenshtein_score',
+                                'embedding_local_score', 'embedding_global_score', 'graph_score',
+                                'ontology_local_score', 'ontology_global_score',
+                                'embedding_keywords_score', 'graph_keywords_score', 'ontology_keywords_score',
+                                'mixed_score'
+                            ),
+                            columns_concept=(
+                                'PageId', 'PageTitle', 'SearchScore', 'LevenshteinScore',
+                                'EmbeddingLocalScore', 'EmbeddingGlobalScore', 'GraphScore',
+                                'OntologyLocalScore', 'OntologyGlobalScore',
+                                'EmbeddingKeywordsScore', 'GraphKeywordsScore', 'OntologyKeywordsScore',
+                                'MixedScore'
+                            )
                         )
                     now = str(datetime.now())
                     execute_query(
@@ -761,7 +776,21 @@ def detect_concept_from_videos_on_rcp(
                             keywords_and_concepts=keywords_and_concepts,
                             schemas_keyword='gen_video', table_keywords='Slides',
                             pk_columns_keywords=('platform', 'videoId', 'slideNumber'), schemas_concepts='gen_video',
-                            table_concepts='Slide_Concepts', pk_columns_concepts=('platform', 'videoId', 'slideNumber')
+                            table_concepts='Slide_Concepts', pk_columns_concepts=('platform', 'videoId', 'slideNumber'),
+                            key_concepts=(
+                                'concept_id', 'concept_name', 'search_score', 'levenshtein_score',
+                                'embedding_local_score', 'embedding_global_score', 'graph_score',
+                                'ontology_local_score', 'ontology_global_score',
+                                'embedding_keywords_score', 'graph_keywords_score', 'ontology_keywords_score',
+                                'mixed_score'
+                            ),
+                            columns_concept=(
+                                'PageId', 'PageTitle', 'SearchScore', 'LevenshteinScore',
+                                'EmbeddingLocalScore', 'EmbeddingGlobalScore', 'GraphScore',
+                                'OntologyLocalScore', 'OntologyGlobalScore',
+                                'EmbeddingKeywordsScore', 'GraphKeywordsScore', 'OntologyKeywordsScore',
+                                'MixedScore'
+                            )
                         )
                     now = str(datetime.now())
                     execute_query(
@@ -807,6 +836,20 @@ def detect_concept_from_publications_on_rcp(
                     schemas_keyword='gen_infoscience', table_keywords='Publications_tmp',
                     pk_columns_keywords=('PublicationID',), schemas_concepts='gen_infoscience',
                     table_concepts='Publication_to_Page_Mapping_tmp', pk_columns_concepts=('PublicationID',),
+                    key_concepts=(
+                        'concept_id', 'concept_name', 'search_score', 'levenshtein_score',
+                        'embedding_local_score', 'embedding_global_score', 'graph_score',
+                        'ontology_local_score', 'ontology_global_score',
+                        'embedding_keywords_score', 'graph_keywords_score', 'ontology_keywords_score',
+                        'mixed_score'
+                    ),
+                    columns_concept=(
+                        'PageId', 'PageTitle', 'SearchScore', 'LevenshteinScore',
+                        'EmbeddingLocalScore', 'EmbeddingGlobalScore', 'GraphScore',
+                        'OntologyLocalScore', 'OntologyGlobalScore',
+                        'EmbeddingKeywordsScore', 'GraphKeywordsScore', 'OntologyKeywordsScore',
+                        'MixedScore'
+                    )
                 )
 
 
@@ -850,7 +893,21 @@ def detect_concept_from_courses_on_rcp(
                     piper_connection, pk=(course_code, academic_year), keywords_and_concepts=keywords_and_concepts,
                     schemas_keyword='gen_studyplan', table_keywords='Courses_tmp',
                     pk_columns_keywords=('CourseCode', 'AcademicYear'), schemas_concepts='gen_studyplan',
-                    table_concepts='Course_to_Page_Mapping_tmp', pk_columns_concepts=('CourseCode', 'AcademicYear')
+                    table_concepts='Course_to_Page_Mapping_tmp', pk_columns_concepts=('CourseCode', 'AcademicYear'),
+                    key_concepts=(
+                        'concept_id', 'concept_name', 'search_score', 'levenshtein_score',
+                        'embedding_local_score', 'embedding_global_score', 'graph_score',
+                        'ontology_local_score', 'ontology_global_score',
+                        'embedding_keywords_score', 'graph_keywords_score', 'ontology_keywords_score',
+                        'mixed_score'
+                    ),
+                    columns_concept=(
+                        'PageId', 'PageTitle', 'SearchScore', 'LevenshteinScore',
+                        'EmbeddingLocalScore', 'EmbeddingGlobalScore', 'GraphScore',
+                        'OntologyLocalScore', 'OntologyGlobalScore',
+                        'EmbeddingKeywordsScore', 'GraphKeywordsScore', 'OntologyKeywordsScore',
+                        'MixedScore'
+                    )
                 )
 
 
@@ -879,7 +936,21 @@ def detect_concept_from_persons_on_rcp(
                     piper_connection, pk=(sciper,), keywords_and_concepts=keywords_and_concepts,
                     schemas_keyword='gen_people', table_keywords='Person_Simplified_Info_ISA_tmp',
                     pk_columns_keywords=('SCIPER',), schemas_concepts='gen_people',
-                    table_concepts='Person_to_Page_Mapping_tmp', pk_columns_concepts=('SCIPER',)
+                    table_concepts='Person_to_Page_Mapping_tmp', pk_columns_concepts=('SCIPER',),
+                    key_concepts=(
+                        'concept_id', 'concept_name', 'search_score', 'levenshtein_score',
+                        'embedding_local_score', 'embedding_global_score', 'graph_score',
+                        'ontology_local_score', 'ontology_global_score',
+                        'embedding_keywords_score', 'graph_keywords_score', 'ontology_keywords_score',
+                        'mixed_score'
+                    ),
+                    columns_concept=(
+                        'PageId', 'PageTitle', 'SearchScore', 'LevenshteinScore',
+                        'EmbeddingLocalScore', 'EmbeddingGlobalScore', 'GraphScore',
+                        'OntologyLocalScore', 'OntologyGlobalScore',
+                        'EmbeddingKeywordsScore', 'GraphKeywordsScore', 'OntologyKeywordsScore',
+                        'MixedScore'
+                    )
                 )
 
 
