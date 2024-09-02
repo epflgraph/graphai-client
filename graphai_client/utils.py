@@ -7,7 +7,7 @@ from numpy import isnan, isinf
 from re import compile, finditer, findall
 from typing import Union, List, Tuple, Optional
 from json import load as load_json
-from os.path import dirname, join
+from os.path import dirname, join, exists
 from mysql.connector import MySQLConnection, connect as mysql_connect
 from googleapiclient.discovery import build as google_service_build, Resource as GoogleResource
 
@@ -665,13 +665,26 @@ def get_video_id_and_platform(video_url):
     return video_id, video_host
 
 
-def get_google_resource(service_name='youtube', version='v3', google_api_json=None) -> GoogleResource:
+def get_google_api_credentials(service_name='youtube', google_api_json=None) -> dict:
     if google_api_json is None:
         import graphai_client
-        google_api_json = join(dirname(graphai_client.__file__), 'config', 'google-api.json')
+        path_config = join(dirname(graphai_client.__file__), 'config')
+        google_api_json = join(path_config, f'google-api-{service_name}.json')
+        if not exists(google_api_json):
+            google_api_json = join(path_config, 'google-api.json')
+        if not exists(google_api_json):
+            raise RuntimeError(
+                f'google_api_json is not set and no '
+                f'google-api.json nor google-api-{service_name}.json file found in {path_config}.'
+            )
     with open(google_api_json) as fp:
-        youtube_api_credentials = load_json(fp)
-    resource = google_service_build(service_name, version, **youtube_api_credentials)
+        api_credentials = load_json(fp)
+    return api_credentials
+
+
+def get_google_resource(service_name='youtube', version='v3', google_api_json=None) -> GoogleResource:
+    api_credentials = get_google_api_credentials(service_name, google_api_json)
+    resource = google_service_build(service_name, version, **api_credentials)
     return resource
 
 

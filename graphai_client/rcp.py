@@ -132,7 +132,7 @@ def process_video_on_rcp(
         return None
     video_information = get_info_previous_video_processing(piper_connection, platform, video_id)
     for k, v in video_details.items():
-        if v is None and video_information[k] is not None:
+        if v is None and video_information.get(k, None) is not None:
             pass
         video_information[k] = v
     video_information['slides'] = None
