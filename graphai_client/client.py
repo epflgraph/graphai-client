@@ -50,11 +50,12 @@ def process_video(
     video_token, video_size, streams = get_video_token(
         video_url, login_info, debug=debug, force=force or force_download, max_processing_time_s=max_download_time
     )
+    codec_types = [s['codec_type'] for s in streams]
     if video_token is None:
         return None
     slides = None
     if analyze_slides:
-        if 'video' in streams:
+        if 'video' in codec_types:
             slides_language, slides = process_slides(
                 video_token, login_info, force=force, slides_language=slides_language,
                 destination_languages=destination_languages, debug=debug
@@ -64,7 +65,7 @@ def process_video(
     segments = None
     audio_fingerprint = None
     if analyze_audio:
-        if 'audio' in streams:
+        if 'audio' in codec_types:
             audio_language, audio_fingerprint, segments = process_audio(
                 video_token, login_info, force=force, audio_language=audio_language,
                 destination_languages=destination_languages, debug=debug
@@ -72,7 +73,7 @@ def process_video(
         else:
             audio_language = 'NA'
     elif detect_audio_language:
-        if 'audio' in streams:
+        if 'audio' in codec_types:
             audio_language, audio_fingerprint, _ = process_audio(
                 video_token, login_info, force=force, audio_language=audio_language, only_detect_language=True,
                 debug=debug
@@ -87,7 +88,8 @@ def process_video(
         slides_language=slides_language,
         subtitles=segments,
         audio_language=audio_language,
-        audio_fingerprint=audio_fingerprint
+        audio_fingerprint=audio_fingerprint,
+        streams=streams
     )
 
 

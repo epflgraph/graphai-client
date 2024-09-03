@@ -125,8 +125,12 @@ def process_video_on_rcp(
         )
 
     if video_details is None:
+        if video_id is not None:
+            video_identifier_text = video_id
+        else:
+            video_identifier_text = f'at {video_url}'
         status_msg(
-            f'Details for the video {video_id} could not be found on {platform}',
+            f'Details for the video {video_identifier_text} could not be found.',
             color='red', sections=list(sections) + ['ERROR']
         )
         return None
@@ -180,6 +184,44 @@ def process_video_on_rcp(
         return None
     video_information['video_size'] = new_video_information['video_size']
     video_information['video_token'] = new_video_information['video_token']
+    try:
+        audio_stream_idx_largest_bitrate = max({
+            idx: stream['bit_rate']
+            for idx, stream in enumerate(new_video_information['streams']) if stream['codec_type'] == 'audio'
+        })
+        audio_stream = new_video_information['streams'][audio_stream_idx_largest_bitrate]
+        video_information['audio_bit_rate'] = audio_stream['bit_rate']
+        video_information['audio_codec_name'] = audio_stream['codec_name']
+        video_information['audio_duration'] = audio_stream['duration']
+        video_information['audio_sample_rate'] = audio_stream['sample_rate']
+    except ValueError:
+        video_information['audio_bit_rate'] = None
+        video_information['audio_codec_name'] = None
+        video_information['audio_duration'] = None
+        video_information['audio_sample_rate'] = None
+    try:
+        video_stream_idx_largest_bitrate = max({
+            idx: stream['bit_rate']
+            for idx, stream in enumerate(new_video_information['streams']) if stream['codec_type'] == 'video'
+        })
+        video_stream = new_video_information['streams'][video_stream_idx_largest_bitrate]
+        video_information['video_bit_rate'] = video_stream['bit_rate']
+        video_information['video_codec_name'] = video_stream['codec_name']
+        video_information['video_duration'] = video_stream['duration']
+        video_information['video_resolution'] = video_stream['resolution']
+    except ValueError:
+        video_information['video_bit_rate'] = None
+        video_information['video_codec_name'] = None
+        video_information['video_duration'] = None
+        video_information['video_resolution'] = None
+    if not video_information['ms_duration']:
+        if video_information['video_duration']:
+            video_information['ms_duration'] = int(float(video_information['video_duration']) * 1000)
+        if not video_information['ms_duration']:
+            video_information['ms_duration'] = int(float(video_information['audio_duration']) * 1000)
+        elif video_information['audio_duration']:
+            if video_information['video_duration'] < video_information['audio_duration']:
+                video_information['ms_duration'] = int(float(video_information['audio_duration']) * 1000)
     if analyze_audio:
         video_information['subtitles'] = new_video_information.get('subtitles', None)
     if analyze_audio or detect_audio_language:
@@ -499,6 +541,8 @@ def register_processed_video(db, platform, video_id, video_info, sections=('VIDE
             'videoCreationTime', 'videoUpdateTime',
             'title', 'description', 'owner', 'creator',
             'tags', 'msDuration', 'octetSize',
+            'audioBitRate', 'audioCodecName', 'audioDuration', 'audioSampleRate',
+            'videoBitRate', 'videoCodecName', 'videoDuration', 'videoResolution',
             'startDate', 'endDate',
             'slidesDetectedLanguage', 'audioDetectedLanguage',
             'slidesDetectionTime', 'audioTranscriptionTime',
@@ -510,6 +554,10 @@ def register_processed_video(db, platform, video_id, video_info, sections=('VIDE
             video_info['video_creation_time'], video_info['video_update_time'],
             video_info['title'], video_info['description'], video_info['owner'], video_info['creator'],
             video_info['tags'], video_info['ms_duration'], video_info['video_size'],
+            video_info['audio_bit_rate'], video_info['audio_codec_name'], video_info['audio_duration'],
+            video_info['audio_sample_rate'],
+            video_info['video_bit_rate'], video_info['video_codec_name'], video_info['video_duration'],
+            video_info['video_resolution'],
             video_info['start_date'], video_info['end_date'],
             video_info['slides_detected_language'], video_info['audio_detected_language'],
             video_info['slides_detection_time'], video_info['audio_transcription_time'],
@@ -1123,13 +1171,14 @@ def fingerprint_on_rcp(
             video_token, video_size, streams = get_video_token(
                 video_url, login_info, force=force_download, sections=('KALTURA', 'DOWNLOAD VIDEO')
             )
+            codec_types = [s['codec_type'] for s in streams]
             if not video_token:
                 status_msg(
                     f'Skipping video {video_id} as the download failed.',
                     color='red', sections=['KALTURA', 'FINGERPRINT', 'FAILED']
                 )
                 continue
-            if 'video' not in streams:
+            if 'video' not in codec_types:
                 status_msg(
                     f'Skipping slide fingerprinting for video {video_id} as it does not contains a video stream.',
                     color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
@@ -1195,7 +1244,7 @@ def fingerprint_on_rcp(
                     color='yellow', sections=['KALTURA', 'FINGERPRINT', 'SLIDES', 'WARNING']
                 )
             # extract audio fingerprint
-            if 'audio' not in streams:
+            if 'audio' not in codec_types:
                 status_msg(
                     f'Skipping audio fingerprinting for video {video_id} as it does not contains an audio stream.',
                     color='yellow', sections=['KALTURA', 'FINGERPRINT', 'AUDIO', 'WARNING']
