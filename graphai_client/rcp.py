@@ -1041,7 +1041,7 @@ def compute_embeddings_of_concepts_on_rcp(
         embedded_texts = embed_text(text_to_embed, login_info=login_info, max_text_length=max_text_length)
         assert len(embedded_texts) == len(page_id_of_embedded_text)
         data_embeddings = [
-            (dumps([round(e, 8) for e in embedding]), page_id)
+            (dumps([round(e, 10) for e in embedding]), page_id)
             for page_id, embedding in zip(page_id_of_embedded_text, embedded_texts)
         ]
         update_data_into_table(
