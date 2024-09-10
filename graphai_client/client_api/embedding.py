@@ -173,7 +173,7 @@ def embed_text_list(
             length_of_texts_to_embed.extend([len(text) for text in text_list_split])
             embedding_list_split = embed_text_list(
                 text_list_split, login_info, model=model, sections=sections,
-                force=True, debug=debug, max_text_length=max_text_length,
+                force=force, debug=debug, max_text_length=max_text_length,
                 max_tries=max_tries, max_processing_time_s=max_processing_time_s,
                 mapping_from_input_to_original=None, num_output=len(text_list_split),
                 max_text_list_length=max_text_list_length
@@ -236,7 +236,7 @@ def embed_text_list(
         ]
         embedding_texts_too_long = embed_text_list(
             text_list_too_long, login_info, model=model, sections=sections,
-            force=True, debug=debug, max_text_length=max_text_length,
+            force=force, debug=debug, max_text_length=max_text_length,
             max_tries=max_tries, max_processing_time_s=max_processing_time_s,
             mapping_from_input_to_original=None, num_output=len(text_list_too_long),
             max_text_list_length=max_text_list_length
