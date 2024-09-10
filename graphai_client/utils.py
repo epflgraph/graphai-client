@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from string import Formatter
 from numpy import isnan, isinf
 from re import compile, finditer, findall
-from typing import Union, List, Tuple, Optional
+from typing import Union, List, Tuple, Optional, Iterable
 from json import load as load_json
 from os.path import dirname, join, exists
 from mysql.connector import MySQLConnection, connect as mysql_connect
@@ -39,7 +39,7 @@ def status_msg(msg, color=None, sections=(), print_flag=True):
 
     :type color: str, None
     :param sections: list of strings representing the sections which will be displayed at the beginning of the message.
-    :type sections: list
+    :type sections: Iterable[str]
     :param print_flag: If False nothing is printed.
     :type print_flag: bool
     """

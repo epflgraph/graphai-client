@@ -1004,7 +1004,7 @@ def detect_concept_from_persons_on_rcp(
 
 
 def compute_embeddings_of_concepts_on_rcp(
-        page_ids: List[int], graph_api_json=None, login_info=None, piper_mysql_json_file=None, batch_size=1000,
+        page_ids: List[int], graph_api_json=None, login_info=None, piper_mysql_json_file=None, batch_size=10000,
         temp_tables=True, max_text_length=400
 ):
     if login_info is None or 'token' not in login_info:
@@ -1013,7 +1013,7 @@ def compute_embeddings_of_concepts_on_rcp(
     if num_pages > batch_size:
         for idx in range(0, num_pages, batch_size):
             compute_embeddings_of_concepts_on_rcp(
-                page_ids, graph_api_json=graph_api_json, login_info=login_info,
+                page_ids[idx:(idx+batch_size)], graph_api_json=graph_api_json, login_info=login_info,
                 piper_mysql_json_file=piper_mysql_json_file, batch_size=batch_size
             )
         return
@@ -1038,10 +1038,17 @@ def compute_embeddings_of_concepts_on_rcp(
         for page_id, opening_text in concepts_info:
             page_id_of_embedded_text.append(page_id)
             text_to_embed.append(opening_text)
+        status_msg(
+            f'embedding {len(page_id_of_embedded_text)} concepts...',
+            color='gray', sections=('GRAPHAI', 'EMBED CONCEPT', 'SUCCESS')
+        )
         embedded_texts = embed_text(text_to_embed, login_info=login_info, max_text_length=max_text_length)
         assert len(embedded_texts) == len(page_id_of_embedded_text)
         data_embeddings = [
-            (dumps([round(e, 10) for e in embedding]), page_id)
+            (
+                dumps([round(e, 10) for e in embedding]) if embedding else None,
+                page_id
+            )
             for page_id, embedding in zip(page_id_of_embedded_text, embedded_texts)
         ]
         update_data_into_table(

@@ -8,14 +8,14 @@ from graphai_client.client_api.utils import (
     limit_total_length_list_of_text, clean_list_of_texts
 )
 
-MIN_TEXT_LENGTH = 200
+MIN_TEXT_LENGTH = 150
 DEFAULT_MAX_TEXT_LENGTH_IF_TEXT_TOO_LONG = 600
 STEP_AUTO_DECREASE_TEXT_LENGTH = 100
 
 
 def embed_text(
         text: Union[str, List[str]], login_info, model: str = None, sections=('GRAPHAI', 'EMBED'), **kwargs
-) -> Optional[Union[List[float], List[List[float]]]]:
+) -> Union[None, List[float], List[List[float] | None]]:
     """
     Embed the input text using the provided model.
 
@@ -290,10 +290,10 @@ def recombine_embeddings(
             embedding *= weights[embedding_line]
         grouped_embeddings[original_line].insert(embedding_line, embedding)
     recombined_embeddings = [
-        array(group_of_embeddings_of_original_text).sum(axis=0)
+        array(group_of_embeddings_of_original_text).sum(axis=0) if group_of_embeddings_of_original_text else None
         for group_of_embeddings_of_original_text in grouped_embeddings
     ]
     recombined_embeddings_normalized = [
-        (embedding / norm(embedding)).tolist() for embedding in recombined_embeddings
+        (embedding / norm(embedding)).tolist() if embedding is not None else None for embedding in recombined_embeddings
     ]
     return recombined_embeddings_normalized
