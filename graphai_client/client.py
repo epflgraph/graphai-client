@@ -41,14 +41,8 @@ def process_video(
     """
     if login_info is None or 'token'not in login_info:
         login_info = login(graph_api_json)
-    _, platform = get_video_id_and_platform(video_url)
-    if platform in ('youtube', ):
-        max_download_time = 900
-    else:
-        _, octet_size = get_video_link_and_size(video_url)
-        max_download_time = max(int(octet_size/1048576), 900)  # 15 min or 1MB/s download
-    video_token, video_size, streams = get_video_token(
-        video_url, login_info, debug=debug, force=force or force_download, max_processing_time_s=max_download_time
+    video_token, video_size, streams = download_url(
+        video_url, login_info, force=force, force_download=force_download, debug=debug
     )
     codec_types = [s['codec_type'] for s in streams]
     if video_token is None:
@@ -233,6 +227,36 @@ def process_audio(
         else:
             audio_language = None
     return audio_language, audio_fingerprint, segments
+
+
+def download_url(video_url, login_info, force=False, force_download=False, debug=False):
+    _, platform = get_video_id_and_platform(video_url)
+    if platform in ('youtube', ):
+        max_download_time = 900
+    else:
+        _, octet_size = get_video_link_and_size(video_url)
+        max_download_time = max(int(octet_size/1048576), 900)  # 15 min or 1MB/s download
+    video_token, video_size, streams = get_video_token(
+        video_url, login_info, debug=debug, force=force or force_download, max_processing_time_s=max_download_time
+    )
+    return video_token, video_size, streams
+
+
+def get_audio_fingerprint_of_video(
+        video_url, login_info, force=False, force_download=False, debug=False
+):
+    video_token, video_size, streams = download_url(
+        video_url, login_info, force=force, force_download=force_download, debug=debug
+    )
+    codec_types = [s['codec_type'] for s in streams]
+    if video_token is None:
+        return None
+    audio_fingerprint = None
+    if 'audio' in codec_types:
+        audio_token = extract_audio(video_token, login_info, force=force, debug=debug)
+        if audio_token is not None:
+            audio_fingerprint = calculate_audio_fingerprint(audio_token, login_info, force=force, debug=debug)
+    return audio_fingerprint
 
 
 def extract_text_from_slides(
