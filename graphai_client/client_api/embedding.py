@@ -15,7 +15,7 @@ STEP_AUTO_DECREASE_TEXT_LENGTH = 100
 
 def embed_text(
         text: Union[str, List[str]], login_info, model: str = None, sections=('GRAPHAI', 'EMBED'), **kwargs
-) -> Union[None, List[float], List[List[float] | None]]:
+) -> Optional[Union[Optional[List[float]], List[Optional[List[float]]]]]:
     """
     Embed the input text using the provided model.
 
