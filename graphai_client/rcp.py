@@ -159,6 +159,12 @@ def process_video_on_rcp(
                     if video_size == previous_processing_info['video_size']:
                         flavor_previously_analyzed = flavor
                         previous_processing_info['url'] = url_verified
+                        video_size_mb = video_size/1024/1024
+                        status_msg(
+                            f'flavor {flavor} of video {video_id} on {platform} has the same size ({video_size_mb}MB) '
+                            f'as in the last processing, so we skip the re-processing...',
+                            color='grey', sections=list(sections) + ['PROCESSING']
+                        )
                         break
                 if flavor_previously_analyzed is None:
                     skip_analysis = False
@@ -186,11 +192,6 @@ def process_video_on_rcp(
                             previous_processing_info['audio_fingerprint'] = audio_fingerprint
             if skip_analysis:
                 video_duration_s = round(video_details["ms_duration"] / 1000)
-                status_msg(
-                    f'video {video_id} on {platform} has the same duration ({video_duration_s}s) '
-                    f'as in the last processing, so we skip the re-processing...',
-                    color='grey', sections=list(sections) + ['PROCESSING']
-                )
                 # platform, id and duration  are matching, we skip the reprocessing.
                 if previous_processing_info['slides_detection_time']:
                     previous_processing_info['slides_detection_time'] = datetime.now()
@@ -203,7 +204,8 @@ def process_video_on_rcp(
                 register_processed_video(piper_connection, platform, video_id, previous_processing_info)
                 piper_connection.commit()
                 status_msg(
-                    f'video {video_id} on {platform} did not change duration so we skipped re-processing.',
+                    f'video {video_id} on {platform} did not change duration ({video_duration_s}s) '
+                    f'so we skipped re-processing.',
                     color='yellow', sections=list(sections) + ['SUCCESS']
                 )
                 return None
@@ -642,7 +644,7 @@ def get_info_previous_video_processing(db, platform, video_id, video_url):
     video_duration = None
     video_resolution = None
     if platform is not None:
-        condition = f'platform="{platform}" AND "'
+        condition = f'platform="{platform}" AND '
     else:
         condition = f'platform="other" AND '
     if video_id is not None:
