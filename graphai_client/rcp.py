@@ -136,9 +136,6 @@ def process_video_on_rcp(
         )
         return None
     previous_processing_info = get_info_previous_video_processing(piper_connection, platform, video_id, video_url)
-    for k, v in video_details.items():
-        if previous_processing_info.get(k, None) is None:
-            previous_processing_info[k] = v
     if platform is not None and video_id is not None:
         if (
             previous_processing_info['ms_duration'] is not None
@@ -161,7 +158,7 @@ def process_video_on_rcp(
                         previous_processing_info['url'] = url_verified
                         video_size_mb = video_size/1024/1024
                         status_msg(
-                            f'flavor {flavor} of video {video_id} on {platform} has the same size ({video_size_mb}MB) '
+                            f'flavor {flavor} of video {video_id} on mediaspace has the same size ({video_size_mb}MB) '
                             f'as in the last processing, so we skip the re-processing...',
                             color='grey', sections=list(sections) + ['PROCESSING']
                         )
@@ -209,9 +206,10 @@ def process_video_on_rcp(
                     color='yellow', sections=list(sections) + ['SUCCESS']
                 )
                 return None
-        video_information = previous_processing_info.copy()
-    else:
-        video_information = previous_processing_info.copy()
+    for k, v in video_details.items():
+        if previous_processing_info.get(k, None) is None:
+            previous_processing_info[k] = v
+    video_information = previous_processing_info.copy()
     video_information['slides'] = None
     video_information['subtitles'] = None
     if analyze_slides:
