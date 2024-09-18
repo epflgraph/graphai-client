@@ -135,11 +135,11 @@ def process_video_on_rcp(
             color='red', sections=list(sections) + ['ERROR']
         )
         return None
+    previous_processing_info = get_info_previous_video_processing(piper_connection, platform, video_id, video_url)
+    for k, v in video_details.items():
+        if previous_processing_info.get(k, None) is None:
+            previous_processing_info[k] = v
     if platform is not None and video_id is not None:
-        previous_processing_info = get_info_previous_video_processing(piper_connection, platform, video_id)
-        for k, v in video_details.items():
-            if previous_processing_info.get(k, None) is None:
-                previous_processing_info[k] = v
         if (
             previous_processing_info['ms_duration'] is not None
             and abs(previous_processing_info['ms_duration'] - video_details['ms_duration']) < 2000
@@ -209,7 +209,7 @@ def process_video_on_rcp(
                 return None
         video_information = previous_processing_info.copy()
     else:
-        video_information = video_details.copy()
+        video_information = previous_processing_info.copy()
     video_information['slides'] = None
     video_information['subtitles'] = None
     if analyze_slides:
@@ -612,8 +612,16 @@ def register_processed_video(db, platform, video_id, video_info, sections=('VIDE
     )
 
 
-def get_info_previous_video_processing(db, platform, video_id):
-    # get details about the previous analysis if it exists
+def get_info_previous_video_processing(db, platform, video_id, video_url):
+    """
+    Get details about the previous analysis if it exists (video url is only used if video_id is None)
+
+    :param db:
+    :param platform:
+    :param video_id:
+    :param video_url:
+    :return:
+    """
     parent_video_id = None
     slides_detected_language = None
     audio_detected_language = None
@@ -633,8 +641,16 @@ def get_info_previous_video_processing(db, platform, video_id):
     video_codec_name = None
     video_duration = None
     video_resolution = None
-    previous_analysis_info = execute_query(
-        db, f'''SELECT 
+    if platform is not None:
+        condition = f'platform="{platform}" AND "'
+    else:
+        condition = f'platform="other" AND '
+    if video_id is not None:
+        condition += f'videoId="{video_id}"'
+    else:
+        condition += f'videoUrl="{video_url}"'
+    query = f'''SELECT
+            videoId,
             parentVideoId,
             videoToken,
             slidesDetectedLanguage, 
@@ -654,17 +670,17 @@ def get_info_previous_video_processing(db, platform, video_id):
             videoCodecName,
             videoDuration,
             videoResolution	
-        FROM `gen_video`.`Videos` 
-        WHERE platform="{platform}" AND videoId="{video_id}"'''
-    )
+        FROM `gen_video`.`Videos` WHERE {condition};'''
+    previous_analysis_info = execute_query(db, query)
     if previous_analysis_info:
         (
-            parent_video_id, video_token, slides_detected_language, audio_detected_language, slides_detection_time,
+            video_id, parent_video_id, video_token, slides_detected_language, audio_detected_language, slides_detection_time,
             audio_transcription_time, audio_fingerprint, slides_concept_extract_time, subtitles_concept_extract_time,
             ms_duration, video_size, audio_bit_rate, audio_codec_name, audio_duration, audio_sample_rate,
             video_bit_rate, video_codec_name, video_duration, video_resolution
         ) = previous_analysis_info[-1]
     return dict(
+        video_id=video_id,
         parent_video_id=parent_video_id,
         video_token=video_token,
         slides_detected_language=slides_detected_language,
