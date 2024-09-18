@@ -259,6 +259,41 @@ def get_audio_fingerprint_of_video(
     return audio_fingerprint
 
 
+def get_video_information_from_streams(streams):
+    video_information = {}
+    try:
+        audio_stream_idx_largest_bitrate = max({
+            idx: stream['bit_rate']
+            for idx, stream in enumerate(streams) if stream['codec_type'] == 'audio'
+        })
+        audio_stream = streams[audio_stream_idx_largest_bitrate]
+        video_information['audio_bit_rate'] = audio_stream['bit_rate']
+        video_information['audio_codec_name'] = audio_stream['codec_name']
+        video_information['audio_duration'] = audio_stream['duration']
+        video_information['audio_sample_rate'] = audio_stream['sample_rate']
+    except ValueError:
+        video_information['audio_bit_rate'] = None
+        video_information['audio_codec_name'] = None
+        video_information['audio_duration'] = None
+        video_information['audio_sample_rate'] = None
+    try:
+        video_stream_idx_largest_bitrate = max({
+            idx: stream['bit_rate']
+            for idx, stream in enumerate(streams) if stream['codec_type'] == 'video'
+        })
+        video_stream = streams[video_stream_idx_largest_bitrate]
+        video_information['video_bit_rate'] = video_stream['bit_rate']
+        video_information['video_codec_name'] = video_stream['codec_name']
+        video_information['video_duration'] = video_stream['duration']
+        video_information['video_resolution'] = video_stream['resolution']
+    except ValueError:
+        video_information['video_bit_rate'] = None
+        video_information['video_codec_name'] = None
+        video_information['video_duration'] = None
+        video_information['video_resolution'] = None
+    return video_information
+
+
 def extract_text_from_slides(
         slide_tokens: dict, login_info: dict, force=False, slides_language=None, debug=False, quiet=False
 ):

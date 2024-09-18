@@ -9,10 +9,11 @@ from graphai_client.utils import (
     status_msg, get_video_link_and_size, get_http_header, strfdelta, convert_subtitle_into_segments,
     combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript,
     insert_data_into_table, update_data_into_table, execute_query, prepare_value_for_mysql,
-    get_piper_connection, get_video_id_and_platform, get_google_resource, GoogleResource, insert_keywords_and_concepts
+    get_piper_connection, get_video_id_and_platform, get_google_resource, GoogleResource, insert_keywords_and_concepts,
 )
 from graphai_client.client import (
-    process_video, translate_extracted_text, translate_subtitles, get_fingerprint_of_slides
+    process_video, translate_extracted_text, translate_subtitles, get_fingerprint_of_slides,
+    get_audio_fingerprint_of_video, download_url, get_video_information_from_streams
 )
 from graphai_client.client_api.utils import login
 from graphai_client.client_api.text import clean_text_translate_extract_keywords_and_concepts
@@ -105,14 +106,14 @@ def process_video_on_rcp(
         platform: Optional[str] = None, video_id: Optional[str] = None, video_url=None,
         switchtube_video_id=None, switch_channel=None,
         analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'),
-        force=False, debug=False, force_download=False, sections=('VIDEO', 'PROCESSING')
+        force=False, debug=False, force_download=False, sections=('GRAPHAI', 'VIDEO PROCESSING')
 ):
     video_details = None
-    if platform is None or video_id is None:
+    if platform is None or platform == 'other' or video_id is None:
         if video_url is None:
             ValueError(f'either both platform and video_id or video_url must be given as argument.')
         video_details = get_downloadable_video_details(
-            video_url, [], platform, video_id
+            video_url, [], 'other', video_id
         )
     elif platform == 'mediaspace':
         video_details = get_kaltura_video_details(piper_connection, video_id)
@@ -124,7 +125,6 @@ def process_video_on_rcp(
         video_details = get_downloadable_video_details(
             f'https://tube.switch.ch/external/{video_id}', [], 'switchtube (external)', video_id
         )
-
     if video_details is None:
         if video_id is not None:
             video_identifier_text = video_id
@@ -135,11 +135,81 @@ def process_video_on_rcp(
             color='red', sections=list(sections) + ['ERROR']
         )
         return None
-    video_information = get_info_previous_video_processing(piper_connection, platform, video_id)
-    for k, v in video_details.items():
-        if v is None and video_information.get(k, None) is not None:
-            pass
-        video_information[k] = v
+    if platform is not None and video_id is not None:
+        previous_processing_info = get_info_previous_video_processing(piper_connection, platform, video_id)
+        for k, v in video_details.items():
+            if previous_processing_info.get(k, None) is None:
+                previous_processing_info[k] = v
+        if (
+            previous_processing_info['ms_duration'] is not None
+            and abs(previous_processing_info['ms_duration'] - video_details['ms_duration']) < 2000
+        ):
+            skip_analysis = True
+            # we try to identify the flavor previously analyzed if the platform is mediaspace
+            if platform == 'mediaspace' and previous_processing_info['video_size'] is not None:
+                flavors_info = execute_query(
+                    piper_connection, f'''
+                        SELECT flavorParams, downloadUrl
+                        FROM ca_kaltura.Video_Flavors WHERE kalturaVideoId="{video_id}";
+                    '''
+                )
+                flavor_previously_analyzed = None
+                for flavor, url in flavors_info:
+                    url_verified, video_size = get_video_link_and_size(url)
+                    if video_size == previous_processing_info['video_size']:
+                        flavor_previously_analyzed = flavor
+                        previous_processing_info['url'] = url_verified
+                        break
+                if flavor_previously_analyzed is None:
+                    skip_analysis = False
+                else:
+                    download_again = False
+                    for key_to_check in (
+                            'video_token', 'audio_bit_rate', 'audio_codec_name', 'audio_duration', 'audio_sample_rate',
+                            'video_bit_rate', 'video_codec_name', 'video_duration', 'video_resolution'
+                    ):
+                        if previous_processing_info[key_to_check] is None:
+                            download_again = True
+                            break
+                    if download_again:
+                        video_token, video_size, streams = download_url(
+                            video_url, login_info, force=force, force_download=force_download, debug=debug
+                        )
+                        previous_processing_info['video_token'] = video_token
+                        previous_processing_info.update(get_video_information_from_streams(streams))
+                        if previous_processing_info['audio_fingerprint'] is None and \
+                                previous_processing_info['audio_codec_name'] is not None:
+                            audio_fingerprint = get_audio_fingerprint_of_video(
+                                previous_processing_info['url'], login_info=login_info, force=force,
+                                force_download=force_download, debug=debug
+                            )
+                            previous_processing_info['audio_fingerprint'] = audio_fingerprint
+            if skip_analysis:
+                video_duration_s = round(video_details["ms_duration"] / 1000)
+                status_msg(
+                    f'video {video_id} on {platform} has the same duration ({video_duration_s}s) '
+                    f'as in the last processing, so we skip the re-processing...',
+                    color='grey', sections=list(sections) + ['PROCESSING']
+                )
+                # platform, id and duration  are matching, we skip the reprocessing.
+                if previous_processing_info['slides_detection_time']:
+                    previous_processing_info['slides_detection_time'] = datetime.now()
+                if previous_processing_info['audio_transcription_time']:
+                    previous_processing_info['audio_transcription_time'] = datetime.now()
+                if previous_processing_info['slides_concept_extract_time']:
+                    previous_processing_info['slides_concept_extract_time'] = datetime.now()
+                if previous_processing_info['subtitles_concept_extract_time']:
+                    previous_processing_info['subtitles_concept_extract_time'] = datetime.now()
+                register_processed_video(piper_connection, platform, video_id, previous_processing_info)
+                piper_connection.commit()
+                status_msg(
+                    f'video {video_id} on {platform} did not change duration so we skipped re-processing.',
+                    color='yellow', sections=list(sections) + ['SUCCESS']
+                )
+                return None
+        video_information = previous_processing_info.copy()
+    else:
+        video_information = video_details.copy()
     video_information['slides'] = None
     video_information['subtitles'] = None
     if analyze_slides:
@@ -185,36 +255,8 @@ def process_video_on_rcp(
         return None
     video_information['video_size'] = new_video_information['video_size']
     video_information['video_token'] = new_video_information['video_token']
-    try:
-        audio_stream_idx_largest_bitrate = max({
-            idx: stream['bit_rate']
-            for idx, stream in enumerate(new_video_information['streams']) if stream['codec_type'] == 'audio'
-        })
-        audio_stream = new_video_information['streams'][audio_stream_idx_largest_bitrate]
-        video_information['audio_bit_rate'] = audio_stream['bit_rate']
-        video_information['audio_codec_name'] = audio_stream['codec_name']
-        video_information['audio_duration'] = audio_stream['duration']
-        video_information['audio_sample_rate'] = audio_stream['sample_rate']
-    except ValueError:
-        video_information['audio_bit_rate'] = None
-        video_information['audio_codec_name'] = None
-        video_information['audio_duration'] = None
-        video_information['audio_sample_rate'] = None
-    try:
-        video_stream_idx_largest_bitrate = max({
-            idx: stream['bit_rate']
-            for idx, stream in enumerate(new_video_information['streams']) if stream['codec_type'] == 'video'
-        })
-        video_stream = new_video_information['streams'][video_stream_idx_largest_bitrate]
-        video_information['video_bit_rate'] = video_stream['bit_rate']
-        video_information['video_codec_name'] = video_stream['codec_name']
-        video_information['video_duration'] = video_stream['duration']
-        video_information['video_resolution'] = video_stream['resolution']
-    except ValueError:
-        video_information['video_bit_rate'] = None
-        video_information['video_codec_name'] = None
-        video_information['video_duration'] = None
-        video_information['video_resolution'] = None
+    new_video_information_from_streams = get_video_information_from_streams(new_video_information['streams'])
+    video_information.update(new_video_information_from_streams)
     if not video_information['ms_duration']:
         if video_information['video_duration']:
             video_information['ms_duration'] = int(float(video_information['video_duration']) * 1000)
@@ -581,6 +623,16 @@ def get_info_previous_video_processing(db, platform, video_id):
     slides_concept_extract_time = None
     subtitles_concept_extract_time = None
     video_token = None
+    ms_duration = None
+    video_size = None
+    audio_bit_rate = None
+    audio_codec_name = None
+    audio_duration = None
+    audio_sample_rate = None
+    video_bit_rate = None
+    video_codec_name = None
+    video_duration = None
+    video_resolution = None
     previous_analysis_info = execute_query(
         db, f'''SELECT 
             parentVideoId,
@@ -591,14 +643,26 @@ def get_info_previous_video_processing(db, platform, video_id):
             audioTranscriptionTime,
             audioFingerprint,
             slidesConceptExtractionTime,
-            subtitlesConceptExtractionTime
+            subtitlesConceptExtractionTime,
+            msDuration,
+            octetSize,
+            audioBitRate,
+            audioCodecName,
+            audioDuration,
+            audioSampleRate,
+            videoBitRate,
+            videoCodecName,
+            videoDuration,
+            videoResolution	
         FROM `gen_video`.`Videos` 
         WHERE platform="{platform}" AND videoId="{video_id}"'''
     )
     if previous_analysis_info:
         (
             parent_video_id, video_token, slides_detected_language, audio_detected_language, slides_detection_time,
-            audio_transcription_time, audio_fingerprint, slides_concept_extract_time, subtitles_concept_extract_time
+            audio_transcription_time, audio_fingerprint, slides_concept_extract_time, subtitles_concept_extract_time,
+            ms_duration, video_size, audio_bit_rate, audio_codec_name, audio_duration, audio_sample_rate,
+            video_bit_rate, video_codec_name, video_duration, video_resolution
         ) = previous_analysis_info[-1]
     return dict(
         parent_video_id=parent_video_id,
@@ -610,6 +674,16 @@ def get_info_previous_video_processing(db, platform, video_id):
         audio_fingerprint=audio_fingerprint,
         slides_concept_extract_time=slides_concept_extract_time,
         subtitles_concept_extract_time=subtitles_concept_extract_time,
+        ms_duration=ms_duration,
+        video_size=video_size,
+        audio_bit_rate=audio_bit_rate,
+        audio_codec_name=audio_codec_name,
+        audio_duration=audio_duration,
+        audio_sample_rate=audio_sample_rate,
+        video_bit_rate=video_bit_rate,
+        video_codec_name=video_codec_name,
+        video_duration=video_duration,
+        video_resolution=video_resolution
     )
 
 
