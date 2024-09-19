@@ -163,9 +163,7 @@ def process_video_on_rcp(
                             color='grey', sections=list(sections) + ['PROCESSING']
                         )
                         break
-                if flavor_previously_analyzed is None:
-                    skip_analysis = False
-                else:
+                if flavor_previously_analyzed is not None:
                     download_again = False
                     for key_to_check in (
                             'video_token', 'audio_bit_rate', 'audio_codec_name', 'audio_duration', 'audio_sample_rate',
@@ -175,6 +173,10 @@ def process_video_on_rcp(
                             download_again = True
                             break
                     if download_again:
+                        status_msg(
+                            f'Information about the audio or/and video tracks are missing, collecting them...',
+                            color='grey', sections=list(sections) + ['PROCESSING']
+                        )
                         video_token, video_size, streams = download_url(
                             video_url, login_info, force=force, force_download=force_download, debug=debug
                         )
@@ -187,6 +189,8 @@ def process_video_on_rcp(
                                 force_download=force_download, debug=debug
                             )
                             previous_processing_info['audio_fingerprint'] = audio_fingerprint
+                else:
+                    skip_analysis = False
             if skip_analysis:
                 video_duration_s = round(video_details["ms_duration"] / 1000)
                 # platform, id and duration  are matching, we skip the reprocessing.
@@ -622,25 +626,14 @@ def get_info_previous_video_processing(db, platform, video_id, video_url):
     :param video_url:
     :return:
     """
-    parent_video_id = None
-    slides_detected_language = None
-    audio_detected_language = None
-    slides_detection_time = None
-    audio_transcription_time = None
-    audio_fingerprint = None
-    slides_concept_extract_time = None
-    subtitles_concept_extract_time = None
-    video_token = None
-    ms_duration = None
-    video_size = None
-    audio_bit_rate = None
-    audio_codec_name = None
-    audio_duration = None
-    audio_sample_rate = None
-    video_bit_rate = None
-    video_codec_name = None
-    video_duration = None
-    video_resolution = None
+    (
+        previous_platform, previous_video_id, parent_video_id, video_token, audio_fingerprint,
+        previous_url, thumbnail_url, video_creation_time, video_update_time, title, description, owner, creator,
+        tags, ms_duration, video_size, audio_bit_rate, audio_codec_name, audio_duration, audio_sample_rate,
+        video_bit_rate, video_codec_name, video_duration, video_resolution, start_date, end_date,
+        slides_detected_language, audio_detected_language, slides_detection_time,
+        audio_transcription_time, slides_concept_extract_time, subtitles_concept_extract_time
+    ) = (None, ) * 32
     if platform is not None:
         condition = f'platform="{platform}" AND '
     else:
@@ -650,16 +643,20 @@ def get_info_previous_video_processing(db, platform, video_id, video_url):
     else:
         condition += f'videoUrl="{video_url}"'
     query = f'''SELECT
+            platform,
             videoId,
             parentVideoId,
             videoToken,
-            slidesDetectedLanguage, 
-            audioDetectedLanguage, 
-            slidesDetectionTime, 
-            audioTranscriptionTime,
             audioFingerprint,
-            slidesConceptExtractionTime,
-            subtitlesConceptExtractionTime,
+            videoUrl,
+            thumbnailUrl,
+            videoCreationTime,
+            videoUpdateTime,
+            title,
+            description,
+            owner, 
+            creator,
+            tags, 
             msDuration,
             octetSize,
             audioBitRate,
@@ -669,37 +666,44 @@ def get_info_previous_video_processing(db, platform, video_id, video_url):
             videoBitRate,
             videoCodecName,
             videoDuration,
-            videoResolution	
+            videoResolution,
+            startDate,
+            endDate,
+            slidesDetectedLanguage, 
+            audioDetectedLanguage, 
+            slidesDetectionTime, 
+            audioTranscriptionTime,
+            slidesConceptExtractionTime,
+            subtitlesConceptExtractionTime
         FROM `gen_video`.`Videos` WHERE {condition};'''
     previous_analysis_info = execute_query(db, query)
     if previous_analysis_info:
         (
-            video_id, parent_video_id, video_token, slides_detected_language, audio_detected_language, slides_detection_time,
-            audio_transcription_time, audio_fingerprint, slides_concept_extract_time, subtitles_concept_extract_time,
-            ms_duration, video_size, audio_bit_rate, audio_codec_name, audio_duration, audio_sample_rate,
-            video_bit_rate, video_codec_name, video_duration, video_resolution
+            previous_platform, previous_video_id, parent_video_id, video_token, audio_fingerprint,
+            previous_url, thumbnail_url, video_creation_time, video_update_time, title, description, owner, creator,
+            tags, ms_duration, video_size, audio_bit_rate, audio_codec_name, audio_duration, audio_sample_rate,
+            video_bit_rate, video_codec_name, video_duration, video_resolution, start_date, end_date,
+            slides_detected_language, audio_detected_language, slides_detection_time,
+            audio_transcription_time, slides_concept_extract_time, subtitles_concept_extract_time
         ) = previous_analysis_info[-1]
+    if previous_platform is None:
+        previous_platform = platform
+    if previous_video_id is None:
+        previous_video_id = video_id
+    if previous_url is None:
+        previous_url = video_url
     return dict(
-        video_id=video_id,
-        parent_video_id=parent_video_id,
-        video_token=video_token,
-        slides_detected_language=slides_detected_language,
-        audio_detected_language=audio_detected_language,
-        slides_detection_time=slides_detection_time,
-        audio_transcription_time=audio_transcription_time,
-        audio_fingerprint=audio_fingerprint,
-        slides_concept_extract_time=slides_concept_extract_time,
-        subtitles_concept_extract_time=subtitles_concept_extract_time,
-        ms_duration=ms_duration,
-        video_size=video_size,
-        audio_bit_rate=audio_bit_rate,
-        audio_codec_name=audio_codec_name,
-        audio_duration=audio_duration,
-        audio_sample_rate=audio_sample_rate,
-        video_bit_rate=video_bit_rate,
-        video_codec_name=video_codec_name,
-        video_duration=video_duration,
-        video_resolution=video_resolution
+        platform=previous_platform, video_id=previous_video_id, parent_video_id=parent_video_id,
+        video_token=video_token, audio_fingerprint=audio_fingerprint, url=previous_url, thumbnail_url=thumbnail_url,
+        video_creation_time=video_creation_time, video_update_time=video_update_time, title=title,
+        description=description, owner=owner, creator=creator, tags=tags, ms_duration=ms_duration,
+        video_size=video_size, audio_bit_rate=audio_bit_rate, audio_codec_name=audio_codec_name,
+        audio_duration=audio_duration, audio_sample_rate=audio_sample_rate, video_bit_rate=video_bit_rate,
+        video_codec_name=video_codec_name, video_duration=video_duration, video_resolution=video_resolution,
+        start_date=start_date, end_date=end_date, slides_detected_language=slides_detected_language,
+        audio_detected_language=audio_detected_language, slides_detection_time=slides_detection_time,
+        audio_transcription_time=audio_transcription_time, slides_concept_extract_time=slides_concept_extract_time,
+        subtitles_concept_extract_time=subtitles_concept_extract_time
     )
 
 
