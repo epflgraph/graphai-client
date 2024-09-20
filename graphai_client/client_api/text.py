@@ -181,7 +181,16 @@ def clean_text_translate_extract_keywords_and_concepts(
         text_cleaned, login_info, sections=sections + ['KEYWORDS EXTRACTION'], max_tries=max_tries,
         delay_retry=delay_retry, session=session
     )
-    if keywords is None:
+    if not keywords:
+        status_msg(
+            'Got no keyword with default method. trying nltk...',
+            color='yellow', sections=sections + ['KEYWORDS EXTRACTION', 'WARNING']
+        )
+        keywords = extract_keywords_from_text(
+            text_cleaned, login_info, sections=sections + ['KEYWORDS EXTRACTION'], max_tries=max_tries,
+            delay_retry=delay_retry, session=session, use_nltk=True
+        )
+    if not keywords:
         msg = 'Error extracting keywords from text="' + text_cleaned + '".'
         status_msg(msg, color='yellow', sections=sections + ['KEYWORDS EXTRACTION', 'ERROR'])
         return None
@@ -192,7 +201,7 @@ def clean_text_translate_extract_keywords_and_concepts(
         filtering_min_votes=filtering_min_votes, refresh_scores=refresh_scores,
         sections=sections, max_tries=max_tries, delay_retry=delay_retry, session=session
     )
-    if concepts_and_scores is None:
+    if not concepts_and_scores:
         msg = 'Error extracting concepts from keywords ' + ', '.join([f'"{w}"' for w in keywords]) + \
               ' while text was: "' + text_cleaned + '".'
         status_msg(msg, color='yellow', sections=sections + ['ERROR'])
