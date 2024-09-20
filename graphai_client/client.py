@@ -44,9 +44,9 @@ def process_video(
     video_token, video_size, streams = download_url(
         video_url, login_info, force=force, force_download=force_download, debug=debug
     )
-    codec_types = [s['codec_type'] for s in streams]
     if video_token is None:
         return None
+    codec_types = [s['codec_type'] for s in streams]
     slides = None
     if analyze_slides:
         if 'video' in codec_types:
