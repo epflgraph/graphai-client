@@ -171,14 +171,25 @@ def embed_text_list(
                 cleaned_text, max_text_list_length, mapping_from_cleaned_to_original
         ):
             length_of_texts_to_embed.extend([len(text) for text in text_list_split])
-            embedding_list_split = embed_text_list(
-                text_list_split, login_info, model=model, sections=sections,
-                force=force, debug=debug, max_text_length=max_text_length,
-                max_tries=max_tries, max_processing_time_s=max_processing_time_s,
-                mapping_from_input_to_original=None, num_output=len(text_list_split),
-                max_text_list_length=max_text_list_length
-            )
-            embeddings.extend(embedding_list_split)
+            if len(text_list_split) == 1:
+                embedding_list_elem = embed_text_str(
+                    text_list_split[0], login_info, model=model, sections=sections,
+                    force=force, debug=debug, max_text_length=max_text_length,
+                    max_tries=max_tries, max_processing_time_s=max_processing_time_s,
+                    max_text_list_length=max_text_list_length
+                )
+                embeddings.append(embedding_list_elem)
+            else:
+                embedding_list_split = embed_text_list(
+                    text_list_split, login_info, model=model, sections=sections,
+                    force=force, debug=debug, max_text_length=max_text_length,
+                    max_tries=max_tries, max_processing_time_s=max_processing_time_s,
+                    mapping_from_input_to_original=None, num_output=len(text_list_split),
+                    max_text_list_length=max_text_list_length
+                )
+                if embedding_list_split is None:
+                    raise RuntimeError(f'failed to embed the following text list: {text_list_split}')
+                embeddings.extend(embedding_list_split)
             embeddings_to_original_mapping.update(mapping_after_list_split)
         weights_embeddings = get_weights_embeddings(
             embeddings_to_original_mapping, length_of_texts_to_embed, num_output
