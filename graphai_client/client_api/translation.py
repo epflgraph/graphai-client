@@ -183,7 +183,8 @@ def translate_text_list(
             # we reached the end
             if idx_end + 1 == n_text_elems:
                 status_msg(
-                    f'get part of the text (from {idx_start} to the {n_text_elems}) as the full list is too long',
+                    f'get part of the text (from {idx_start} to the {n_text_elems}/{n_text_elems}) '
+                    f'as the full list is too long',
                     color='grey', sections=list(sections) + ['PROCESSING']
                 )
                 translated_text_part = translate_text_list(
@@ -199,7 +200,7 @@ def translate_text_list(
             # one element is already too large
             elif sum_length > max_text_list_length:
                 status_msg(
-                    f'get part of the text (at {idx_start}) as the full list is too long',
+                    f'get part of the text (at {idx_start}/{n_text_elems}) as the full list is too long',
                     color='grey', sections=list(sections) + ['PROCESSING']
                 )
                 translated_text_full[idx_start] = translate_text_str(
@@ -213,7 +214,7 @@ def translate_text_list(
             # with the next element it is too large, or we reached the end
             elif sum_length + lengths_text[idx_end + 1] > max_text_list_length:
                 status_msg(
-                    f'get part of the text (from {idx_start} to {idx_end}) as the full list is too long',
+                    f'get part of the text (from {idx_start} to {idx_end}/{n_text_elems}) as the full list is too long',
                     color='grey', sections=list(sections) + ['PROCESSING']
                 )
                 translated_text_part = translate_text_list(
@@ -229,7 +230,7 @@ def translate_text_list(
                 idx_start = idx_end + 1
                 sum_length = 0
         return recombine_split_list_of_texts(
-            translated_text_full, mapping_from_input_to_original, output_length=num_output
+            translated_text_full, mapping_from_cleaned_to_original, output_length=num_output
         )
     # split text too long
     text_to_translate, translated_line_to_original_mapping = limit_length_list_of_texts(
