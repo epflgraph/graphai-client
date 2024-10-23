@@ -100,8 +100,9 @@ def process_slides(
     :param slides_language: if not None, language detection is skipped and the OCR is performed in the specified
         language.
     :param destination_languages: tuple of target languages. Perform translations if needed.
+        Translation is skipped if set to None
     :param debug: if True debug output is enabled.
-    :param google_api_token: the google API token charged for the use of the OCR.
+    :param google_api_token: the Google API token charged for the use of the OCR.
     :return: a 2-tuple containing first the language detected by the OCR (or forced by slides_language) and
         second a dictionary containing the result of the processing.
     """
@@ -138,14 +139,15 @@ def process_slides(
                 google_api_token=google_api_token
             )
             slides_language = 'en'
-        status_msg(
-            f'translate text from {len(slides_text)} {slides_language} slides to {", ".join(destination_languages)}',
-            color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
-        )
-        slides_text = translate_extracted_text(
-            slides_text, login_info, force=force, source_language=slides_language,
-            destination_languages=destination_languages, debug=debug
-        )
+        if destination_languages:
+            status_msg(
+                f'translate text from {len(slides_text)} {slides_language} slides to {", ".join(destination_languages)}',
+                color='grey', sections=['GRAPHAI', 'TRANSLATE', 'PROCESSING']
+            )
+            slides_text = translate_extracted_text(
+                slides_text, login_info, force=force, source_language=slides_language,
+                destination_languages=destination_languages, debug=debug
+            )
         slides = []
         for slide_idx_str in sorted(slide_tokens.keys(), key=int):
             slide = {
@@ -166,7 +168,7 @@ def process_slides(
 
 def process_audio(
         video_token, login_info, force=False, only_detect_language=False, audio_language=None,
-        destination_languages=('fr', 'en'), debug=False
+        destination_languages=('fr', 'en'), debug=False, sections=('GRAPHAI', 'TRANSCRIBE')
 ) -> Tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
     """
     Extract audio from a video, perform transcription and translate the text.
@@ -177,6 +179,7 @@ def process_audio(
     :param audio_language: if not None, language detection is skipped and the transcription is performed in the
         specified language.
     :param destination_languages: tuple of target languages. Perform translations if needed.
+         Translation is skipped if set to None
     :param debug: if True debug output is enabled.
     :return: a 3-tuple containing first the language detected for the audio (or forced by audio_language),
         the audio fingerprint and a dictionary containing the result of the processing
@@ -198,17 +201,17 @@ def process_audio(
         if audio_language not in ['en', 'fr', 'de', 'it', None]:
             status_msg(
                 f'Audio language was detected as {audio_language} which is not supported, transcription discarded.',
-                color='yellow', sections=['GRAPHAI', 'TRANSCRIBE', 'WARNING']
+                color='yellow', sections=list(sections) + ['WARNING']
             )
             audio_language = None
         if audio_language is None:
             # we try to force english if transcription failed
             status_msg(
                 f'try to force English while transcribing audio',
-                color='yellow', sections=['GRAPHAI', 'TRANSCRIBE', 'WARNING']
+                color='yellow', sections=list(sections) + ['WARNING']
             )
             audio_language, segments = transcribe_audio(
-                audio_token, login_info, force=force, force_lang='en', debug=debug, strict=True
+                audio_token, login_info, force=force, force_lang='en', debug=debug, strict=True, sections=sections
             )
             if not segments:
                 audio_language = None
@@ -216,18 +219,19 @@ def process_audio(
             # we try to force french if transcription failed
             status_msg(
                 f'try to force French while transcribing audio',
-                color='yellow', sections=['GRAPHAI', 'TRANSCRIBE', 'WARNING']
+                color='yellow', sections=list(sections) + ['WARNING']
             )
             audio_language, segments = transcribe_audio(
-                audio_token, login_info, force=force, force_lang='fr', debug=debug, strict=True
+                audio_token, login_info, force=force, force_lang='fr', debug=debug, strict=True, sections=sections
             )
             if not segments:
                 audio_language = None
         if segments:
-            segments = translate_subtitles(
-                segments, login_info, force=force, source_language=audio_language,
-                destination_languages=destination_languages, debug=debug
-            )
+            if destination_languages:
+                segments = translate_subtitles(
+                    segments, login_info, force=force, source_language=audio_language,
+                    destination_languages=destination_languages, debug=debug
+                )
             segments = add_initial_disclaimer(segments)
         else:
             audio_language = None

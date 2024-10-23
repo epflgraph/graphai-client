@@ -118,7 +118,7 @@ output:
 Processing for integration in RCP cluster
 =========================================
 
-Functions to process videos and send the results to MySQL are available in `graphai_client.rcp`. 
+Scripts to process videos and send the results to MySQL are available in `graphai_client.rcp`. 
 These functions are mainly intended to be used by the docker image to be deployed on the RCP cluster.
 To use those, you need an additional JSON file containing the login and password for MySQL, here is the template: 
 ```json
@@ -131,11 +131,10 @@ To use those, you need an additional JSON file containing the login and password
 ```
 The path to this JSON file can be passed as the `piper_mysql_json_file` argument:
 ```python
-from graphai_client.rcp import process_videos_on_rcp
+from graphai_client.rcp.get_video_info import  get_video_info_on_rcp
 
-process_videos_on_rcp(
+get_video_info_on_rcp(
     ['http://api.cast.switch.ch/p/113/sp/11300/serveFlavor/entryId/0_00gdquzv/v/2/ev/3/flavorId/0_i0v49s5y/forceproxy/true/name/a.mp4'], 
-    analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'),
     graph_api_json='config/graphai-api.json', piper_mysql_json_file='config/piper_db.json'
 )
 ```

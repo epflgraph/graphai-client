@@ -1,6 +1,5 @@
 from typing import Optional, Tuple, List
-from graphai_client.client_api.utils import call_async_endpoint
-from graphai_client.utils import status_msg
+from graphai_client.client_api.utils import call_async_endpoint, status_msg
 
 
 def transcribe_audio(

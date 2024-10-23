@@ -1,15 +1,15 @@
 from time import sleep
-from termcolor import cprint
 from requests import get, head
-from datetime import datetime, timedelta
+from datetime import timedelta
 from string import Formatter
 from numpy import isnan, isinf
 from re import compile, finditer, findall
-from typing import Union, List, Tuple, Optional, Iterable
+from typing import Union, List, Tuple, Optional
 from json import load as load_json
-from os.path import dirname, join, exists
+from os.path import dirname, join
 from mysql.connector import MySQLConnection, connect as mysql_connect
 from googleapiclient.discovery import build as google_service_build, Resource as GoogleResource
+from graphai_client.client_api.utils import status_msg, get_google_api_credentials
 
 
 default_disclaimer = {
@@ -23,33 +23,6 @@ default_missing_transcript = {
     'en': 'No transcripts available for this video',
     'fr': 'Pas de sous-titres disponibles pour cette video'
 }
-
-
-def status_msg(msg, color=None, sections=(), print_flag=True):
-    """
-    Print a nice status message.
-
-    :param msg: message to print.
-    :type msg: str
-    :param color: color of the message. If None, the default color is used. Available colors are:
-
-        - 'grey', 'black', 'red', 'green', 'orange', 'blue', 'magenta', 'cyan', 'light gray', 'dark gray', 'light red',
-            'light green', 'yellow', 'light purple', 'light cyan' and 'white' in terminal mode.
-        - 'grey', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan' and 'white' in non-terminal mode.
-
-    :type color: str, None
-    :param sections: list of strings representing the sections which will be displayed at the beginning of the message.
-    :type sections: Iterable[str]
-    :param print_flag: If False nothing is printed.
-    :type print_flag: bool
-    """
-    if not print_flag:
-        return
-    global_string = '[%s] ' % f"{datetime.now():%Y-%m-%d %H:%M:%S}"
-    for section in sections:
-        global_string += '[%s] ' % section
-    global_string += msg
-    cprint(global_string, color)
 
 
 def get_video_link_and_size(video_url, retry=5, wait_retry=15):
@@ -155,7 +128,8 @@ def insert_data_into_table(connection: MySQLConnection, schema, table_name, colu
         INSERT INTO `{schema}`.`{table_name}` ({', '.join(columns)})
         VALUES ({format_values});
     """
-    execute_many(connection, sql_query, data, retry=retry)
+    rowcount = execute_many(connection, sql_query, data, retry=retry)
+    return rowcount
 
 
 def update_data_into_table(
@@ -179,10 +153,9 @@ def update_data_into_table(
     if len(columns) + len(pk_columns) != len(data[0]):
         raise ValueError('the data argument must be a list of N-tuple where N = len(columns) + len(pk_columns)')
     sql_query = f"""
-            UPDATE `{schema}`.`{table_name}`
-            SET {', '.join([f'{col}=%s' for col in columns])}
-            WHERE {' AND '.join([f'{pk_col}=%s' for pk_col in pk_columns])};
-        """
+        UPDATE `{schema}`.`{table_name}`
+        SET {', '.join([f'{col}=%s' for col in columns])}
+        WHERE {' AND '.join([f'{pk_col}=%s' for pk_col in pk_columns])};"""
     execute_many(connection, sql_query, data, retry=retry)
 
 
@@ -208,6 +181,7 @@ def execute_many(connection: MySQLConnection, sql_query: str, data_str, retry=5,
     with connection.cursor() as cursor:
         try:
             cursor.executemany(sql_query, data_str)
+            return cursor.rowcount
         except Exception as e:
             msg = 'Received exception: ' + str(e) + '\n'
             if retry > 0:
@@ -663,23 +637,6 @@ def get_video_id_and_platform(video_url):
         video_host = None
         video_id = None
     return video_id, video_host
-
-
-def get_google_api_credentials(service_name='youtube', google_api_json=None) -> dict:
-    if google_api_json is None:
-        import graphai_client
-        path_config = join(dirname(graphai_client.__file__), 'config')
-        google_api_json = join(path_config, f'google-api-{service_name}.json')
-        if not exists(google_api_json):
-            google_api_json = join(path_config, 'google-api.json')
-        if not exists(google_api_json):
-            raise RuntimeError(
-                f'google_api_json is not set and no '
-                f'google-api.json nor google-api-{service_name}.json file found in {path_config}.'
-            )
-    with open(google_api_json) as fp:
-        api_credentials = load_json(fp)
-    return api_credentials
 
 
 def get_google_resource(service_name='youtube', version='v3', google_api_json=None) -> GoogleResource:

@@ -1,9 +1,8 @@
 from re import match
 from typing import Optional, Union, Dict, List
-from graphai_client.utils import status_msg
 from graphai_client.client_api.utils import (
     call_async_endpoint, get_next_text_length_for_split, split_text, limit_length_list_of_texts, clean_list_of_texts,
-    recombine_split_list_of_texts
+    recombine_split_list_of_texts, status_msg
 )
 
 MIN_TEXT_LENGTH = 500

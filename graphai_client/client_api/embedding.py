@@ -2,10 +2,9 @@ from json import loads, JSONDecodeError
 from typing import Optional, List, Dict, Union
 from numpy import array
 from numpy.linalg import norm
-from graphai_client.utils import status_msg
 from graphai_client.client_api.utils import (
     call_async_endpoint, split_text, get_next_text_length_for_split, limit_length_list_of_texts,
-    limit_total_length_list_of_text, clean_list_of_texts
+    limit_total_length_list_of_text, clean_list_of_texts, status_msg
 )
 
 MIN_TEXT_LENGTH = 150

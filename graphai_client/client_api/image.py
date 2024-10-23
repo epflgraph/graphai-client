@@ -1,6 +1,6 @@
-from typing import Optional, Literal
-from graphai_client.client_api.utils import call_async_endpoint
-from graphai_client.utils import status_msg, get_google_api_credentials
+from typing import Optional
+from graphai_client.client_api.utils import status_msg, call_async_endpoint
+from graphai_client.utils import get_google_api_credentials
 
 
 def extract_text_from_slide(

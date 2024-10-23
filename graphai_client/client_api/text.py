@@ -2,8 +2,7 @@ from requests import Session, post
 from urllib.parse import urlencode
 from unicodedata import normalize
 from typing import Optional, List, Tuple
-from graphai_client.utils import status_msg
-from graphai_client.client_api.utils import _get_response, login
+from graphai_client.client_api.utils import _get_response, login, status_msg
 from graphai_client.client_api.translation import detect_language, translate_text
 
 

@@ -1,10 +1,10 @@
 from json import load as load_json
-from os.path import normpath, join, dirname
+from os.path import normpath, join, dirname, exists
 from time import sleep
 from datetime import datetime, timedelta
 from requests import get, post, Response
+from termcolor import cprint
 from typing import Callable, Dict, Optional, Tuple, List
-from graphai_client.utils import status_msg
 
 
 def call_async_endpoint(
@@ -493,3 +493,47 @@ def login(graph_api_json=None, max_tries=5):
     )
     login_info['token'] = response_login.json()['access_token']
     return login_info
+
+
+def status_msg(msg, color=None, sections=(), print_flag=True):
+    """
+    Print a nice status message.
+
+    :param msg: message to print.
+    :type msg: str
+    :param color: color of the message. If None, the default color is used. Available colors are:
+
+        - 'grey', 'black', 'red', 'green', 'orange', 'blue', 'magenta', 'cyan', 'light gray', 'dark gray', 'light red',
+            'light green', 'yellow', 'light purple', 'light cyan' and 'white' in terminal mode.
+        - 'grey', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan' and 'white' in non-terminal mode.
+
+    :type color: str, None
+    :param sections: list of strings representing the sections which will be displayed at the beginning of the message.
+    :type sections: Iterable[str]
+    :param print_flag: If False nothing is printed.
+    :type print_flag: bool
+    """
+    if not print_flag:
+        return
+    global_string = '[%s] ' % f"{datetime.now():%Y-%m-%d %H:%M:%S}"
+    for section in sections:
+        global_string += '[%s] ' % section
+    global_string += msg
+    cprint(global_string, color)
+
+
+def get_google_api_credentials(service_name='youtube', google_api_json=None) -> dict:
+    if google_api_json is None:
+        import graphai_client
+        path_config = join(dirname(graphai_client.__file__), 'config')
+        google_api_json = join(path_config, f'google-api-{service_name}.json')
+        if not exists(google_api_json):
+            google_api_json = join(path_config, 'google-api.json')
+        if not exists(google_api_json):
+            raise RuntimeError(
+                f'google_api_json is not set and no '
+                f'google-api.json nor google-api-{service_name}.json file found in {path_config}.'
+            )
+    with open(google_api_json) as fp:
+        api_credentials = load_json(fp)
+    return api_credentials
