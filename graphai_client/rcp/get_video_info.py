@@ -1,4 +1,4 @@
-#!/usr/bin/env python -u
+#!/usr/bin/env -S python -u
 import sys
 from os.path import join, dirname, realpath
 from datetime import datetime
