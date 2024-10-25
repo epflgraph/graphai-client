@@ -1,5 +1,6 @@
 from json import load as load_json
 from os.path import normpath, join, dirname, exists
+from re import fullmatch
 from time import sleep
 from datetime import datetime, timedelta
 from requests import get, post, Response
@@ -465,6 +466,24 @@ def _get_response(
                             status_msg(str(detail), color='yellow', sections=list(sections) + ['WARNING'])
                     else:
                         status_msg(str(response_json['detail']), color='yellow', sections=list(sections) + ['WARNING'])
+            if status_code == 500:
+                uuid_regexp = r'([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})'
+                url_status_match = fullmatch(r'(:?https?://)?(.*)/status/' + uuid_regexp + r'/?', url)
+                if url_status_match:
+                    protocol, endpoint, task_uuid = url_status_match.groups()
+                    flower_api_response = get('http://127.0.0.1:5555/api/task/info/' + task_uuid, timeout=10)
+                    task_info = flower_api_response.json()
+                else:
+                    # we get info about the latest failed task
+                    tasks_response = get('http://127.0.0.1:5555/api/tasks', timeout=30)
+                    failed_tasks = [t for t_uuid, t in tasks_response.json().items() if t['state'] == 'FAILURE']
+                    task_info = sorted(failed_tasks, key=lambda t: t['timestamp'], reverse=True)[0]
+                msg = f'Task {task_info["uuid"]} is in state {task_info["state"]} '
+                if task_info['exception']:
+                    msg += f'with exception "{task_info["exception"]}" '
+                if task_info['traceback']:
+                    msg += f'with traceback:\n{task_info["traceback"]}'
+                status_msg(msg, color='yellow', sections=list(sections) + ['WARNING'])
             tries += 1
             sleep(delay_retry)
     msg = f'Maximum try {max_tries}/{max_tries} reached while doing {request_type} on "{url}"'
