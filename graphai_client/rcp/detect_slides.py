@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import List, Tuple
 from graphai_client.client_api.utils import login
 from graphai_client.utils import (
-    status_msg, strfdelta, execute_query, get_piper_connection, insert_data_into_table
+    status_msg, strfdelta, execute_query, get_piper_connection, insert_data_into_table, update_data_into_table
 )
 from graphai_client.client import (
     process_slides, translate_extracted_text, get_video_token_and_codec_types
@@ -72,13 +72,11 @@ def detect_slides_on_rcp(
             if slides_detected_language is not None and slides is not None:
                 slides_detection_time = str(datetime.now())
                 register_slides(piper_connection, platform, video_id, slides, slides_detected_language)
-                execute_query(
-                    piper_connection,
-                    f'''UPDATE `gen_video`.`Videos` 
-                    SET 
-                        `slidesDetectionTime`="{slides_detection_time}",
-                        `slidesDetectedLanguage`="{slides_detected_language}"
-                    WHERE platform="{platform}" AND videoId="{video_id}";'''
+                update_data_into_table(
+                    piper_connection, 'gen_video', "Videos",
+                    columns=("slidesDetectionTime", "slidesDetectedLanguage"),
+                    pk_columns=("platform", "videoId"),
+                    data=[(slides_detection_time, slides_detected_language, platform, video_id)]
                 )
                 piper_connection.commit()
 

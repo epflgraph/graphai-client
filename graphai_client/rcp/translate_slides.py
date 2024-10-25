@@ -47,11 +47,11 @@ def translate_slides_on_rcp(
                 pk_columns=('platform', 'videoId', 'slideNumber'), data=translation_data
             )
             slides_translation_time = str(datetime.now())
-            execute_query(
-                piper_connection,
-                f'''UPDATE `gen_video`.`Videos` 
-                SET `slidesTranslationTime`="{slides_translation_time}"
-                WHERE platform="{platform}" AND videoId="{video_id}";'''
+            update_data_into_table(
+                piper_connection, 'gen_video', "Videos",
+                columns=("slidesTranslationTime",),
+                pk_columns=("platform", "videoId"),
+                data=[(slides_translation_time, platform, video_id)]
             )
             piper_connection.commit()
 

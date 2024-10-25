@@ -8,7 +8,7 @@ from graphai_client.client_api.utils import login
 from graphai_client.utils import (
     status_msg, strfdelta, convert_subtitle_into_segments,
     combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript,
-    insert_data_into_table, execute_query, get_piper_connection, GoogleResource
+    insert_data_into_table, execute_query, update_data_into_table, get_piper_connection, GoogleResource
 )
 from graphai_client.client import process_audio, translate_subtitles, get_video_token_and_codec_types
 
@@ -64,14 +64,11 @@ def process_audio_on_rcp(
                 )
             audio_transcription_time = str(datetime.now())
             register_subtitles(piper_connection, platform, video_id, subtitles, audio_language)
-            execute_query(
-                piper_connection,
-                f'''UPDATE `gen_video`.`Videos` 
-                SET 
-                    `audioTranscriptionTime`="{audio_transcription_time}",
-                    `audioDetectedLanguage`="{audio_language}",
-                    `audioFingerprint`="{audio_fingerprint}"
-                WHERE platform="{platform}" AND videoId="{video_id}";'''
+            update_data_into_table(
+                piper_connection, 'gen_video', "Videos",
+                columns=("audioTranscriptionTime", "audioDetectedLanguage", "audioFingerprint"),
+                pk_columns=("platform", "videoId"),
+                data=[(audio_transcription_time, audio_language, audio_fingerprint, platform, video_id)]
             )
             piper_connection.commit()
 

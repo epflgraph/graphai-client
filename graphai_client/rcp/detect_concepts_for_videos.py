@@ -5,7 +5,10 @@ from datetime import datetime
 from typing import List, Tuple
 from requests import Session
 from graphai_client.client_api.utils import login
-from graphai_client.utils import status_msg, execute_query, get_piper_connection, insert_keywords_and_concepts
+from graphai_client.utils import (
+    status_msg, execute_query, get_piper_connection, insert_keywords_and_concepts,
+    update_data_into_table
+)
 from graphai_client.client_api.text import clean_text_translate_extract_keywords_and_concepts
 
 
@@ -121,12 +124,12 @@ def detect_concept_from_videos_on_rcp(
                                 'MixedScore'
                             )
                         )
-                    now = str(datetime.now())
-                    execute_query(
-                        piper_connection,
-                        f'''UPDATE `gen_video`.`Videos` 
-                        SET `slidesConceptExtractionTime`="{now}"  
-                        WHERE platform="{platform}" AND videoId="{video_id}"'''
+                    slides_extraction_time = str(datetime.now())
+                    update_data_into_table(
+                        piper_connection, 'gen_video', "Videos",
+                        columns=("slidesConceptExtractionTime",),
+                        pk_columns=("platform", "videoId"),
+                        data=[(slides_extraction_time, platform, video_id)]
                     )
                     piper_connection.commit()
                     status_msg(
@@ -138,6 +141,7 @@ def detect_concept_from_videos_on_rcp(
                     f'The video {video_id} on {platform} has been processed',
                     color='green', sections=['GRAPHAI', 'CONCEPT DETECTION', 'SUCCESS']
                 )
+
 
 if __name__ == '__main__':
     executable_name = sys.argv.pop(0)
