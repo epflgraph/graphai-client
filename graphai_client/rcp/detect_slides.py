@@ -8,9 +8,8 @@ from graphai_client.utils import (
     status_msg, strfdelta, execute_query, get_piper_connection, insert_data_into_table
 )
 from graphai_client.client import (
-    process_slides, translate_extracted_text
+    process_slides, translate_extracted_text, get_video_token_and_codec_types
 )
-from . import get_video_token_and_codec_types
 
 
 def detect_slides_on_rcp(

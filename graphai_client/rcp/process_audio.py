@@ -10,8 +10,7 @@ from graphai_client.utils import (
     combine_language_segments, add_initial_disclaimer, default_disclaimer, default_missing_transcript,
     insert_data_into_table, execute_query, get_piper_connection, GoogleResource
 )
-from graphai_client.client import process_audio, translate_subtitles
-from . import get_video_token_and_codec_types
+from graphai_client.client import process_audio, translate_subtitles, get_video_token_and_codec_types
 
 language_to_short = {
     'french': 'fr',
