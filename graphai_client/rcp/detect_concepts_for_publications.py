@@ -1,7 +1,7 @@
 #!/usr/bin/env -S python -u
 import sys
 from os.path import join, realpath, dirname
-from typing import List
+from typing import List, Union
 from requests import Session
 from graphai_client.client_api.utils import login
 from graphai_client.utils import status_msg, execute_query, get_piper_connection, insert_keywords_and_concepts
@@ -9,7 +9,7 @@ from graphai_client.client_api.text import clean_text_translate_extract_keywords
 
 
 def detect_concept_from_publications_on_rcp(
-        publication_ids: List[int | str], graph_api_json=None, login_info=None, piper_mysql_json_file=None,
+        publication_ids: List[Union[int, str]], graph_api_json=None, login_info=None, piper_mysql_json_file=None,
         use_temp=True
 ):
     if login_info is None or 'token' not in login_info:
@@ -89,7 +89,6 @@ def detect_concept_from_publications_on_rcp(
 if __name__ == '__main__':
     executable_name = sys.argv.pop(0)
     publications = sys.argv
-
     print(f'Detect concept for {len(publications)} publications.')
 
     config_dir = realpath(join(dirname(__file__), '..', 'config'))

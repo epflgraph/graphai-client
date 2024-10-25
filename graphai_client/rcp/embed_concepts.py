@@ -2,15 +2,15 @@
 import sys
 from json import dumps
 from os.path import join, realpath, dirname
-from typing import List
+from typing import List, Union
 from graphai_client.client_api.utils import login
 from graphai_client.utils import status_msg, execute_query, get_piper_connection, update_data_into_table
 from graphai_client.client_api.embedding import embed_text
 
 
 def compute_embeddings_of_concepts_on_rcp(
-        page_ids: List[int], graph_api_json=None, login_info=None, piper_mysql_json_file=None, batch_size=10000,
-        temp_tables=True, max_text_length=400
+        page_ids: List[Union[int, str]], graph_api_json=None, login_info=None, piper_mysql_json_file=None,
+        batch_size=10000, temp_tables=True, max_text_length=400
 ):
     if login_info is None or 'token' not in login_info:
         login_info = login(graph_api_json)
@@ -72,8 +72,7 @@ if __name__ == '__main__':
     temp_tables_str = sys.argv.pop(0)
     temp_tables = temp_tables_str.lower() == 'true'
     concepts = sys.argv
-
-    print(f'Embed {len(sys.argv)} concepts.')
+    print(f'Embed {len(concepts)} concepts.')
 
     config_dir = realpath(join(dirname(__file__), '..', 'config'))
     piper_mysql_json_file = join(config_dir, "piper_db.json")

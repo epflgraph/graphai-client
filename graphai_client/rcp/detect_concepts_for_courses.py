@@ -69,7 +69,6 @@ def detect_concept_from_courses_on_rcp(
 if __name__ == '__main__':
     executable_name = sys.argv.pop(0)
     courses = sys.argv
-
     print(f'Detect concept for {len(courses)} courses.')
 
     config_dir = realpath(join(dirname(__file__), '..', 'config'))
