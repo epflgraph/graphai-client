@@ -23,6 +23,10 @@ def get_video_info_on_rcp(
     youtube_resource = get_google_resource('youtube', google_api_json=google_api_youtube_json)
     with get_piper_connection(piper_mysql_json_file) as piper_connection:
         for video_url in video_urls:
+            status_msg(
+                f'Getting info about the video at {video_url}...',
+                color='yellow', sections=list(sections) + ['PROCESSING']
+            )
             video_id, platform = get_video_id_and_platform(video_url)
             if video_id is None or platform is None:
                 status_msg(
@@ -102,13 +106,17 @@ def get_video_info_on_rcp(
                     break
             if download_file:
                 status_msg(
-                    f'Information about the audio or/and video tracks are missing, collecting them...',
+                    f'Information about the audio or/and video tracks are missing for {video_url}, collecting them...',
                     color='grey', sections=list(sections) + ['PROCESSING']
                 )
                 video_token, video_size, streams = download_url(
                     video_url, login_info, force=force, force_download=force_download, debug=debug
                 )
                 if video_token is None:
+                    status_msg(
+                        f'Failed to download the video {video_url}.',
+                        color='red', sections=list(sections) + ['ERROR']
+                    )
                     continue
                 previous_processing_info['video_token'] = video_token
                 previous_processing_info.update(get_video_information_from_streams(streams))
