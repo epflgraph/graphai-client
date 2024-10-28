@@ -48,7 +48,7 @@ def get_video_info_on_rcp(
                 )
             if video_details is None:
                 if video_id is not None:
-                    video_identifier_text = video_id
+                    video_identifier_text = f'{video_id} on {platform}'
                 else:
                     video_identifier_text = f'at {video_url}'
                 status_msg(
@@ -61,12 +61,14 @@ def get_video_info_on_rcp(
             )
             update_processing_time = False
             if platform is not None and video_id is not None:
+                # we update processing times if the duration did not change
                 if (
                     previous_processing_info['ms_duration'] is not None
                     and abs(previous_processing_info['ms_duration'] - video_details['ms_duration']) < 2000
                 ):
                     update_processing_time = True
-                    # we try to identify the flavor previously analyzed if the platform is mediaspace
+                    # if the platform is mediaspace, we update the processing time only if we found a flavor
+                    # which has the same size as the video previously analyzed
                     if platform == 'mediaspace' and previous_processing_info['video_size'] is not None:
                         flavors_info = execute_query(
                             piper_connection, f'''
@@ -106,6 +108,8 @@ def get_video_info_on_rcp(
                 video_token, video_size, streams = download_url(
                     video_url, login_info, force=force, force_download=force_download, debug=debug
                 )
+                if video_token is None:
+                    continue
                 previous_processing_info['video_token'] = video_token
                 previous_processing_info.update(get_video_information_from_streams(streams))
                 if previous_processing_info['audio_fingerprint'] is None and \
@@ -204,6 +208,10 @@ def get_youtube_video_details(youtube_resource: GoogleResource, youtube_video_id
     video_request = videos.list(id=youtube_video_id, part='snippet,contentDetails,status')
     video_info_items = video_request.execute()['items']
     if len(video_info_items) == 0:
+        status_msg(
+            f'No information could be found about the YouTube video {youtube_video_id}',
+            color='yellow', sections=['VIDEO', 'YOUTUBE', 'WARNING']
+        )
         return None
     if len(video_info_items) > 1:
         raise RuntimeError(f'got several videos info for youtube video {youtube_video_id}: {video_info_items}')

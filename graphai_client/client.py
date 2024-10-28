@@ -246,6 +246,8 @@ def download_url(video_url, login_info, force=False, force_download=False, debug
         max_download_time = 900
     else:
         _, octet_size = get_video_link_and_size(video_url)
+        if not octet_size:
+            return None, None, None
         max_download_time = max(int(octet_size/1048576), 900)  # 15 min or 1MB/s download
     video_token, video_size, streams = get_video_token(
         video_url, login_info, debug=debug, force=force or force_download, max_processing_time_s=max_download_time
