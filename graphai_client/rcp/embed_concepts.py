@@ -50,8 +50,8 @@ def compute_embeddings_of_concepts_on_rcp(
         assert len(embedded_texts) == len(page_id_of_embedded_text)
         data_embeddings = [
             (
-                dumps([round(e, 10) for e in embedding]) if embedding else None,
-                page_id
+                page_id,
+                dumps([round(e, 10) for e in embedding]) if embedding else None
             )
             for page_id, embedding in zip(page_id_of_embedded_text, embedded_texts)
         ]
