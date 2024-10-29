@@ -297,7 +297,7 @@ def get_next_text_length_for_split(
 ):
     if previous_text_length == text_length_min:
         raise ValueError(
-            f'Got a text_too_long error while max_text_length is at the min: {text_length_min}.'
+            f'Got a text_too_long error while max_text_length is at the minimum ({text_length_min} characters).'
         )
     if previous_text_length is None:
         text_length = min(

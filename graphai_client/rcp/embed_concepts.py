@@ -77,5 +77,4 @@ if __name__ == '__main__':
     compute_embeddings_of_concepts_on_rcp(
         concepts, piper_mysql_json_file=piper_mysql_json_file, graph_api_json=graphai_json_file
     )
-
     print('Done')

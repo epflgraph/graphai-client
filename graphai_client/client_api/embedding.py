@@ -7,7 +7,7 @@ from graphai_client.client_api.utils import (
     limit_total_length_list_of_text, clean_list_of_texts, status_msg
 )
 
-MIN_TEXT_LENGTH = 150
+MIN_TEXT_LENGTH = 128
 DEFAULT_MAX_TEXT_LENGTH_IF_TEXT_TOO_LONG = 600
 STEP_AUTO_DECREASE_TEXT_LENGTH = 100
 
