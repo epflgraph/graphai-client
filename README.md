@@ -18,11 +18,11 @@ pip install -e git+https://github.com/epflgraph/graphai-client.git
 Authentication
 --------------
 You then need to prepare a JSON file with your login and password (ask Ramtin if you don't have one yet).
-Here is a template for that JSON file assuming a tunnel to the API on port 28800: 
+Here is a template for that JSON file, assuming you want to connect to the main GraphAI server (change host/port if you are running it locally): 
 ```json
 {
-  "host": "http://localhost",
-  "port": 28800,
+  "host": "https://graphai.epfl.ch",
+  "port": 443,
   "user": "PUT_YOUR_USERNAME_HERE",
   "password": "PUT_YOUR_PASSWORD_HERE"
 }
