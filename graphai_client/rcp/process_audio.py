@@ -247,6 +247,8 @@ def register_subtitles(
 
 if __name__ == '__main__':
     executable_name = sys.argv.pop(0)
+    force_str = sys.argv.pop(0)
+    force = force_str.lower() == 'true'
     if len(sys.argv) % 2 != 0:
         raise ValueError('You must give a platform and an id for each video you want to process')
     videos_platform_and_id = []
@@ -263,7 +265,8 @@ if __name__ == '__main__':
     piper_mysql_json_file = join(config_dir, "piper_db.json")
     graphai_json_file = join(config_dir, "graphai-api.json")
     process_audio_on_rcp(
-        videos_platform_and_id, piper_mysql_json_file=piper_mysql_json_file, graph_api_json=graphai_json_file
+        videos_platform_and_id, force=force,
+        piper_mysql_json_file=piper_mysql_json_file, graph_api_json=graphai_json_file
     )
 
     print('Done')
