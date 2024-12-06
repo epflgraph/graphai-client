@@ -477,12 +477,19 @@ def _get_response(
                     # we get info about the latest failed task
                     tasks_response = get('http://127.0.0.1:5555/api/tasks', timeout=30)
                     failed_tasks = [t for t_uuid, t in tasks_response.json().items() if t['state'] == 'FAILURE']
-                    task_info = sorted(failed_tasks, key=lambda t: t['timestamp'], reverse=True)[0]
-                msg = f'Task {task_info["uuid"]} is in state {task_info["state"]} '
-                if task_info['exception']:
-                    msg += f'with exception "{task_info["exception"]}" '
-                if task_info['traceback']:
-                    msg += f'with traceback:\n{task_info["traceback"]}'
+                    tasks_info = sorted(failed_tasks, key=lambda t: t['timestamp'], reverse=True)
+                    if len(tasks_info) > 0:
+                        task_info = tasks_info[0]
+                    else:
+                        task_info = None
+                if task_info:
+                    msg = f'Task {task_info["uuid"]} is in state {task_info["state"]} '
+                    if task_info['exception']:
+                        msg += f'with exception "{task_info["exception"]}" '
+                    if task_info['traceback']:
+                        msg += f'with traceback:\n{task_info["traceback"]}'
+                else:
+                    msg = 'No task info found.'
                 status_msg(msg, color='yellow', sections=list(sections) + ['WARNING'])
             tries += 1
             sleep(delay_retry)
