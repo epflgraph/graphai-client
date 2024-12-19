@@ -386,6 +386,15 @@ def get_info_previous_video_processing(db, platform, video_id, video_url):
 
 
 def register_processed_video(db, platform, video_id, video_info, sections=('VIDEO', 'PROCESSING', 'REGISTER VIDEO')):
+    if platform is None:
+        platform = video_info.get('platform', 'other')
+    if video_id is None:
+        if platform == 'other':
+            video_id = video_info['video_token']
+            if video_id is None:
+                raise ValueError(f'could not find a video_id for video at {video_info["video_url"]}.')
+        else:
+            raise ValueError(f'unexpected platform {platform} for video without video_id at {video_info["video_url"]}.')
     execute_query(
         db, f'DELETE FROM `gen_video`.`Videos` WHERE platform="{platform}"AND videoId="{video_id}"'
     )
