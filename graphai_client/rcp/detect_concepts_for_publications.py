@@ -16,10 +16,13 @@ def detect_concept_from_publications_on_rcp(
         login_info = login(graph_api_json)
     schema_publication = 'gen_infoscience'
     table_publication = 'Publications'
+    schema_publication_subjects = 'ca_infoscience'
+    table_publication_subjects = 'Publication_Subjects'
     schema_publication_concepts = 'gen_infoscience'
     table_publication_concepts = 'Publication_to_Page_Mapping'
     if use_temp:
         table_publication += '_tmp'
+        # table_publication_subjects += '_tmp'
         table_publication_concepts += '_tmp'
     publications_without_keywords = []
     publications_without_concepts = []
@@ -30,15 +33,23 @@ def detect_concept_from_publications_on_rcp(
             publications_info = execute_query(
                 piper_connection,
                 f"""SELECT 
-                    PublicationID, 
-                    Title,
-                    Abstract
+                    p.PublicationID,
+                    p.Title,
+                    p.Abstract,
+                    GROUP_CONCAT(s.Topic SEPARATOR ';') AS Keywords
                 FROM {schema_publication}.{table_publication} AS p
-                WHERE PublicationID IN ({', '.join([str(p_id) for p_id in publication_ids])});"""
+                LEFT JOIN {schema_publication_subjects}.{table_publication_subjects} AS s ON 
+                    s.PublicationID = p.PublicationID
+                WHERE p.PublicationID IN ({', '.join([str(p_id) for p_id in publication_ids])})
+                GROUP BY p.PublicationID;"""
             )
-            for pub_id, title, abstract in publications_info:
+            for pub_id, title, abstract, keywords_str in publications_info:
+                keywords = None
+                if keywords_str:
+                    keywords = keywords_str.split(';')
                 keywords_and_concepts = clean_text_translate_extract_keywords_and_concepts(
-                    text_data=(title, abstract), login_info=login_info, session=session
+                    text_data=(title, abstract), additional_keywords=keywords, login_info=login_info, session=session,
+                    translate_to_en=False
                 )
                 insert_keywords_and_concepts(
                     piper_connection, pk=(pub_id,), keywords_and_concepts=keywords_and_concepts,
@@ -62,7 +73,7 @@ def detect_concept_from_publications_on_rcp(
                 )
                 if keywords_and_concepts is None or not keywords_and_concepts.get('keywords', None):
                     publications_without_keywords.append(str(pub_id))
-                elif keywords_and_concepts.get('concepts_and_scores', None):
+                elif not keywords_and_concepts.get('concepts_and_scores', None):
                     publications_without_concepts.append(str(pub_id))
                 else:
                     publications_ok.append(str(pub_id))

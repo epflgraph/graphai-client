@@ -147,7 +147,8 @@ def extract_concepts_from_keywords(
 
 
 def clean_text_translate_extract_keywords_and_concepts(
-        text_data: Tuple, login_info, max_tries=15, delay_retry=60, translate_to_en=False,
+        text_data: Tuple, login_info, additional_keywords: Optional[List[str]] = None,
+        max_tries=15, delay_retry=60, translate_to_en=False,
         restrict_to_ontology=False, graph_score_smoothing=True,
         ontology_score_smoothing=True, keywords_score_smoothing=True, normalisation_coefficient=0.5,
         filtering_threshold=0.1, filtering_min_votes=5, refresh_scores=True,
@@ -182,13 +183,15 @@ def clean_text_translate_extract_keywords_and_concepts(
     )
     if not keywords:
         status_msg(
-            'Got no keyword with default method. trying nltk...',
+            'Got no keywords with default method. Trying nltk...',
             color='yellow', sections=sections + ['KEYWORDS EXTRACTION', 'WARNING']
         )
         keywords = extract_keywords_from_text(
             text_cleaned, login_info, sections=sections + ['KEYWORDS EXTRACTION'], max_tries=max_tries,
             delay_retry=delay_retry, session=session, use_nltk=True
         )
+    if additional_keywords:
+        keywords.extend(additional_keywords)
     if not keywords:
         msg = 'Error extracting keywords from text="' + text_cleaned + '".'
         status_msg(msg, color='yellow', sections=sections + ['KEYWORDS EXTRACTION', 'ERROR'])
