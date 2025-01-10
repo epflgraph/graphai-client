@@ -40,7 +40,7 @@ def detect_concept_from_publications_on_rcp(
                 FROM {schema_publication}.{table_publication} AS p
                 LEFT JOIN {schema_publication_subjects}.{table_publication_subjects} AS s ON 
                     s.PublicationID = p.PublicationID
-                WHERE p.PublicationID IN ({', '.join([str(p_id) for p_id in publication_ids])})
+                WHERE p.PublicationID IN ({', '.join(['"' + str(p_id) + '"' for p_id in publication_ids])})
                 GROUP BY p.PublicationID;"""
             )
             for pub_id, title, abstract, keywords_str in publications_info:
