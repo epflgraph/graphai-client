@@ -18,7 +18,7 @@ classifiers = [
 ]
 dependencies = [
     'termcolor',
-    'mysql-connector-python',
+    'mysql-connector-python>=9.2.0',
     'isodate',
     'google-api-python-client'
 ]

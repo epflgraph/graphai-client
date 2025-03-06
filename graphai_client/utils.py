@@ -159,11 +159,14 @@ def update_data_into_table(
     execute_many(connection, sql_query, data, retry=retry)
 
 
-def execute_query(connection: MySQLConnection, sql_query, retry=5, multiple_statements=False):
+def execute_query(connection: MySQLConnection, sql_query, retry=5):
     with connection.cursor() as cursor:
         try:
-            cursor.execute(sql_query, multi=multiple_statements)
-            return cursor.fetchall()
+            cursor.execute(sql_query)
+            result_set = cursor.fetchall()
+            while cursor.nextset():
+                result_set.extend(cursor.fetchall())
+            return result_set
         except Exception as e:
             msg = 'Received exception: ' + str(e) + '\n'
             if retry > 0:
