@@ -57,7 +57,7 @@ def translate_text(
 def translate_text_str(
         text: str, source_language, target_language, login_info,
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000,
-        max_tries=5, max_processing_time_s=3600, delay_retry=1
+        max_tries=5, max_processing_time_s=3600, delay_retry=1, no_cache=False
 ) -> Optional[str]:
     """
     Translate the input text from the source language to the target language.
@@ -78,6 +78,7 @@ def translate_text_str(
     :param max_tries: the number of tries before giving up.
     :param max_processing_time_s: maximum number of seconds to perform the translation.
     :param delay_retry: time to wait before retrying after an error
+    :param no_cache: if True, caching will be skipped. Set to True for sensitive data. False by default.
     :return: the translated text if successful, None otherwise.
     """
     # check for empty text
@@ -90,12 +91,18 @@ def translate_text_str(
             text_to_translate, source_language, target_language, login_info, sections=sections, force=force,
             debug=debug, max_text_length=max_text_length,  max_text_list_length=max_text_list_length,
             max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry,
-            mapping_from_input_to_original={i: 0 for i in range(len(text_to_translate))}
+            mapping_from_input_to_original={i: 0 for i in range(len(text_to_translate))}, no_cache=no_cache
         )
         return ''.join(translated_list)
     task_result = call_async_endpoint(
         endpoint='/translation/translate',
-        json={"text": text, "source": source_language, "target": target_language, "force": force},
+        json={
+            "text": text,
+            "source": source_language,
+            "target": target_language,
+            "force": force,
+            "no_cache": no_cache
+        },
         login_info=login_info,
         token=f'{source_language} text ({len(text)} characters)',
         output_type=target_language + ' translation',
@@ -122,7 +129,7 @@ def translate_text_str(
         return translate_text_str(
             text, source_language, target_language, login_info, sections=sections,
             force=force, debug=debug, max_text_length=max_text_length, max_text_list_length=max_text_list_length,
-            max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
+            max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry, no_cache=no_cache
         )
     return task_result['result']
 
@@ -131,7 +138,9 @@ def translate_text_list(
         list_of_texts: List[Optional[str]], source_language: str, target_language: str, login_info: dict,
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000,
         max_tries=5, max_processing_time_s=3600, delay_retry=1,
-        mapping_from_input_to_original: Optional[Dict[int, int]] = None, num_output: Optional[int] = None
+        mapping_from_input_to_original: Optional[Dict[int, int]] = None,
+        num_output: Optional[int] = None,
+        no_cache: bool = False
 ) -> Optional[list]:
     """
     Translate the list of text from the sourc
@@ -153,6 +162,7 @@ def translate_text_list(
     :param max_processing_time_s: maximum number of seconds to perform the translation.
     :param delay_retry: time to wait before retrying after an error
     :param mapping_from_input_to_original: mapping in case the input list of text has been previously split
+    :param no_cache: if True, caching will be skipped. Set to True for sensitive data. False by default.
     :return: the translated text if successful, None otherwise. The length of the returned list is the same as for text
     """
     if mapping_from_input_to_original is None and num_output is None:
@@ -191,7 +201,7 @@ def translate_text_list(
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
                     max_text_list_length=max_text_list_length, max_tries=max_tries,
                     max_processing_time_s=max_processing_time_s, delay_retry=delay_retry,
-                    mapping_from_input_to_original=None
+                    mapping_from_input_to_original=None, no_cache=no_cache
                 )
                 if translated_text_part is None:
                     return None
@@ -206,7 +216,8 @@ def translate_text_list(
                     cleaned_texts[idx_start], source_language, target_language, login_info,
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
                     max_text_list_length=max_text_list_length, max_tries=max_tries,
-                    max_processing_time_s=max_processing_time_s, delay_retry=delay_retry
+                    max_processing_time_s=max_processing_time_s, delay_retry=delay_retry,
+                    no_cache=no_cache
                 )
                 idx_start += 1
                 sum_length = 0
@@ -221,7 +232,7 @@ def translate_text_list(
                     sections=sections, force=force, debug=debug, max_text_length=max_text_length,
                     max_text_list_length=max_text_list_length, max_tries=max_tries,
                     max_processing_time_s=max_processing_time_s, delay_retry=delay_retry,
-                    mapping_from_input_to_original=None
+                    mapping_from_input_to_original=None, no_cache=no_cache
                 )
                 if translated_text_part is None:
                     return None
@@ -237,7 +248,13 @@ def translate_text_list(
     )
     task_result = call_async_endpoint(
         endpoint='/translation/translate',
-        json={"text": text_to_translate, "source": source_language, "target": target_language, "force": force},
+        json={
+            "text": text_to_translate,
+            "source": source_language,
+            "target": target_language,
+            "force": force,
+            "no_cache": no_cache
+        },
         login_info=login_info,
         token=f'{source_language} text ({total_text_length} characters in {len(text_to_translate)} elements)',
         output_type=target_language + ' translation',
@@ -271,7 +288,7 @@ def translate_text_list(
             cleaned_texts, source_language, target_language, login_info, sections=sections,
             force=True, debug=debug, max_text_length=max_text_length, max_text_list_length=max_text_list_length,
             max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry,
-            mapping_from_input_to_original=mapping_from_cleaned_to_original
+            mapping_from_input_to_original=mapping_from_cleaned_to_original, no_cache=no_cache
         )
     n_results = len(task_result['result'])
     if n_results != len(text_to_translate):
@@ -285,7 +302,7 @@ def translate_text_list(
                 cleaned_texts, source_language, target_language, login_info, sections=sections,
                 force=True, debug=debug, max_text_length=max_text_length, max_text_list_length=max_text_list_length,
                 max_tries=max_tries, max_processing_time_s=max_processing_time_s, delay_retry=delay_retry,
-                mapping_from_input_to_original=mapping_from_cleaned_to_original
+                mapping_from_input_to_original=mapping_from_cleaned_to_original, no_cache=no_cache
             )
         else:
             raise RuntimeError(
