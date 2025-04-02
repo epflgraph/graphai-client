@@ -37,7 +37,7 @@ def embed_text(
 def embed_text_str(
         text: str, login_info: dict, model: str = None, force=False, sections=('GRAPHAI', 'EMBEDDING'),
         max_text_length=None, debug=False, quiet=False, max_tries=5, max_processing_time_s=600,
-        split_characters=('\n', '.', ';', ',', ' '), max_text_list_length=20000
+        split_characters=('\n', '.', ';', ',', ' '), max_text_list_length=20000, no_cache=False
 ) -> Optional[List[float]]:
     """
     Embed text using the specified model.
@@ -55,6 +55,7 @@ def embed_text_str(
     :param max_processing_time_s: maximum number of seconds to perform the text extraction.
     :param split_characters: list of characters ordered by priority (first=highest prio.) where the text can be split.
     :param max_text_list_length: the maximum cumulative length of the text list before the list is split.
+    :param no_cache: if True, caching will be skipped. Set to True for sensitive data. False by default.
     :return: the embedding as a list of float.
     """
     text_length = len(text)
@@ -71,10 +72,10 @@ def embed_text_str(
             max_text_length=max_text_length, debug=debug, max_tries=max_tries,
             max_processing_time_s=max_processing_time_s, split_characters=split_characters,
             mapping_from_input_to_original={i: 0 for i in range(len(text_portions))},
-            num_output=1, max_text_list_length=max_text_list_length
+            num_output=1, max_text_list_length=max_text_list_length, no_cache=no_cache
         )
         return array(embedding_portions)[0]
-    json_data = {"text": text, "force": force}
+    json_data = {"text": text, "force": force, "no_cache": no_cache}
     if model:
         json_data["model_type"] = model
     output_type = 'embedding'
@@ -108,7 +109,8 @@ def embed_text_str(
             return embed_text_str(
                 text, login_info=login_info, model=model, force=force, sections=sections,
                 max_text_length=max_text_length, debug=debug, quiet=quiet, max_tries=max_tries,
-                max_processing_time_s=max_processing_time_s, split_characters=split_characters
+                max_processing_time_s=max_processing_time_s, split_characters=split_characters,
+                no_cache=no_cache
             )
         return loads(task_result['result'])
     except JSONDecodeError as e:
@@ -133,7 +135,8 @@ def embed_text_list(
         list_of_texts: List[Optional[str]], login_info: dict, model: str = None, force=False,
         max_text_length=None, debug=False, max_tries=5, max_processing_time_s=600, quiet=False,
         split_characters=('\n', '.', ';', ',', ' '), mapping_from_input_to_original: Optional[Dict[int, int]] = None,
-        num_output: Optional[int] = None, max_text_list_length: Optional[int] = 20000, sections=('GRAPHAI', 'EMBEDDING')
+        num_output: Optional[int] = None, max_text_list_length: Optional[int] = 20000, sections=('GRAPHAI', 'EMBEDDING'),
+        no_cache: bool = False
 ) -> Optional[List[Optional[List[float]]]]:
     """
     Embed text using the specified model.
@@ -155,6 +158,7 @@ def embed_text_list(
         or by the number of input.
     :param max_text_list_length: if not None, the list will be split in chunks where the total number of characters
     do not exceed that value. The list is then reformed after embedding.
+    :param no_cache: if True, caching will be skipped. Set to True for sensitive data. False by default.
     :return: the embedding as a list of float.
     """
     if mapping_from_input_to_original is None and num_output is None:
@@ -175,7 +179,7 @@ def embed_text_list(
                     text_list_split[0], login_info, model=model, sections=sections,
                     force=force, debug=debug, max_text_length=max_text_length,
                     max_tries=max_tries, max_processing_time_s=max_processing_time_s,
-                    max_text_list_length=max_text_list_length
+                    max_text_list_length=max_text_list_length, no_cache=no_cache
                 )
                 embeddings.append(embedding_list_elem)
             else:
@@ -184,7 +188,7 @@ def embed_text_list(
                     force=force, debug=debug, max_text_length=max_text_length,
                     max_tries=max_tries, max_processing_time_s=max_processing_time_s,
                     mapping_from_input_to_original=None, num_output=len(text_list_split),
-                    max_text_list_length=max_text_list_length
+                    max_text_list_length=max_text_list_length, no_cache=no_cache
                 )
                 if embedding_list_split is None:
                     raise RuntimeError(f'failed to embed the following text list: {text_list_split}')
@@ -209,7 +213,7 @@ def embed_text_list(
     assert total_text_length == sum(length_of_texts_to_embed)
     task_result = call_async_endpoint(
         endpoint='/embedding/embed',
-        json={"text": texts_to_embed, "force": force},
+        json={"text": texts_to_embed, "force": force, "no_cache": no_cache},
         login_info=login_info,
         token=f'text ({total_text_length} characters in {len(texts_to_embed)} elements)',
         output_type='embeddings',
@@ -249,7 +253,7 @@ def embed_text_list(
             force=force, debug=debug, max_text_length=max_text_length,
             max_tries=max_tries, max_processing_time_s=max_processing_time_s,
             mapping_from_input_to_original=None, num_output=len(text_list_too_long),
-            max_text_list_length=max_text_list_length
+            max_text_list_length=max_text_list_length, no_cache=no_cache
         )
         result = [
             loads(task_result[ok_idx]['result']) if ok_idx not in indices_text_too_long
@@ -273,7 +277,7 @@ def embed_text_list(
                 force=True, debug=debug, max_text_length=max_text_length,
                 max_tries=max_tries, max_processing_time_s=max_processing_time_s,
                 mapping_from_input_to_original=mapping_from_cleaned_to_original, num_output=num_output,
-                max_text_list_length=max_text_list_length
+                max_text_list_length=max_text_list_length, no_cache=no_cache
             )
         else:
             raise RuntimeError(
