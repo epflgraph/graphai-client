@@ -138,3 +138,7 @@ get_video_info_on_rcp(
     graph_api_json='config/graphai-api.json', piper_mysql_json_file='config/piper_db.json'
 )
 ```
+
+## License
+
+This project is licensed under the [Apache License 2.0](./LICENSE).
