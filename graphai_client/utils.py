@@ -615,7 +615,7 @@ def get_video_id_and_platform(video_url):
         video_url = video_url[8:]
     if video_url.startswith('www.'):
         video_url = video_url[4:]
-    if video_url.startswith('api.cast.switch.ch/'):
+    if video_url.startswith('api.cast.switch.ch/') or video_url.startswith('vod.kaltura.switch.ch/'):
         video_id, = findall(r'/entryId/(0_\w{8})/', video_url)
         video_host = 'mediaspace'
     elif video_url.startswith('tube.switch.ch/external/'):
