@@ -159,7 +159,8 @@ def extract_audio(
 
 def extract_slides(
         video_token: str, login_info: dict, recalculate_cached=False, force=False,
-        max_tries=5, max_processing_time_s=6000, sections=('GRAPHAI', 'EXTRACT SLIDES'), debug=False
+        max_tries=5, max_processing_time_s=6000, sections=('GRAPHAI', 'EXTRACT SLIDES'), debug=False,
+        hash_thresh=0.95, multiplier=5, default_threshold=0.05, include_first=True, include_last=True
 ) -> Optional[dict]:
     """
     Extract slides from a video. Slides are defined as a times in a video where there is a significant visual change.
@@ -172,12 +173,24 @@ def extract_slides(
     :param debug: if True additional information about each connection to the API is displayed.
     :param max_tries: the number of tries before giving up.
     :param max_processing_time_s: maximum number of seconds to extract slides from the video.
+    :param hash_thresh: Maximum hash similarity at which two images are not considered identical
+    :param multiplier: Multiplier for noise level calculation
+    :param default_threshold: Default noise level when calculation does not yield a result
+    :param include_first: Whether to force-include the first frame as a slide
+    :param include_last: Whether to force-include the last frame as a slide
     :return: A dictionary with slide number as a string for keys and a dictionary with slide token and timestamp as
         values if successful, None otherwise.
     """
+    parameters = dict(
+        hash_thresh=hash_thresh,
+        multiplier=multiplier,
+        default_threshold=default_threshold,
+        include_first=include_first,
+        include_last=include_last
+    )
     task_result = call_async_endpoint(
         endpoint='/video/detect_slides',
-        json={"token": video_token, "recalculate_cached": recalculate_cached, "force": force},
+        json={"token": video_token, "recalculate_cached": recalculate_cached, "force": force, "parameters": parameters},
         login_info=login_info,
         token=video_token,
         output_type='slides',
