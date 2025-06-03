@@ -6,12 +6,17 @@ Setup
 =====
 Installation
 ------------
+You can install the latest version on PyPI using pip:
+```bash
+pip install graphai-client
+```
+Alternatively, you could install it (editable or otherwise) from the git repo:
 
-To install `graphai-client` you can use pip from the git repository:
+Standard:
 ```bash
 pip install git+https://github.com/epflgraph/graphai-client.git
 ```
-Alternatively, installation in editable mode is also possible with pip version >= 21.3:
+Editable (with pip version >= 21.3):
 ```bash
 pip install -e git+https://github.com/epflgraph/graphai-client.git
 ```
