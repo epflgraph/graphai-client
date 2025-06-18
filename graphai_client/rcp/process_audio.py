@@ -24,7 +24,7 @@ short_to_language = {v: k for k, v in language_to_short.items()}
 def process_audio_on_rcp(
         videos_platform_and_id: List[Tuple[str, str]], piper_mysql_json_file=None, graph_api_json=None,
         destination_languages=('fr', 'en'), force=False, force_download=False, debug=False,
-        sections=('GRAPHAI', 'TRANSCRIBE')
+        ignore_existing_subtitles=False, sections=('GRAPHAI', 'TRANSCRIBE')
 ):
     login_info = login(graph_api_json)
     with get_piper_connection(piper_mysql_json_file) as piper_connection:
@@ -38,7 +38,7 @@ def process_audio_on_rcp(
             subtitles = None
             audio_language = 'NA'
             audio_fingerprint = None
-            if platform == 'mediaspace':
+            if platform == 'mediaspace' and not ignore_existing_subtitles:
                 subtitles = get_subtitles_from_kaltura(
                     video_id, login_info, piper_connection=piper_connection, force=force,
                     destination_languages=destination_languages, debug=debug
@@ -249,6 +249,8 @@ if __name__ == '__main__':
     executable_name = sys.argv.pop(0)
     force_str = sys.argv.pop(0)
     force = force_str.lower() == 'true'
+    ignore_existing_subtitles_str = sys.argv.pop(0)
+    ignore_existing_subtitles = ignore_existing_subtitles_str.lower() == 'true'
     if len(sys.argv) % 2 != 0:
         raise ValueError('You must give a platform and an id for each video you want to process')
     videos_platform_and_id = []
@@ -265,7 +267,7 @@ if __name__ == '__main__':
     piper_mysql_json_file = join(config_dir, "piper_db.json")
     graphai_json_file = join(config_dir, "graphai-api.json")
     process_audio_on_rcp(
-        videos_platform_and_id, force=force,
+        videos_platform_and_id, force=force, ignore_existing_subtitles=ignore_existing_subtitles,
         piper_mysql_json_file=piper_mysql_json_file, graph_api_json=graphai_json_file
     )
 
