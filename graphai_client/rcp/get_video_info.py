@@ -146,9 +146,26 @@ def get_video_info_on_rcp(
                     color='yellow', sections=list(sections) + ['SUCCESS']
                 )
             elif video_details:
+                video_changed = False
                 for k, v in video_details.items():
                     if previous_processing_info.get(k, None) is None:
                         previous_processing_info[k] = v
+                    elif previous_processing_info[k] != v:
+                        previous_processing_info[k] = v
+                        video_changed = True
+                if video_changed:
+                    status_msg(
+                        f'The video {video_id} on {platform} changed, '
+                        f'so we update the metadata and remove old fingerprints.',
+                        color='yellow', sections=list(sections) + ['SUCCESS']
+                    )
+                    previous_processing_info['video_token'] = None
+                    previous_processing_info['audio_fingerprint'] = None
+                    previous_processing_info['slides_detection_time'] = None
+                    previous_processing_info['slides_translation_time'] = None
+                    previous_processing_info['audio_transcription_time'] = None
+                    previous_processing_info['slides_concept_extract_time'] = None
+                    previous_processing_info['subtitles_concept_extract_time'] = None
             register_processed_video(piper_connection, platform, video_id, previous_processing_info)
             piper_connection.commit()
 
