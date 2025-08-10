@@ -37,7 +37,7 @@ def embed_text(
 def embed_text_str(
         text: str, login_info: dict, model: str = None, force=False, sections=('GRAPHAI', 'EMBEDDING'),
         max_text_length=None, debug=False, quiet=False, max_tries=5, max_processing_time_s=600,
-        split_characters=('\n', '.', ';', ',', ' '), max_text_list_length=20000, no_cache=False
+        split_characters=('\n', '.', ';', ',', ' ', '$'), max_text_list_length=20000, no_cache=False
 ) -> Optional[List[float]]:
     """
     Embed text using the specified model.
