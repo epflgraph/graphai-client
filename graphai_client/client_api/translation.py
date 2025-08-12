@@ -5,9 +5,9 @@ from graphai_client.client_api.utils import (
     recombine_split_list_of_texts, status_msg
 )
 
-MIN_TEXT_LENGTH = 500
+MIN_TEXT_LENGTH = 400
 DEFAULT_MAX_TEXT_LENGTH_IF_TEXT_TOO_LONG = 4000
-STEP_AUTO_DECREASE_TEXT_LENGTH = 200
+STEP_AUTO_DECREASE_TEXT_LENGTH = 800
 
 
 def translate_text(
@@ -57,7 +57,7 @@ def translate_text(
 def translate_text_str(
         text: str, source_language, target_language, login_info,
         sections=('GRAPHAI', 'TRANSLATE'), force=False, debug=False, max_text_length=None, max_text_list_length=20000,
-        max_tries=5, max_processing_time_s=3600, delay_retry=1, no_cache=False
+        max_tries=5, max_processing_time_s=3600, delay_retry=1, no_cache=False, clean_and_segment=False
 ) -> Optional[str]:
     """
     Translate the input text from the source language to the target language.
@@ -101,7 +101,8 @@ def translate_text_str(
             "source": source_language,
             "target": target_language,
             "force": force,
-            "no_cache": no_cache
+            "no_cache": no_cache,
+            "clean_and_segment": clean_and_segment
         },
         login_info=login_info,
         token=f'{source_language} text ({len(text)} characters)',
@@ -140,7 +141,7 @@ def translate_text_list(
         max_tries=5, max_processing_time_s=3600, delay_retry=1,
         mapping_from_input_to_original: Optional[Dict[int, int]] = None,
         num_output: Optional[int] = None,
-        no_cache: bool = False
+        no_cache: bool = False, clean_and_segment=False
 ) -> Optional[list]:
     """
     Translate the list of text from the sourc
@@ -253,7 +254,8 @@ def translate_text_list(
             "source": source_language,
             "target": target_language,
             "force": force,
-            "no_cache": no_cache
+            "no_cache": no_cache,
+            "clean_and_segment": clean_and_segment
         },
         login_info=login_info,
         token=f'{source_language} text ({total_text_length} characters in {len(text_to_translate)} elements)',
