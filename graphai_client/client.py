@@ -17,7 +17,7 @@ from graphai_client.client_api.translation import translate_text
 def process_video(
         video_url, force=False, force_download=False, audio_language=None, slides_language=None,
         detect_audio_language=False, analyze_audio=True, analyze_slides=True, destination_languages=('fr', 'en'),
-        graph_api_json=None, login_info=None, debug=False, google_api_token: str = None
+        graph_api_json=None, login_info=None, debug=False, ocr_model='google', google_api_token: str = None
 ):
     """
     Process the video whose URL is given as argument.
@@ -39,6 +39,7 @@ def process_video(
     :param login_info: dictionary with login information, typically return by graphai.client_api.login(graph_api_json)
         If not set, a login will be performed to populate it using the info from graph_api_json.
     :param debug: if True additional information about each connection to the API is displayed.
+    :param ocr_model: which OCR model to use. Default is 'google' (paid service).
     :param google_api_token: the google API token charged for the use of the OCR.
     :return: a dictionary containing the results ot the processing.
     """
@@ -55,7 +56,7 @@ def process_video(
         if 'video' in codec_types:
             slides_language, slides = process_slides(
                 video_token, login_info, force=force, slides_language=slides_language,
-                destination_languages=destination_languages, debug=debug, google_api_token=google_api_token
+                destination_languages=destination_languages, debug=debug, ocr_model=ocr_model, google_api_token=google_api_token
             )
         else:
             slides_language = 'NA'
@@ -92,7 +93,7 @@ def process_video(
 
 def process_slides(
         video_token, login_info, force=False, slides_language=None, destination_languages=('fr', 'en'), debug=False,
-        google_api_token: str = None
+        ocr_model='google', google_api_token: str = None
 ):
     """
     Extract slides from a video, perform OCR and translate the text.
@@ -104,6 +105,7 @@ def process_slides(
     :param destination_languages: tuple of target languages. Perform translations if needed.
         Translation is skipped if set to None
     :param debug: if True debug output is enabled.
+    :param ocr_model: which OCR model to use. Default is 'google' (paid service).
     :param google_api_token: the Google API token charged for the use of the OCR.
     :return: a 2-tuple containing first the language detected by the OCR (or forced by slides_language) and
         second a dictionary containing the result of the processing.
@@ -119,7 +121,7 @@ def process_slides(
         )
         slides_text = extract_text_from_slides(
             slide_tokens, login_info, force=force, slides_language=slides_language, debug=debug,
-            google_api_token=google_api_token
+            ocr_model=ocr_model, google_api_token=google_api_token
         )
         if slides_language is None and len(slides_text) > 0:
             # single language statistically determined in extract_text_from_slides(), so we can just get the 1st result
@@ -137,7 +139,7 @@ def process_slides(
                 color='yellow', sections=['GRAPHAI', 'EXTRACT TEXT FROM SLIDES', 'WARNING']
             )
             slides_text = extract_text_from_slides(
-                slide_tokens, login_info, force=force, slides_language='en', debug=debug,
+                slide_tokens, login_info, force=force, slides_language='en', debug=debug, ocr_model=ocr_model,
                 google_api_token=google_api_token
             )
             slides_language = 'en'
@@ -309,7 +311,7 @@ def get_video_information_from_streams(streams):
 
 def extract_text_from_slides(
         slide_tokens: dict, login_info: dict, force=False, slides_language=None, debug=False, quiet=False,
-        google_api_token: str = None
+        ocr_model='google', google_api_token: str = None
 ):
     """
     Extract text (using google OCR) from the slides extracted with extract_slides().
@@ -321,6 +323,7 @@ def extract_text_from_slides(
         value is used instead.
     :param debug: if True debug output is enabled.
     :param quiet: disable success status messages.
+    :param ocr_model: which OCR model to use. Default is 'google' (paid service).
     :param google_api_token: the google API token charged for the use of the OCR.
     :return: a list of dictionaries with the timestamp and text of the slides. The detected language is used as key
         for the extracted text in each dictionary.
@@ -337,7 +340,7 @@ def extract_text_from_slides(
         slide_timestamp = slide_token_dict['timestamp']
         slide_text = extract_text_from_slide(
             slide_token, login_info, force=force, sections=('GRAPHAI', 'OCR', f'SLIDE {slide_index_str}/{n_slide}'),
-            debug=debug, quiet=quiet, google_api_token=google_api_token
+            debug=debug, quiet=quiet, ocr_model=ocr_model, google_api_token=google_api_token
         )
         slides_text.append(slide_text)
         slides_timestamp.append(slide_timestamp)
