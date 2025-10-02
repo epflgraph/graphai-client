@@ -423,7 +423,7 @@ def _get_response(
             #     msg += f' with headers "{headers}"'
             if json is not None:
                 msg += f' with json data "{json}"'
-            print(msg)
+            # print(msg)
         try:
             response = request_func(url, headers=headers, json=json, data=data, timeout=timeout)
         except Exception as e:

@@ -5,7 +5,7 @@ from graphai_client.utils import get_google_api_credentials
 
 def extract_text_from_slide(
         slide_token: str, login_info: dict, force=False, sections=('GRAPHAI', 'OCR'), debug=False, quiet=False,
-        max_tries=5, max_processing_time_s=600, google_api_token: str = None,
+        max_tries=5, max_processing_time_s=600, ocr_model='google', google_api_token: str = None,
 ) -> Optional[dict[str, str]]:
     """
     extract text (using google OCR) from a single slide
@@ -22,13 +22,13 @@ def extract_text_from_slide(
     :return: a dictionary with the text extracted as value of the 'text' key and the detected language as value of the
         'language' key if successful, None otherwise.
     """
-    if google_api_token is None:
+    if ocr_model=='google' and google_api_token is None:
         google_api_token = get_google_api_credentials(service_name='vision').get('developerKey', None)
-    if google_api_token is None:
+    if ocr_model=='google' and google_api_token is None:
         raise RuntimeError('please provide a google_api_token enabled for the vision service')
     task_result = call_async_endpoint(
         endpoint='/image/extract_text',
-        json={"token": slide_token, "method": "google", "force": force, "google_api_token": google_api_token},
+        json={"token": slide_token, "method": ocr_model, "force": force, "google_api_token": google_api_token},
         login_info=login_info,
         token=slide_token,
         output_type='text',
