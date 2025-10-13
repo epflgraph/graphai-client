@@ -425,7 +425,7 @@ def translate_extracted_text(
 
 
 def translate_subtitles(
-        segments: list, login_info: dict, source_language=None, destination_languages=('fr', 'en'),
+        segments: list, login_info: dict, source_language=None, destination_languages=('fr', 'en'), text_key=None,
         force=False, debug=False
 ):
     n_segment = len(segments)
@@ -444,9 +444,13 @@ def translate_subtitles(
             raise ValueError(
                 f'could not determine the language used in most of the segments. The count is: {language_segments}'
             )
-    text_to_translate = [seg[source_language].replace('\n', ' ') for seg in segments]
+    if text_key is None:
+        text_key = source_language
+    text_to_translate = [seg[text_key].replace('\n', ' ') for seg in segments]
     for lang in destination_languages:
-        if source_language != lang:
+        if source_language == lang:
+            translated_text = text_to_translate
+        else:
             translated_text = translate_text(
                 text_to_translate, source_language, lang, login_info, sections=sections, force=force, debug=debug
             )
@@ -461,14 +465,14 @@ def translate_subtitles(
                     f'the translation has a different length: {translated_text}',
                     color='yellow', sections=list(sections) + ['WARNING']
                 )
-            elif len(text_to_translate) == 1 and isinstance(translated_text, str):
-                segments[0][lang] = translated_text
-            else:
-                for idx, translated_segment in enumerate(translated_text):
-                    if translated_segment is None:
-                        segments[idx][lang] = None
-                    else:
-                        segments[idx][lang] = translated_segment.strip()
+        if len(text_to_translate) == 1 and isinstance(translated_text, str):
+            segments[0][lang] = translated_text
+        else:
+            for idx, translated_segment in enumerate(translated_text):
+                if translated_segment is None:
+                    segments[idx][lang] = None
+                else:
+                    segments[idx][lang] = translated_segment.strip()
     return segments
 
 
