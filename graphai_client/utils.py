@@ -615,34 +615,38 @@ def get_video_id_and_platform(video_url):
         video_url = video_url[8:]
     if video_url.startswith('www.'):
         video_url = video_url[4:]
-    if (
+    try:
+        if (
             video_url.startswith('api.cast.switch.ch/')
             or video_url.startswith('vod.kaltura.switch.ch/')
             or video_url.startswith('api.kaltura.switch.ch/')
-    ):
-        video_id, = findall(r'/entryId/(0_\w{8})/', video_url)
-        video_host = 'mediaspace'
-    elif video_url.startswith('tube.switch.ch/external/'):
-        video_id, = findall(r'^tube.switch.ch/external/(\w{8,10})(?:$|/)', video_url)
-        video_host = 'switchtube (external)'
-    elif video_url.startswith('tube.switch.ch/download/'):
-        video_id, = findall(r'^tube.switch.ch/download/video/(\w{8,10})(?:$|/)', video_url)
-        video_host = 'switchtube'
-    elif video_url.startswith('tube.switch.ch/videos/'):
-        video_id, = findall(r'^tube.switch.ch/videos/(\w{8,10})(?:$|/)', video_url)
-        video_host = 'switchtube'
-    elif video_url.startswith('youtube.com'):
-        video_id, = findall(r'^youtube.com/watch\?v=([\-\w]{11})(?:$|\?)', video_url)
-        video_host = 'youtube'
-    elif video_url.startswith('youtu.be'):
-        video_id, = findall(r'^youtu.be/([\-\w]{11})(?:$|\?)', video_url)
-        video_host = 'youtube'
-    elif video_url.startswith('coursera.org/'):
-        video_id, = findall(r'^coursera.org/learn/[^/]+/lecture/(\w{5})(?:$|/)', video_url)
-        video_host = 'coursera'
-    else:
-        video_host = None
-        video_id = None
+        ):
+            video_id, = findall(r'/entryId/(0_\w{8})/', video_url)
+            video_host = 'mediaspace'
+        elif video_url.startswith('tube.switch.ch/external/'):
+            video_id, = findall(r'^tube.switch.ch/external/(\w{8,10})(?:$|/)', video_url)
+            video_host = 'switchtube (external)'
+        elif video_url.startswith('tube.switch.ch/download/'):
+            video_id, = findall(r'^tube.switch.ch/download/video/(\w{8,10})(?:$|/)', video_url)
+            video_host = 'switchtube'
+        elif video_url.startswith('tube.switch.ch/videos/'):
+            video_id, = findall(r'^tube.switch.ch/videos/(\w{8,10})(?:$|/)', video_url)
+            video_host = 'switchtube'
+        elif video_url.startswith('youtube.com'):
+            video_id, = findall(r'^youtube.com/watch\?v=([\-\w]{11})(?:$|\?)', video_url)
+            video_host = 'youtube'
+        elif video_url.startswith('youtu.be'):
+            video_id, = findall(r'^youtu.be/([\-\w]{11})(?:$|\?)', video_url)
+            video_host = 'youtube'
+        elif video_url.startswith('coursera.org/'):
+            video_id, = findall(r'^coursera.org/learn/[^/]+/lecture/(\w{5})(?:$|/)', video_url)
+            video_host = 'coursera'
+        else:
+            video_host = None
+            video_id = None
+    except ValueError:
+        print(f'WARNING: could not parse video url {video_url} to get its platform and id.')
+        return None, None
     return video_id, video_host
 
 
