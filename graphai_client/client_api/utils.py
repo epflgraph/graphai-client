@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from requests import get, post, Response
 from termcolor import cprint
 from typing import Callable, Dict, Optional, Tuple, List
+from json import JSONDecodeError
 
 
 def call_async_endpoint(
@@ -469,10 +470,16 @@ def _get_response(
             if status_code == 500:
                 uuid_regexp = r'([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})'
                 url_status_match = fullmatch(r'(:?https?://)?(.*)/status/' + uuid_regexp + r'/?', url)
+                task_info = None
                 if url_status_match:
                     protocol, endpoint, task_uuid = url_status_match.groups()
                     flower_api_response = get('http://127.0.0.1:5555/api/task/info/' + task_uuid, timeout=10)
-                    task_info = flower_api_response.json()
+                    task_info_response = flower_api_response
+                    if task_info_response:
+                        try:
+                            task_info = task_info_response.json()
+                        except JSONDecodeError:
+                            task_info = task_info_response.text
                 else:
                     # we get info about the latest failed task
                     tasks_response = get('http://127.0.0.1:5555/api/tasks', timeout=30)
@@ -480,8 +487,6 @@ def _get_response(
                     tasks_info = sorted(failed_tasks, key=lambda t: t['timestamp'], reverse=True)
                     if len(tasks_info) > 0:
                         task_info = tasks_info[0]
-                    else:
-                        task_info = None
                 if task_info:
                     msg = f'Task {task_info["uuid"]} is in state {task_info["state"]} '
                     if task_info['exception']:
